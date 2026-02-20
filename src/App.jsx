@@ -11,6 +11,7 @@ import Register from './pages/auth/Register';
 const DashboardLayout      = lazy(() => import('./components/layout/DashboardLayout'));
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
+const StaffManagement      = lazy(() => import('./pages/school/StaffManagement'));
 const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
 const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
 const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
@@ -137,8 +138,8 @@ const App = () => {
         }
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
-        <Route path="teachers" element={<PlaceholderPage title="Data Guru"      role="Admin Sekolah" />} />
-        <Route path="students" element={<PlaceholderPage title="Data Siswa"     role="Admin Sekolah" />} />
+        <Route path="teachers" element={<Lazy><StaffManagement /></Lazy>} />
+        <Route path="students" element={<Lazy><StaffManagement /></Lazy>} />
         <Route path="subjects" element={<PlaceholderPage title="Mata Pelajaran" role="Admin Sekolah" />} />
       </Route>
 
