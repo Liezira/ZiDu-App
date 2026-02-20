@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import {
   Mail,
@@ -47,8 +46,6 @@ const Login = () => {
     return () => window.removeEventListener('resize', handle);
   }, []);
 
-  const { loading: authLoading } = useAuth();
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -59,15 +56,13 @@ const Login = () => {
         password: formData.password,
       });
       if (error) throw error;
-      // Sukses: jangan setLoading(false) — biarkan AuthContext fetchProfile dulu
-      // Spinner tetap tampil sampai AuthContext selesai & App redirect ke dashboard
-      return;
     } catch (error) {
       setErrorMsg(
         error.message === 'Invalid login credentials'
           ? 'Email atau password salah. Coba lagi.'
           : error.message
       );
+    } finally {
       setLoading(false);
     }
   };

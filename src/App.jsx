@@ -104,11 +104,11 @@ const App = () => {
         {/* --- AUTHENTICATION ROUTES --- */}
         <Route
           path="/login"
-          element={loading ? null : (!user ? <Login /> : <Navigate to="/" replace />)}
+          element={!user ? <Login /> : <Navigate to="/" />}
         />
         <Route
           path="/register"
-          element={loading ? null : (!user ? <Register /> : <Navigate to="/" replace />)}
+          element={!user ? <Register /> : <Navigate to="/" />}
         />
 
         {/* --- 1. SUPER ADMIN (OWNER) ROUTES --- */}
