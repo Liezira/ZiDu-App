@@ -11,6 +11,8 @@ import Register from './pages/auth/Register';
 const DashboardLayout      = lazy(() => import('./components/layout/DashboardLayout'));
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
+const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
 const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
 const GlobalAnalytics      = lazy(() => import('./pages/admin/GlobalAnalytics'));
 
@@ -149,7 +151,7 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index            element={<PlaceholderPage title="Dashboard Guru" role="Guru" />} />
+        <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
         <Route path="questions" element={<PlaceholderPage title="Bank Soal"      role="Guru" />} />
         <Route path="exams"     element={<PlaceholderPage title="Kelola Ujian"   role="Guru" />} />
         <Route path="grades"    element={<PlaceholderPage title="Rekap Nilai"    role="Guru" />} />
@@ -164,7 +166,7 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index          element={<PlaceholderPage title="Ruang Ujian"   role="Siswa" />} />
+        <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />} />
       </Route>
 
