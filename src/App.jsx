@@ -11,6 +11,7 @@ import Register from './pages/auth/Register';
 const DashboardLayout      = lazy(() => import('./components/layout/DashboardLayout'));
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
+const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -119,7 +120,7 @@ const App = () => {
         }
       >
         <Route index           element={<Lazy><SuperAdminDashboard /></Lazy>} />
-        <Route path="schools"   element={<PlaceholderPage title="Manajemen Sekolah" role="Super Admin" />} />
+        <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
         <Route path="analytics" element={<PlaceholderPage title="Analitik Global"   role="Super Admin" />} />
       </Route>
 
