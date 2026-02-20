@@ -8,121 +8,68 @@ import {
 import { useAuth } from './contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
+// =====================================================================
+// PENTING DI STACKBLITZ:
+// Kita import Login & Register dulu. Jika file belum ada, buat file kosong
+// bernama Login.jsx dan Register.jsx di folder src/pages/auth/
+// =====================================================================
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import DashboardLayout from './components/layout/DashboardLayout';
 
-// ── Dashboard Pages ──────────────────────────────────────────────
-import SuperAdminDashboard from './pages/admin/SuperAdminDashboard';
-import SchoolAdminDashboard from './pages/school/SchoolAdminDashboard';
-
-// ── Placeholder (untuk halaman yang belum dibuat) ─────────────────
+// Komponen Dummy agar routing bisa berjalan sebelum Layout asli kita buat
 const PlaceholderPage = ({ title, role }) => (
-  <div
-    style={{
-      minHeight: '60vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '32px',
-    }}
-  >
-    <div
-      style={{
-        background: '#fff',
-        padding: '40px',
-        borderRadius: '16px',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-        textAlign: 'center',
-        maxWidth: '400px',
-        width: '100%',
-      }}
-    >
-      <div
-        style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '16px',
-          background: '#EEF2FF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 20px',
-          fontSize: '24px',
-        }}
-      >
-        📋
-      </div>
-      <h1
-        style={{
-          fontSize: '20px',
-          fontWeight: '700',
-          color: '#0f172a',
-          marginBottom: '8px',
-          fontFamily: 'Sora, sans-serif',
-        }}
-      >
-        {title}
-      </h1>
-      <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '6px' }}>
-        Login sebagai: <strong style={{ color: '#4F46E5' }}>{role}</strong>
+  <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+    <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">{title}</h1>
+      <p className="text-gray-500">
+        Anda login sebagai:{' '}
+        <span className="font-bold text-primary-600">{role}</span>
       </p>
-      <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '12px' }}>
-        Halaman sedang dalam pengembangan...
+      <p className="text-sm mt-4 text-gray-400">
+        Layout & Halaman sedang dalam tahap pengembangan...
       </p>
+      <button
+        onClick={() => (window.location.href = '/')}
+        className="mt-6 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+      >
+        Refresh Status
+      </button>
     </div>
   </div>
 );
 
-// ── Protected Route ───────────────────────────────────────────────
+// --- KOMPONEN KEAMANAN (SECURITY GUARD) ---
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { user, profile, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
-  if (!profile || !allowedRoles.includes(profile.role))
+
+  if (loading) return null; // Loading ditangani oleh App utama
+
+  // 1. Jika belum login, tendang ke halaman login
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // 2. Jika role tidak sesuai (misal Siswa maksa masuk link /teacher), tendang ke 403
+  if (!profile || !allowedRoles.includes(profile.role)) {
     return <Navigate to="/unauthorized" replace />;
+  }
+
+  // 3. Pengecekan Masa Aktif Sekolah (Sesuai Visi SaaS Anda)
+  // Super Admin kebal dari aturan ini
   if (profile.role !== 'super_admin') {
     const status = profile.schools?.subscription_status;
-    const isActive = profile.schools?.is_active;
+    const isActive = profile.schools?.is_active; // Misal di-banned manual oleh owner
+
     if (status === 'suspended' || status === 'expired' || isActive === false) {
       return (
-        <div
-          style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#fef2f2',
-            padding: '32px',
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              padding: '40px',
-              borderRadius: '20px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
-              maxWidth: '400px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '56px', marginBottom: '16px' }}>⛔</div>
-            <h2
-              style={{
-                fontSize: '22px',
-                fontWeight: '700',
-                color: '#dc2626',
-                marginBottom: '12px',
-                fontFamily: 'Sora, sans-serif',
-              }}
-            >
+        <div className="min-h-screen flex items-center justify-center bg-error-50 p-4">
+          <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+            <h1 className="text-6xl mb-4">⛔</h1>
+            <h2 className="text-2xl font-bold text-error-600 mb-2">
               Akses Ditangguhkan
             </h2>
-            <p
-              style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}
-            >
+            <p className="text-gray-600 mb-6">
               Sistem sekolah Anda sedang ditangguhkan atau masa langganan telah
               habis. Silakan hubungi Administrator.
             </p>
@@ -131,65 +78,22 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
       );
     }
   }
+
   return children;
 };
 
-// ── Root Smart Redirect ───────────────────────────────────────────
-const RootRedirect = () => {
-  const { user, profile, loading } = useAuth();
-  if (loading) return null;
-  if (!user || !profile) return <Navigate to="/login" replace />;
-  switch (profile.role) {
-    case 'super_admin':
-      return <Navigate to="/admin" replace />;
-    case 'school_admin':
-      return <Navigate to="/school" replace />;
-    case 'teacher':
-      return <Navigate to="/teacher" replace />;
-    case 'student':
-      return <Navigate to="/student" replace />;
-    default:
-      return <Navigate to="/unauthorized" replace />;
-  }
-};
-
-// ── App ───────────────────────────────────────────────────────────
+// --- APP UTAMA ---
 const App = () => {
-  const { loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
+  // Layar Loading Utama saat baru buka website
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#f8fafc',
-        }}
-      >
-        <div
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            border: '3px solid #e0e7ff',
-            borderTopColor: '#4F46E5',
-            animation: 'spin 0.8s linear infinite',
-          }}
-        />
-        <p
-          style={{
-            marginTop: '16px',
-            fontSize: '14px',
-            color: '#94a3b8',
-            fontWeight: '500',
-          }}
-        >
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin text-primary-600 mb-4" size={40} />
+        <p className="text-gray-500 font-medium animate-pulse">
           Memuat ZiDu Workspace...
         </p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -197,12 +101,17 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        {/* ── AUTH ── */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/" element={<RootRedirect />} />
+        {/* --- AUTHENTICATION ROUTES --- */}
+        <Route
+          path="/login"
+          element={loading ? null : (!user ? <Login /> : <Navigate to="/" replace />)}
+        />
+        <Route
+          path="/register"
+          element={loading ? null : (!user ? <Register /> : <Navigate to="/" replace />)}
+        />
 
-        {/* ── SUPER ADMIN ── */}
+        {/* --- 1. SUPER ADMIN (OWNER) ROUTES --- */}
         <Route
           path="/admin"
           element={
@@ -211,22 +120,19 @@ const App = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<SuperAdminDashboard />} />
           <Route
-            path="schools"
+            index
             element={
-              <PlaceholderPage title="Manajemen Sekolah" role="Super Admin" />
+              <PlaceholderPage
+                title="Dashboard Super Admin"
+                role="Super Admin"
+              />
             }
           />
-          <Route
-            path="analytics"
-            element={
-              <PlaceholderPage title="Analitik Global" role="Super Admin" />
-            }
-          />
+          {/* Nanti kita tambah route /schools, /analytics di sini */}
         </Route>
 
-        {/* ── SCHOOL ADMIN ── */}
+        {/* --- 2. SCHOOL ADMIN (TU/OPERATOR) ROUTES --- */}
         <Route
           path="/school"
           element={
@@ -235,26 +141,18 @@ const App = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<SchoolAdminDashboard />} />
           <Route
-            path="teachers"
-            element={<PlaceholderPage title="Data Guru" role="Admin Sekolah" />}
-          />
-          <Route
-            path="students"
+            index
             element={
-              <PlaceholderPage title="Data Siswa" role="Admin Sekolah" />
-            }
-          />
-          <Route
-            path="subjects"
-            element={
-              <PlaceholderPage title="Mata Pelajaran" role="Admin Sekolah" />
+              <PlaceholderPage
+                title="Dashboard Admin Sekolah"
+                role="Admin Sekolah"
+              />
             }
           />
         </Route>
 
-        {/* ── TEACHER ── */}
+        {/* --- 3. TEACHER (GURU) ROUTES --- */}
         <Route
           path="/teacher"
           element={
@@ -265,7 +163,12 @@ const App = () => {
         >
           <Route
             index
-            element={<PlaceholderPage title="Beranda Guru" role="Guru" />}
+            element={
+              <PlaceholderPage
+                title="Dashboard Guru (Bank Soal & Ujian)"
+                role="Guru"
+              />
+            }
           />
           <Route
             path="questions"
@@ -275,13 +178,9 @@ const App = () => {
             path="exams"
             element={<PlaceholderPage title="Kelola Ujian" role="Guru" />}
           />
-          <Route
-            path="grades"
-            element={<PlaceholderPage title="Rekap Nilai" role="Guru" />}
-          />
         </Route>
 
-        {/* ── STUDENT ── */}
+        {/* --- 4. STUDENT (SISWA) ROUTES --- */}
         <Route
           path="/student"
           element={
@@ -292,72 +191,28 @@ const App = () => {
         >
           <Route
             index
-            element={<PlaceholderPage title="Ujian Saya" role="Siswa" />}
-          />
-          <Route
-            path="results"
-            element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />}
+            element={
+              <PlaceholderPage
+                title="Dashboard Siswa (Ruang Ujian)"
+                role="Siswa"
+              />
+            }
           />
         </Route>
 
-        {/* ── ERRORS ── */}
+        {/* --- ERROR ROUTES --- */}
         <Route
           path="/unauthorized"
           element={
-            <div
-              style={{
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#f8fafc',
-                textAlign: 'center',
-                padding: '32px',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '80px',
-                  fontWeight: '800',
-                  color: '#e2e8f0',
-                  fontFamily: 'Sora, sans-serif',
-                  lineHeight: 1,
-                }}
-              >
-                403
-              </div>
-              <h2
-                style={{
-                  fontSize: '22px',
-                  fontWeight: '700',
-                  color: '#0f172a',
-                  margin: '16px 0 8px',
-                  fontFamily: 'Sora, sans-serif',
-                }}
-              >
-                Akses Ditolak
-              </h2>
-              <p
-                style={{
-                  fontSize: '14px',
-                  color: '#64748b',
-                  marginBottom: '24px',
-                }}
-              >
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-center p-4">
+              <h1 className="text-display-lg text-gray-300 mb-2">403</h1>
+              <h2 className="text-h3 text-gray-800 mb-2">Akses Ditolak</h2>
+              <p className="text-gray-500 mb-6">
                 Anda mencoba masuk ke ruangan yang salah.
               </p>
               <a
                 href="/"
-                style={{
-                  padding: '10px 28px',
-                  background: '#4F46E5',
-                  color: '#fff',
-                  borderRadius: '10px',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
               >
                 Kembali ke Beranda
               </a>
@@ -365,7 +220,8 @@ const App = () => {
           }
         />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Tangkap URL ngawur (404) dan kembalikan ke Root */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );
