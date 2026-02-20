@@ -24,25 +24,26 @@ const setCache = (uid, data) => {
   } catch {}
 };
 
-const invalidateCache = (uid) => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (parsed.id === uid) {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, ts: 0 }));
-    }
-  } catch {}
+const clearCache = () => {
+  try { localStorage.removeItem(CACHE_KEY); } catch {}
 };
 
 // ── Provider ──────────────────────────────────────────────────────
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(null);
   const [profile, setProfile] = useState(null);
-  // loading = true saat: initial check ATAU sedang proses SIGNED_IN
   const [loading, setLoading] = useState(true);
-  const fetchingRef = useRef(false);
+
+  // Ref untuk track active mount dan mencegah state update setelah unmount
+  const activeRef      = useRef(true);
+  const fetchingRef    = useRef(false);
   const initializedRef = useRef(false);
+
+  // FIX: Simpan current user di ref agar SIGNED_OUT handler tidak pakai stale closure
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  useEffect(() => () => { activeRef.current = false; }, []);
 
   const fetchFromDB = useCallback(async (authUser) => {
     if (fetchingRef.current) return;
@@ -58,9 +59,7 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       if (!p) {
-        setUser(authUser);
-        setProfile(null);
-        setLoading(false);
+        if (activeRef.current) { setUser(authUser); setProfile(null); }
         return;
       }
 
@@ -68,7 +67,7 @@ export const AuthProvider = ({ children }) => {
       if (p.role !== 'super_admin' && p.school_id) {
         const { data: s } = await supabase
           .from('schools')
-          .select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers')
+          .select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers, is_active')
           .eq('id', p.school_id)
           .maybeSingle();
         school = s;
@@ -77,16 +76,12 @@ export const AuthProvider = ({ children }) => {
       const full = { ...p, schools: school };
       setCache(authUser.id, full);
 
-      // Set semua sekaligus sebelum setLoading(false)
-      // Supaya React render sekali dengan data lengkap → redirect langsung
-      setUser(authUser);
-      setProfile(full);
+      if (activeRef.current) { setUser(authUser); setProfile(full); }
     } catch (err) {
       console.error('fetchProfile error:', err.message);
-      setUser(authUser);
-      setProfile(null);
+      if (activeRef.current) { setUser(authUser); setProfile(null); }
     } finally {
-      setLoading(false);
+      if (activeRef.current) setLoading(false);
       fetchingRef.current = false;
     }
   }, []);
@@ -95,35 +90,31 @@ export const AuthProvider = ({ children }) => {
     if (!forceRefresh) {
       const cached = getCached(authUser.id);
       if (cached) {
-        // Cache hit → set SEMUA state sekaligus, loading false
-        // React batch update ini → satu render → redirect langsung
-        setUser(authUser);
-        setProfile(cached);
-        setLoading(false);
-        // Background refresh cache
+        if (activeRef.current) {
+          setUser(authUser);
+          setProfile(cached);
+          setLoading(false);
+        }
+        // Background refresh — tidak block UI
         setTimeout(() => fetchFromDB(authUser).catch(console.error), 200);
         return;
       }
     }
-    // Tidak ada cache → fetch DB, loading tetap true sampai selesai
     await fetchFromDB(authUser);
   }, [fetchFromDB]);
 
   useEffect(() => {
-    let active = true;
-
-    // Initial session check
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!active) return;
+        if (!activeRef.current) return;
         if (session?.user) {
           await fetchProfile(session.user);
         } else {
           setLoading(false);
         }
       } catch {
-        if (active) setLoading(false);
+        if (activeRef.current) setLoading(false);
       } finally {
         initializedRef.current = true;
       }
@@ -133,47 +124,46 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!active) return;
+        if (!activeRef.current) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          // Kalau init() belum selesai, skip — init() sudah handle
+          // Skip jika init() belum selesai — init() sudah handle
           if (!initializedRef.current) return;
-
-          // Set loading true dulu → App tahu sedang proses → tidak stuck di login page
           setLoading(true);
           await fetchProfile(session.user, false);
 
         } else if (event === 'SIGNED_OUT') {
-          if (user?.id) invalidateCache(user.id);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
+          // FIX: Pakai userRef.current bukan `user` dari closure — hindari stale value
+          clearCache();
+          if (activeRef.current) {
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+          }
 
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          setUser(session.user);
+          if (activeRef.current) setUser(session.user);
         }
       }
     );
 
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [fetchProfile]);
 
-  const signOut = async () => {
-    if (user?.id) invalidateCache(user.id);
+  const signOut = useCallback(async () => {
+    clearCache();
+    // Set state dulu biar UI langsung responsif
     setUser(null);
     setProfile(null);
     await supabase.auth.signOut();
-  };
+  }, []);
 
-  const refetchProfile = async () => {
-    if (user) {
+  const refetchProfile = useCallback(async () => {
+    if (userRef.current) {
       setLoading(true);
-      await fetchProfile(user, true);
+      await fetchProfile(userRef.current, true);
     }
-  };
+  }, [fetchProfile]);
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signOut, refetchProfile }}>
