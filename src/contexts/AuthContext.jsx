@@ -5,16 +5,14 @@ const AuthContext = createContext({});
 export const useAuth = () => useContext(AuthContext);
 
 // ── Cache helpers ─────────────────────────────────────────────────
-// Pakai TTL 30 menit — cukup lama biar login ulang tetap cepat
 const CACHE_KEY = 'zidu_profile_cache';
-const CACHE_TTL = 30 * 60 * 1000;
+const CACHE_TTL = 30 * 60 * 1000; // 30 menit
 
 const getCached = (uid) => {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const { data, id, ts } = JSON.parse(raw);
-    // Cache valid: milik user yang sama & belum expired
     if (id !== uid || Date.now() - ts > CACHE_TTL) return null;
     return data;
   } catch { return null; }
@@ -23,38 +21,34 @@ const getCached = (uid) => {
 const setCache = (uid, data) => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, id: uid, ts: Date.now() }));
-  } catch { /* storage penuh, skip */ }
+  } catch {}
 };
 
-// TIDAK hapus cache saat logout — hanya invalidate dengan timestamp 0
-// Supaya kalau login ulang dengan user yang sama, bisa pakai cache lagi
 const invalidateCache = (uid) => {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    // Hanya invalidate kalau cache milik user yang sama
     if (parsed.id === uid) {
       localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, ts: 0 }));
     }
-  } catch { /* ignore */ }
+  } catch {}
 };
 
 // ── Provider ──────────────────────────────────────────────────────
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(null);
   const [profile, setProfile] = useState(null);
+  // loading = true saat: initial check ATAU sedang proses SIGNED_IN
   const [loading, setLoading] = useState(true);
-  const fetchingRef = useRef(false); // Guard: cegah double fetch
+  const fetchingRef = useRef(false);
+  const initializedRef = useRef(false);
 
-  // ── Fetch profile + school dari DB ────────────────────────────
   const fetchFromDB = useCallback(async (authUser) => {
-    // Guard double fetch
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
     try {
-      // Query profile — select hanya kolom yang dibutuhkan (lebih cepat)
       const { data: p, error } = await supabase
         .from('profiles')
         .select('id, school_id, role, name, email, phone, avatar_url, nis, class_id, subject_ids')
@@ -70,7 +64,6 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // Fetch sekolah paralel hanya jika bukan super_admin + punya school_id
       let school = null;
       if (p.role !== 'super_admin' && p.school_id) {
         const { data: s } = await supabase
@@ -82,9 +75,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       const full = { ...p, schools: school };
-
-      // Simpan ke cache dengan TTL baru
       setCache(authUser.id, full);
+
+      // Set semua sekaligus sebelum setLoading(false)
+      // Supaya React render sekali dengan data lengkap → redirect langsung
       setUser(authUser);
       setProfile(full);
     } catch (err) {
@@ -97,28 +91,28 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // ── Cache-first fetch ─────────────────────────────────────────
   const fetchProfile = useCallback(async (authUser, forceRefresh = false) => {
     if (!forceRefresh) {
       const cached = getCached(authUser.id);
       if (cached) {
-        // ✅ Tampil INSTAN dari cache
+        // Cache hit → set SEMUA state sekaligus, loading false
+        // React batch update ini → satu render → redirect langsung
         setUser(authUser);
         setProfile(cached);
         setLoading(false);
-        // Refresh cache di background — UI sudah tampil duluan
-        setTimeout(() => fetchFromDB(authUser).catch(console.error), 100);
+        // Background refresh cache
+        setTimeout(() => fetchFromDB(authUser).catch(console.error), 200);
         return;
       }
     }
-    // Tidak ada cache → fetch langsung
+    // Tidak ada cache → fetch DB, loading tetap true sampai selesai
     await fetchFromDB(authUser);
   }, [fetchFromDB]);
 
-  // ── Auth listener ─────────────────────────────────────────────
   useEffect(() => {
     let active = true;
 
+    // Initial session check
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -130,6 +124,8 @@ export const AuthProvider = ({ children }) => {
         }
       } catch {
         if (active) setLoading(false);
+      } finally {
+        initializedRef.current = true;
       }
     };
 
@@ -140,15 +136,19 @@ export const AuthProvider = ({ children }) => {
         if (!active) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          // Coba pakai cache dulu (meski baru login) — kalau ada & masih valid, instan!
+          // Kalau init() belum selesai, skip — init() sudah handle
+          if (!initializedRef.current) return;
+
+          // Set loading true dulu → App tahu sedang proses → tidak stuck di login page
+          setLoading(true);
           await fetchProfile(session.user, false);
+
         } else if (event === 'SIGNED_OUT') {
-          // Invalidate (bukan delete) — kalau login lagi dengan user sama, cache masih ada
-          // tapi akan di-refresh di background
           if (user?.id) invalidateCache(user.id);
           setUser(null);
           setProfile(null);
           setLoading(false);
+
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user);
         }
@@ -169,7 +169,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const refetchProfile = async () => {
-    if (user) await fetchProfile(user, true);
+    if (user) {
+      setLoading(true);
+      await fetchProfile(user, true);
+    }
   };
 
   return (
