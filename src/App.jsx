@@ -12,6 +12,7 @@ const DashboardLayout      = lazy(() => import('./components/layout/DashboardLay
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
 const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
+const GlobalAnalytics      = lazy(() => import('./pages/admin/GlobalAnalytics'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -121,7 +122,7 @@ const App = () => {
       >
         <Route index           element={<Lazy><SuperAdminDashboard /></Lazy>} />
         <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
-        <Route path="analytics" element={<PlaceholderPage title="Analitik Global"   role="Super Admin" />} />
+        <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
