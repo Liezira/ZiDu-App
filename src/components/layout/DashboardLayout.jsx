@@ -55,8 +55,7 @@ const DashboardLayout = () => {
       case 'school_admin':
         return [
           { label: 'Dashboard', icon: LayoutDashboard, path: '/school' },
-          { label: 'Data Guru', icon: Users, path: '/school/teachers' },
-          { label: 'Data Siswa', icon: Users, path: '/school/students' },
+          { label: 'Data Guru & Murid', icon: Users, path: '/school/staff' },
           { label: 'Mata Pelajaran', icon: BookOpen, path: '/school/subjects' },
         ];
       case 'teacher':

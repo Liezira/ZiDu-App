@@ -12,10 +12,6 @@ const DashboardLayout      = lazy(() => import('./components/layout/DashboardLay
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
 const StaffManagement      = lazy(() => import('./pages/school/StaffManagement'));
-const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
-const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
-const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
-const GlobalAnalytics      = lazy(() => import('./pages/admin/GlobalAnalytics'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -124,8 +120,8 @@ const App = () => {
         }
       >
         <Route index           element={<Lazy><SuperAdminDashboard /></Lazy>} />
-        <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
-        <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
+        <Route path="schools"   element={<PlaceholderPage title="Manajemen Sekolah" role="Super Admin" />} />
+        <Route path="analytics" element={<PlaceholderPage title="Analitik Global"   role="Super Admin" />} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
@@ -138,8 +134,7 @@ const App = () => {
         }
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
-        <Route path="teachers" element={<Lazy><StaffManagement /></Lazy>} />
-        <Route path="students" element={<Lazy><StaffManagement /></Lazy>} />
+        <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
         <Route path="subjects" element={<PlaceholderPage title="Mata Pelajaran" role="Admin Sekolah" />} />
       </Route>
 
@@ -152,7 +147,7 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
+        <Route index            element={<PlaceholderPage title="Dashboard Guru" role="Guru" />} />
         <Route path="questions" element={<PlaceholderPage title="Bank Soal"      role="Guru" />} />
         <Route path="exams"     element={<PlaceholderPage title="Kelola Ujian"   role="Guru" />} />
         <Route path="grades"    element={<PlaceholderPage title="Rekap Nilai"    role="Guru" />} />
@@ -167,7 +162,7 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
+        <Route index          element={<PlaceholderPage title="Ruang Ujian"   role="Siswa" />} />
         <Route path="results" element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />} />
       </Route>
 
