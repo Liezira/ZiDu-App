@@ -12,6 +12,7 @@ const DashboardLayout      = lazy(() => import('./components/layout/DashboardLay
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
 const StaffManagement      = lazy(() => import('./pages/school/StaffManagement'));
+const SubjectManagement    = lazy(() => import('./pages/school/SubjectManagement'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -135,7 +136,7 @@ const App = () => {
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
         <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
-        <Route path="subjects" element={<PlaceholderPage title="Mata Pelajaran" role="Admin Sekolah" />} />
+        <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
       </Route>
 
       {/* ── TEACHER ── */}
