@@ -4,16 +4,20 @@ import { useAuth } from './contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 // ── Static imports ────────────────────────────────────────────────
-import Login from './pages/auth/Login';
+import Login    from './pages/auth/Login';
 import Register from './pages/auth/Register';
 
 // ── Lazy imports ──────────────────────────────────────────────────
 const DashboardLayout      = lazy(() => import('./components/layout/DashboardLayout'));
 const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
+const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
+const GlobalAnalytics      = lazy(() => import('./pages/admin/GlobalAnalytics'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
 const StaffManagement      = lazy(() => import('./pages/school/StaffManagement'));
 const SubjectManagement    = lazy(() => import('./pages/school/SubjectManagement'));
 const ClassManagement      = lazy(() => import('./pages/school/ClassManagement'));
+const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -54,11 +58,9 @@ const AccessSuspended = () => (
 );
 
 // ── Protected Route ───────────────────────────────────────────────
-// FIX: Saat loading, tampilkan spinner DALAM layout (bukan unmount router)
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { user, profile, loading } = useAuth();
 
-  // Tampilkan loader di dalam route — Router tetap hidup, URL tidak berubah
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (!profile || !allowedRoles.includes(profile.role))
@@ -73,7 +75,7 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
   return children;
 };
 
-// ── Root Redirect berdasarkan role ────────────────────────────────
+// ── Root Redirect ─────────────────────────────────────────────────
 const ROLE_ROUTES = {
   super_admin:  '/admin',
   school_admin: '/school',
@@ -88,20 +90,15 @@ const RootRedirect = () => {
   return <Navigate to={ROLE_ROUTES[profile.role] ?? '/unauthorized'} replace />;
 };
 
-// ── Auth Guard — halaman login/register saat sudah login ──────────
+// ── Auth Guard ────────────────────────────────────────────────────
 const AuthRoute = ({ children }) => {
   const { user, profile, loading } = useAuth();
   if (loading) return <PageLoader />;
-  // Kalau sudah login, arahkan langsung ke dashboard sesuai role
-  if (user && profile) {
-    return <Navigate to={ROLE_ROUTES[profile.role] ?? '/'} replace />;
-  }
+  if (user && profile) return <Navigate to={ROLE_ROUTES[profile.role] ?? '/'} replace />;
   return children;
 };
 
 // ── App ───────────────────────────────────────────────────────────
-// FIX: Tidak ada lagi `if (loading) return <PageLoader />` di sini.
-// Router (di main.jsx) selalu hidup. Loading hanya terjadi di dalam route masing-masing.
 const App = () => {
   return (
     <Routes>
@@ -109,7 +106,7 @@ const App = () => {
       <Route path="/login"    element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
 
-      {/* ── ROOT REDIRECT ── */}
+      {/* ── ROOT ── */}
       <Route path="/" element={<RootRedirect />} />
 
       {/* ── SUPER ADMIN ── */}
@@ -121,9 +118,9 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index           element={<Lazy><SuperAdminDashboard /></Lazy>} />
-        <Route path="schools"   element={<PlaceholderPage title="Manajemen Sekolah" role="Super Admin" />} />
-        <Route path="analytics" element={<PlaceholderPage title="Analitik Global"   role="Super Admin" />} />
+        <Route index            element={<Lazy><SuperAdminDashboard /></Lazy>} />
+        <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
+        <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
@@ -137,8 +134,8 @@ const App = () => {
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
         <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
-        <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
         <Route path="classes"  element={<Lazy><ClassManagement /></Lazy>} />
+        <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
       </Route>
 
       {/* ── TEACHER ── */}
@@ -150,10 +147,10 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index            element={<PlaceholderPage title="Dashboard Guru" role="Guru" />} />
-        <Route path="questions" element={<PlaceholderPage title="Bank Soal"      role="Guru" />} />
-        <Route path="exams"     element={<PlaceholderPage title="Kelola Ujian"   role="Guru" />} />
-        <Route path="grades"    element={<PlaceholderPage title="Rekap Nilai"    role="Guru" />} />
+        <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
+        <Route path="questions" element={<PlaceholderPage title="Bank Soal"    role="Guru" />} />
+        <Route path="exams"     element={<PlaceholderPage title="Kelola Ujian" role="Guru" />} />
+        <Route path="grades"    element={<PlaceholderPage title="Rekap Nilai"  role="Guru" />} />
       </Route>
 
       {/* ── STUDENT ── */}
@@ -165,7 +162,7 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index          element={<PlaceholderPage title="Ruang Ujian"   role="Siswa" />} />
+        <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />} />
       </Route>
 
