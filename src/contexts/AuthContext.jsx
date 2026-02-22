@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
       if (p.role !== 'super_admin' && p.school_id) {
         const { data: s } = await supabase
           .from('schools')
-          .select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers, is_active, school_type')
+          .select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers, school_type')
           .eq('id', p.school_id)
           .maybeSingle();
         school = s;

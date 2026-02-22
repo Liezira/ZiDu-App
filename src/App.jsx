@@ -67,8 +67,8 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
     return <Navigate to="/unauthorized" replace />;
 
   if (profile.role !== 'super_admin') {
-    const { subscription_status: status, is_active: isActive } = profile.schools ?? {};
-    if (status === 'suspended' || status === 'expired' || isActive === false)
+    const { subscription_status: status } = profile.schools ?? {};
+    if (status === 'suspended' || status === 'expired')
       return <AccessSuspended />;
   }
 
