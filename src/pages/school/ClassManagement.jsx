@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSchoolConfig, SCHOOL_TYPES, GRADE_META, JURUSAN_META } from '../../lib/schoolConfig';
 import {
   School, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
   AlertCircle, CheckCircle2, Users, ChevronDown, MoreVertical,
-  Eye, GraduationCap, UserCheck, BookOpen, Layers,
+  Eye, GraduationCap, UserCheck, BookOpen, Layers, Upload,
 } from 'lucide-react';
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -220,7 +221,7 @@ const ClassModal = ({ open, cls, teachers, schoolId, profile, onClose, onSaved }
 };
 
 // ── Detail Drawer ─────────────────────────────────────────────────
-const DetailDrawer = ({ cls, students, teachers, allStudents, onClose, onEdit, onDelete, onBulkAssign }) => {
+const DetailDrawer = ({ cls, students, teachers, allStudents, onClose, onEdit, onDelete, onBulkAssign, onImport }) => {
   if (!cls) return null;
   const wali = teachers.find(t => t.id === cls.wali_kelas_id);
   const classStudents = students.filter(s => s.class_id === cls.id);
@@ -251,7 +252,8 @@ const DetailDrawer = ({ cls, students, teachers, allStudents, onClose, onEdit, o
           </div>
           <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
             <Btn variant="secondary" icon={Edit2} onClick={() => onEdit(cls)} style={{ flex: 1 }}>Edit</Btn>
-            <Btn variant="secondary" icon={Users} onClick={() => onBulkAssign(cls)} style={{ flex: 1 }}>Assign Siswa</Btn>
+            <Btn variant="secondary" icon={Users} onClick={() => onBulkAssign(cls)} style={{ flex: 1 }}>Assign</Btn>
+            <Btn variant="secondary" icon={Upload} onClick={() => onImport(cls)} style={{ flex: 1 }}>Import CSV</Btn>
             <Btn variant="danger" icon={Trash2} onClick={() => onDelete(cls)} sm style={{ flexShrink: 0 }}>Hapus</Btn>
           </div>
         </div>
@@ -459,7 +461,7 @@ const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
 };
 
 // ── Action Dropdown ───────────────────────────────────────────────
-const ActionMenu = ({ cls, onView, onEdit, onAssign, onDelete }) => {
+const ActionMenu = ({ cls, onView, onEdit, onAssign, onImport, onDelete }) => {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ position: 'relative' }}>
@@ -472,10 +474,11 @@ const ActionMenu = ({ cls, onView, onEdit, onAssign, onDelete }) => {
       {open && <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
         <div style={{ position: 'absolute', right: 0, top: '34px', background: '#fff', borderRadius: '12px', border: '1px solid #F1F5F9', boxShadow: '0 8px 30px rgba(0,0,0,.12)', zIndex: 51, minWidth: '160px', padding: '4px' }}>
-          {[{ icon: Eye,      label: 'Detail',        action: () => { onView(cls);   setOpen(false); }, color: '#374151' },
-            { icon: Edit2,    label: 'Edit',          action: () => { onEdit(cls);   setOpen(false); }, color: '#374151' },
-            { icon: Users,    label: 'Assign Siswa',  action: () => { onAssign(cls); setOpen(false); }, color: '#0891B2' },
-            { icon: Trash2,   label: 'Hapus',         action: () => { onDelete(cls); setOpen(false); }, color: '#DC2626' }]
+          {[{ icon: Eye,      label: 'Detail',         action: () => { onView(cls);    setOpen(false); }, color: '#374151' },
+            { icon: Edit2,    label: 'Edit',           action: () => { onEdit(cls);    setOpen(false); }, color: '#374151' },
+            { icon: Users,    label: 'Assign Siswa',   action: () => { onAssign(cls);  setOpen(false); }, color: '#0891B2' },
+            { icon: Upload,   label: 'Import CSV',     action: () => { onImport(cls);  setOpen(false); }, color: '#7C3AED' },
+            { icon: Trash2,   label: 'Hapus',          action: () => { onDelete(cls);  setOpen(false); }, color: '#DC2626' }]
             .map(item => (
               <button key={item.label} onClick={item.action}
                 style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: item.color, borderRadius: '8px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500', textAlign: 'left' }}
@@ -493,6 +496,7 @@ const ActionMenu = ({ cls, onView, onEdit, onAssign, onDelete }) => {
 // ── Main Page ─────────────────────────────────────────────────────
 const ClassManagement = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [classes,   setClasses]   = useState([]);
   const [teachers,  setTeachers]  = useState([]);
   const [students,  setStudents]  = useState([]);
@@ -533,6 +537,12 @@ const ClassManagement = () => {
   }, [profile?.school_id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleBulkImport = (cls) => {
+    navigate('/school/staff', {
+      state: { openCsvImport: true, importClass: cls }
+    });
+  };
 
   const handleDelete = (cls) => {
     setConfirm({
@@ -723,6 +733,7 @@ const ClassManagement = () => {
                           onView={setDetailClass}
                           onEdit={c => { setEditClass(c); setModalOpen(true); }}
                           onAssign={setAssignClass}
+                          onImport={handleBulkImport}
                           onDelete={handleDelete} />
                       </td>
                     </tr>
@@ -752,7 +763,8 @@ const ClassManagement = () => {
         onClose={() => setDetailClass(null)}
         onEdit={c => { setDetailClass(null); setEditClass(c); setModalOpen(true); }}
         onDelete={c => { setDetailClass(null); handleDelete(c); }}
-        onBulkAssign={c => { setDetailClass(null); setAssignClass(c); }} />
+        onBulkAssign={c => { setDetailClass(null); setAssignClass(c); }}
+        onImport={c => { setDetailClass(null); handleBulkImport(c); }} />
 
       <BulkAssignModal open={!!assignClass} cls={assignClass} allStudents={students}
         onClose={() => setAssignClass(null)}

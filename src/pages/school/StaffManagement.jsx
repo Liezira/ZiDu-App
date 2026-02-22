@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -149,7 +149,7 @@ const DetailDrawer = ({ person, classes, subjects, onClose, onEdit, onDelete, ta
 };
 
 // ── Person Modal (Add/Edit) ────────────────────────────────────────
-const PersonModal = ({ open, person, tab, classes, subjects, onClose, onSaved }) => {
+const PersonModal = ({ open, person, tab, classes, subjects, schoolId, onClose, onSaved }) => {
   const isEdit    = !!person?.id;
   const isTeacher = tab === 'guru';
   const EMPTY = { name: '', email: '', phone: '', nis: '', class_id: '', subject_ids: [] };
@@ -215,8 +215,9 @@ const PersonModal = ({ open, person, tab, classes, subjects, onClose, onSaved })
         ? await supabase.from('profiles').update(payload).eq('id', person.id)
         : await supabase.from('profiles').insert([{
             ...payload,
-            email: form.email.trim().toLowerCase(),
-            role: isTeacher ? 'teacher' : 'student',
+            email:      form.email.trim().toLowerCase(),
+            role:       isTeacher ? 'teacher' : 'student',
+            school_id:  schoolId,
             created_at: new Date().toISOString(),
           }]);
       if (error) throw error;
@@ -294,7 +295,7 @@ const PersonModal = ({ open, person, tab, classes, subjects, onClose, onSaved })
 };
 
 // ── CSV Import Modal ──────────────────────────────────────────────
-const CsvImportModal = ({ open, classes, schoolId, onClose, onImported }) => {
+const CsvImportModal = ({ open, classes, schoolId, preselectedClass, onClose, onImported }) => {
   const [rows, setRows]       = useState([]);
   const [preview, setPreview] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -320,8 +321,8 @@ const CsvImportModal = ({ open, classes, schoolId, onClose, onImported }) => {
         if (nameIdx < 0 || emailIdx < 0) { setError('CSV harus memiliki kolom "nama" dan "email".'); return; }
         const parsed = lines.slice(1).map((line, i) => {
           const cols = line.split(',').map(c => c.trim().replace(/["']/g,''));
-          const className = classIdx >= 0 ? cols[classIdx] : '';
-          const classObj  = classes.find(c => c.name.toLowerCase() === className.toLowerCase());
+          const className = preselectedClass ? preselectedClass.name : (classIdx >= 0 ? cols[classIdx] : '');
+          const classObj  = preselectedClass || classes.find(c => c.name.toLowerCase() === (classIdx >= 0 ? cols[classIdx] : '').toLowerCase());
           return {
             _row: i + 2,
             name:     cols[nameIdx] || '',
@@ -358,9 +359,14 @@ const CsvImportModal = ({ open, classes, schoolId, onClose, onImported }) => {
   };
 
   const downloadTemplate = () => {
-    const csv = 'nama,email,nis,kelas\nBudi Santoso,budi@email.com,12345,X-A\nSiti Rahayu,siti@email.com,12346,X-B';
+    const cls = preselectedClass?.name || 'X-A';
+    const csv = preselectedClass
+      ? `nama,email,nis\nBudi Santoso,budi@email.com,12345\nSiti Rahayu,siti@email.com,12346`
+      : `nama,email,nis,kelas\nBudi Santoso,budi@email.com,12345,${cls}\nSiti Rahayu,siti@email.com,12346,X-B`;
     const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template_siswa.csv'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = preselectedClass ? `template_${preselectedClass.name.replace(/\s+/g,'_')}.csv` : 'template_siswa.csv';
+    a.click();
   };
 
   if (!open) return null;
@@ -372,7 +378,10 @@ const CsvImportModal = ({ open, classes, schoolId, onClose, onImported }) => {
             <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Upload size={16} style={{ color: '#0891B2' }} />
             </div>
-            <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Import Siswa via CSV</h2>
+            <div>
+              <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: '0 0 2px' }}>Import Siswa via CSV</h2>
+              {preselectedClass && <div style={{ fontSize: '12px', color: '#4F46E5', fontWeight: '600' }}>📌 Kelas: {preselectedClass.name}</div>}
+            </div>
           </div>
           <button onClick={() => { reset(); onClose(); }} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94A3B8' }}>
             <X size={14} />
@@ -384,8 +393,9 @@ const CsvImportModal = ({ open, classes, schoolId, onClose, onImported }) => {
             <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Format CSV yang dibutuhkan:</div>
               <code style={{ fontSize: '12px', color: '#4F46E5', background: '#EEF2FF', padding: '8px 12px', borderRadius: '8px', display: 'block', lineHeight: 1.6 }}>
-                nama, email, nis, kelas<br />
-                Budi Santoso, budi@email.com, 12345, X-A
+                {preselectedClass
+                  ? <>nama, email, nis<br />Budi Santoso, budi@email.com, 12345</>
+                  : <>nama, email, nis, kelas<br />Budi Santoso, budi@email.com, 12345, X-A</>}
               </code>
               <button onClick={downloadTemplate} style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4F46E5', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                 <Download size={12} /> Download template
@@ -510,8 +520,21 @@ const ActionMenu = ({ person, onView, onEdit, onDelete }) => {
 const StaffManagement = () => {
   const { profile }  = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  // Auto-open CSV import if navigated from ClassManagement with a class
+  useEffect(() => {
+    if (location.state?.openCsvImport && location.state?.importClass) {
+      setTab('siswa');
+      setCsvPreselectedClass(location.state.importClass);
+      setCsvOpen(true);
+      // Clear state so refresh doesn't re-open
+      window.history.replaceState({}, '');
+    }
+  }, []);
   const tab = searchParams.get('tab') === 'siswa' ? 'siswa' : 'guru';
   const setTab = (t) => setSearchParams({ tab: t });
+  const setTabDirect = (t) => setSearchParams({ tab: t }, { replace: true });
 
   const [teachers,  setTeachers]  = useState([]);
   const [students,  setStudents]  = useState([]);
@@ -528,6 +551,7 @@ const StaffManagement = () => {
   const [editPerson, setEditPerson] = useState(null);
   const [detailPerson, setDetailPerson] = useState(null);
   const [csvOpen,    setCsvOpen]    = useState(false);
+  const [csvPreselectedClass, setCsvPreselectedClass] = useState(null);
 
   const [confirm,    setConfirm]    = useState({ open: false });
   const [actLoading, setActLoading] = useState(false);
@@ -723,7 +747,7 @@ const StaffManagement = () => {
       </div>
 
       {/* Modals */}
-      <PersonModal open={modalOpen} person={editPerson} tab={tab} classes={classes} subjects={subjects}
+      <PersonModal open={modalOpen} person={editPerson} tab={tab} classes={classes} subjects={subjects} schoolId={profile?.school_id}
         onClose={() => { setModalOpen(false); setEditPerson(null); }}
         onSaved={() => { fetchData(); showToast(editPerson ? 'Data berhasil diperbarui' : `${isGuru ? 'Guru' : 'Siswa'} berhasil ditambahkan`); }} />
 
@@ -732,8 +756,8 @@ const StaffManagement = () => {
         onEdit={p => { setDetailPerson(null); setEditPerson(p); setModalOpen(true); }}
         onDelete={p => { setDetailPerson(null); handleDelete(p); }} />
 
-      <CsvImportModal open={csvOpen} classes={classes} schoolId={profile?.school_id}
-        onClose={() => setCsvOpen(false)}
+      <CsvImportModal open={csvOpen} classes={classes} schoolId={profile?.school_id} preselectedClass={csvPreselectedClass}
+        onClose={() => { setCsvOpen(false); setCsvPreselectedClass(null); }}
         onImported={() => { fetchData(); showToast('Import berhasil!'); }} />
 
       <ConfirmDialog {...confirm} loading={actLoading} />
