@@ -13,6 +13,7 @@ import {
   Bell,
   X,
   ChevronRight,
+  Layers,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -55,8 +56,9 @@ const DashboardLayout = () => {
       case 'school_admin':
         return [
           { label: 'Dashboard', icon: LayoutDashboard, path: '/school' },
-          { label: 'Data Guru & Murid', icon: Users, path: '/school/staff' },
-          { label: 'Mata Pelajaran', icon: BookOpen, path: '/school/subjects' },
+          { label: 'Data Guru & Murid', icon: Users,     path: '/school/staff' },
+          { label: 'Manajemen Kelas',   icon: Layers,    path: '/school/classes' },
+          { label: 'Mata Pelajaran',    icon: BookOpen,  path: '/school/subjects' },
         ];
       case 'teacher':
         return [
