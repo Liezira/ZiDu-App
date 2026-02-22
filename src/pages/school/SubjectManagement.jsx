@@ -1,29 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { getSchoolConfig, GRADE_META, JURUSAN_META } from '../../lib/schoolConfig';
 import {
   BookOpen, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
   AlertCircle, CheckCircle2, Users, GraduationCap, ChevronDown,
   MoreVertical, Eye, Tag, Layers,
 } from 'lucide-react';
 
-// ── Constants ─────────────────────────────────────────────────────
-const JURUSAN_LIST = ['Umum', 'IPA', 'IPS', 'Bahasa', 'SMK'];
-const GRADE_LIST   = [10, 11, 12];
-
-const JURUSAN_META = {
-  IPA:    { bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-  IPS:    { bg: '#FDF4FF', color: '#9333EA', border: '#E9D5FF' },
-  Bahasa: { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-  SMK:    { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
-  Umum:   { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
-};
-
-const GRADE_META = {
-  10: { bg: '#EEF2FF', color: '#4F46E5' },
-  11: { bg: '#EFF6FF', color: '#0891B2' },
-  12: { bg: '#FDF4FF', color: '#9333EA' },
-};
+// ── Constants loaded from schoolConfig.js ────────────────────────
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID');
 
@@ -109,7 +94,8 @@ const DetailDrawer = ({ subject, teachers, classes, onClose, onEdit, onDelete })
   );
 
   // Group classes by grade
-  const byGrade = GRADE_LIST.reduce((acc, g) => {
+  const _grades = [7,8,9,10,11,12]; // all possible grades for drawer
+  const byGrade = _grades.reduce((acc, g) => {
     const list = assignedClasses.filter(c => c.grade_level === g);
     if (list.length) acc[g] = list;
     return acc;
@@ -214,7 +200,7 @@ const DetailDrawer = ({ subject, teachers, classes, onClose, onEdit, onDelete })
 };
 
 // ── Subject Modal (Add / Edit) ────────────────────────────────────
-const SubjectModal = ({ open, subject, teachers, classes, schoolId, onClose, onSaved }) => {
+const SubjectModal = ({ open, subject, teachers, classes, schoolId, profile, onClose, onSaved }) => {
   const isEdit = !!subject?.id;
   const EMPTY  = { name: '', code: '', description: '', teacherIds: [], classIds: [] };
 
@@ -224,7 +210,9 @@ const SubjectModal = ({ open, subject, teachers, classes, schoolId, onClose, onS
   const [saveErr, setSaveErr] = useState('');
 
   // Group classes by grade+jurusan for display
-  const classesByGrade = GRADE_LIST.reduce((acc, g) => {
+  const schoolCfg = getSchoolConfig(profile?.schools?.school_type || 'SMA');
+  const gradeList = schoolCfg.grades;
+  const classesByGrade = gradeList.reduce((acc, g) => {
     const list = classes.filter(c => c.grade_level === g);
     if (list.length) acc[g] = list;
     return acc;
@@ -551,11 +539,13 @@ const SubjectManagement = () => {
   const jurusanInUse = [...new Set(classes.map(c => c.jurusan).filter(Boolean))];
 
   // Filtered subjects based on search + grade + jurusan filters
+  const schoolCfgMain = getSchoolConfig(profile?.schools?.school_type || 'SMA');
+  const gradeListMain = schoolCfgMain.grades;
+
   const filtered = subjects.filter(s => {
     const q = search.toLowerCase();
     const matchSearch = !q || s.name.toLowerCase().includes(q) || s.code?.toLowerCase().includes(q);
 
-    // Grade filter: subject must have at least 1 class of that grade
     const subjectClassIds = s.subject_classes?.map(sc => sc.class_id) || [];
     const subjectClasses  = classes.filter(c => subjectClassIds.includes(c.id));
 
@@ -641,7 +631,7 @@ const SubjectManagement = () => {
               <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)}
                 style={{ padding: '8px 28px 8px 11px', borderRadius: '9px', border: '1.5px solid #E2E8F0', background: '#F8FAFC', fontSize: '13px', color: filterGrade !== 'all' ? '#0F172A' : '#94A3B8', outline: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", appearance: 'none' }}>
                 <option value="all">Semua Kelas</option>
-                {GRADE_LIST.map(g => <option key={g} value={g}>Kelas {g}</option>)}
+                {gradeListMain.map(g => <option key={g} value={g}>Kelas {g}</option>)}
               </select>
               <ChevronDown size={12} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
             </div>
@@ -751,7 +741,7 @@ const SubjectManagement = () => {
       </div>
 
       {/* Modals */}
-      <SubjectModal open={modalOpen} subject={editSubject} teachers={teachers} classes={classes} schoolId={profile?.school_id}
+      <SubjectModal open={modalOpen} subject={editSubject} teachers={teachers} classes={classes} schoolId={profile?.school_id} profile={profile}
         onClose={() => { setModalOpen(false); setEditSubject(null); }}
         onSaved={() => { fetchData(); showToast(editSubject ? 'Mapel berhasil diperbarui' : 'Mapel berhasil ditambahkan'); }} />
 

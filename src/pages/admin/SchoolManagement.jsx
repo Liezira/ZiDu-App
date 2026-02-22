@@ -169,6 +169,7 @@ const SchoolModal = ({ open, school, onClose, onSaved }) => {
     setSaveError('');
     try {
       const payload = {
+        school_type: form.school_type,
         name: form.name.trim(),
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
@@ -229,6 +230,16 @@ const SchoolModal = ({ open, school, onClose, onSaved }) => {
           <div>
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px' }}>Informasi Sekolah</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>Jenis Sekolah<span style={{ color: '#EF4444', marginLeft: '2px' }}>*</span></label>
+                <div style={{ position: 'relative' }}>
+                  <select value={form.school_type} onChange={e => set('school_type', e.target.value)}
+                    style={{ padding: '9px 32px 9px 12px', borderRadius: '9px', fontSize: '13px', color: '#0F172A', fontFamily: "'DM Sans', sans-serif", border: '1.5px solid #E2E8F0', background: '#F8FAFC', outline: 'none', width: '100%', appearance: 'none', cursor: 'pointer' }}>
+                    {['SMA','SMK','SMP','MA','MTS'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none', fontSize: '11px' }}>▾</span>
+                </div>
+              </div>
               <Input label="Nama Sekolah" required placeholder="Contoh: SMA Negeri 1 Jakarta" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
               <Input label="Alamat" placeholder="Jl. Contoh No. 1, Kota" value={form.address} onChange={e => set('address', e.target.value)} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

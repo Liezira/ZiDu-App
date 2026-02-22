@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { getSchoolConfig, SCHOOL_TYPES, GRADE_META, JURUSAN_META } from '../../lib/schoolConfig';
 import {
   School, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
   AlertCircle, CheckCircle2, Users, ChevronDown, MoreVertical,
@@ -8,26 +9,11 @@ import {
 } from 'lucide-react';
 
 // ── Constants ─────────────────────────────────────────────────────
-const JURUSAN_LIST  = ['Umum', 'IPA', 'IPS', 'Bahasa', 'SMK'];
-const GRADE_LIST    = [10, 11, 12];
-const CURRENT_YEAR  = `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
-const YEAR_OPTIONS  = Array.from({ length: 4 }, (_, i) => {
+const CURRENT_YEAR = `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+const YEAR_OPTIONS = Array.from({ length: 4 }, (_, i) => {
   const y = new Date().getFullYear() - 1 + i;
   return `${y}/${y + 1}`;
 });
-
-const JURUSAN_META = {
-  IPA:    { bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-  IPS:    { bg: '#FDF4FF', color: '#9333EA', border: '#E9D5FF' },
-  Bahasa: { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-  SMK:    { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
-  Umum:   { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
-};
-const GRADE_META = {
-  10: { bg: '#EEF2FF', color: '#4F46E5' },
-  11: { bg: '#EFF6FF', color: '#0891B2' },
-  12: { bg: '#FDF4FF', color: '#9333EA' },
-};
 
 // ── Helpers ───────────────────────────────────────────────────────
 const fmt     = (n) => (n ?? 0).toLocaleString('id-ID');
@@ -117,8 +103,12 @@ const ConfirmDialog = ({ open, title, message, onConfirm, onCancel, loading }) =
 };
 
 // ── Class Modal (Add / Edit) ──────────────────────────────────────
-const ClassModal = ({ open, cls, teachers, schoolId, onClose, onSaved }) => {
+const ClassModal = ({ open, cls, teachers, schoolId, profile, onClose, onSaved }) => {
   const isEdit = !!cls?.id;
+  const schoolType  = profile?.schools?.school_type || 'SMA';
+  const schoolCfg   = getSchoolConfig(schoolType);
+  const gradeList   = schoolCfg.grades;
+  const jurusanList = schoolCfg.jurusan;
   const EMPTY  = { name: '', grade_level: '10', jurusan: 'Umum', academic_year: CURRENT_YEAR, max_students: 32, wali_kelas_id: '' };
 
   const [form,    setForm]    = useState(EMPTY);
@@ -201,9 +191,9 @@ const ClassModal = ({ open, cls, teachers, schoolId, onClose, onSaved }) => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <SelectField label="Tingkat" required value={form.grade_level} onChange={e => set('grade_level', e.target.value)} error={errors.grade_level}
-              options={GRADE_LIST.map(g => ({ value: String(g), label: `Kelas ${g}` }))} />
+              options={gradeList.map(g => ({ value: String(g), label: `Kelas ${g}` }))} />
             <SelectField label="Jurusan" value={form.jurusan} onChange={e => set('jurusan', e.target.value)}
-              options={JURUSAN_LIST.map(j => ({ value: j, label: j }))} />
+              options={jurusanList.map(j => ({ value: j, label: j }))} />
             <SelectField label="Tahun Ajaran" value={form.academic_year} onChange={e => set('academic_year', e.target.value)}
               options={YEAR_OPTIONS.map(y => ({ value: y, label: y }))} />
             <Input label="Maks. Siswa" type="number" min="1" max="60" value={form.max_students} onChange={e => set('max_students', e.target.value)} />
@@ -575,7 +565,11 @@ const ClassManagement = () => {
   });
 
   // Group by grade for display stats
-  const byGrade = GRADE_LIST.reduce((acc, g) => {
+  const schoolType = profile?.schools?.school_type || 'SMA';
+  const schoolCfg  = getSchoolConfig(schoolType);
+  const gradeList  = schoolCfg.grades;
+
+  const byGrade = gradeList.reduce((acc, g) => {
     acc[g] = classes.filter(c => c.grade_level === g).length;
     return acc;
   }, {});
@@ -616,9 +610,11 @@ const ClassManagement = () => {
         <div style={{ opacity: 0, animation: 'fadeUp .4s ease 60ms forwards', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
           {[
             { label: 'Total Kelas',  value: classes.length, color: '#4F46E5', bg: '#EEF2FF', icon: Layers },
-            { label: 'Kelas 10',     value: byGrade[10] || 0, color: '#4F46E5', bg: '#EEF2FF', icon: School },
-            { label: 'Kelas 11',     value: byGrade[11] || 0, color: '#0891B2', bg: '#EFF6FF', icon: School },
-            { label: 'Kelas 12',     value: byGrade[12] || 0, color: '#9333EA', bg: '#F5F3FF', icon: School },
+            ...gradeList.map((g, i) => {
+              const colors = [['#4F46E5','#EEF2FF'],['#0891B2','#EFF6FF'],['#9333EA','#F5F3FF']];
+              const [color, bg] = colors[i % colors.length];
+              return { label: `Kelas ${g}`, value: byGrade[g] || 0, color, bg, icon: School };
+            }),
             { label: 'Total Siswa',  value: students.filter(s => s.class_id).length, color: '#16A34A', bg: '#F0FDF4', icon: GraduationCap },
           ].map(card => (
             <div key={card.label} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #F1F5F9', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 1px 4px rgba(0,0,0,.03)' }}>
@@ -648,7 +644,7 @@ const ClassManagement = () => {
                 onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }} />
             </div>
             {[
-              { value: filterGrade, set: setFilterGrade, placeholder: 'Semua Tingkat', options: GRADE_LIST.map(g => ({ value: String(g), label: `Kelas ${g}` })) },
+              { value: filterGrade, set: setFilterGrade, placeholder: 'Semua Tingkat', options: gradeList.map(g => ({ value: String(g), label: `Kelas ${g}` })) },
               ...(jurusanInUse.length > 1 ? [{ value: filterJurusan, set: setFilterJurusan, placeholder: 'Semua Jurusan', options: jurusanInUse.map(j => ({ value: j, label: j })) }] : []),
               ...(yearsInUse.length > 1 ? [{ value: filterYear, set: setFilterYear, placeholder: 'Semua Tahun', options: yearsInUse.map(y => ({ value: y, label: y })) }] : []),
             ].map((f, i) => (
@@ -748,7 +744,7 @@ const ClassManagement = () => {
       </div>
 
       {/* Modals */}
-      <ClassModal open={modalOpen} cls={editClass} teachers={teachers} schoolId={profile?.school_id}
+      <ClassModal open={modalOpen} cls={editClass} teachers={teachers} schoolId={profile?.school_id} profile={profile}
         onClose={() => { setModalOpen(false); setEditClass(null); }}
         onSaved={() => { fetchData(); showToast(editClass ? 'Kelas berhasil diperbarui' : 'Kelas berhasil ditambahkan'); }} />
 
