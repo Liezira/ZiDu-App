@@ -291,8 +291,25 @@ const SubjectModal = ({ open, subject, teachers, classes, schoolId, profile, onC
         if (error) throw error;
       }
 
-      // Also sync profiles.subject_ids for assigned teachers
-      for (const tid of form.teacherIds) {
+      // BUG #4 FIX: Sync profiles.subject_ids untuk semua teacher yang terdampak
+      // Guru lama (sebelum edit) yang sekarang tidak dipilih lagi harus di-unassign
+      const prevTeacherIds = subject?.subject_teachers?.map(st => st.teacher_id) || [];
+      const unassignedTeacherIds = prevTeacherIds.filter(tid => !form.teacherIds.includes(tid));
+      const newlyAssignedTeacherIds = form.teacherIds.filter(tid => !prevTeacherIds.includes(tid));
+
+      // Hapus subjectId dari subject_ids guru yang di-unassign
+      for (const tid of unassignedTeacherIds) {
+        const teacher = teachers.find(t => t.id === tid);
+        if (!teacher) continue;
+        const updatedIds = (teacher.subject_ids || []).filter(sid => sid !== subjectId);
+        await supabase.from('profiles').update({
+          subject_ids: updatedIds,
+          updated_at: new Date().toISOString(),
+        }).eq('id', tid);
+      }
+
+      // Tambah subjectId ke subject_ids guru yang baru di-assign
+      for (const tid of newlyAssignedTeacherIds) {
         const teacher = teachers.find(t => t.id === tid);
         if (!teacher) continue;
         const currentIds = teacher.subject_ids || [];
@@ -492,6 +509,7 @@ const SubjectManagement = () => {
   const fetchData = useCallback(async () => {
     if (!profile?.school_id) { setLoading(false); return; }
     const sid = profile.school_id;
+    let mounted = true;
     try {
       const [subRes, teachRes, classRes] = await Promise.all([
         supabase.from('subjects')
@@ -509,12 +527,14 @@ const SubjectManagement = () => {
           .order('grade_level')
           .order('name'),
       ]);
+      if (!mounted) return;
       if (subRes.error) throw subRes.error;
       setSubjects(subRes.data || []);
       setTeachers(teachRes.data || []);
       setClasses(classRes.data || []);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (err) { if (mounted) setError(err.message); }
+    finally { if (mounted) { setLoading(false); setRefreshing(false); } }
+    return () => { mounted = false; };
   }, [profile?.school_id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -526,6 +546,18 @@ const SubjectManagement = () => {
       message: `Hapus "${subject.name}"? Relasi dengan guru dan kelas juga akan dihapus.`,
       onConfirm: async () => {
         setActLoading(true);
+        // BUG #4 FIX: Bersihkan subject_ids dari semua guru yang mengajar mapel ini
+        const assignedTeacherIds = subject.subject_teachers?.map(st => st.teacher_id) || [];
+        for (const tid of assignedTeacherIds) {
+          const teacher = teachers.find(t => t.id === tid);
+          if (!teacher) continue;
+          const updatedIds = (teacher.subject_ids || []).filter(sid => sid !== subject.id);
+          await supabase.from('profiles').update({
+            subject_ids: updatedIds,
+            updated_at: new Date().toISOString(),
+          }).eq('id', tid);
+        }
+
         const { error } = await supabase.from('subjects').delete().eq('id', subject.id);
         if (error) showToast(error.message, 'error');
         else { showToast(`${subject.name} berhasil dihapus`); fetchData(); if (detailSubject?.id === subject.id) setDetailSubject(null); }
