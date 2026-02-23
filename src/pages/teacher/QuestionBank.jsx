@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
   AlertCircle, CheckCircle2, ChevronDown, MoreVertical, Eye,
   FileText, List, ToggleLeft, ChevronRight, ChevronLeft,
-  ArrowLeft, Copy, Filter,
+  ArrowLeft, Copy, Filter, Upload, Download,
 } from 'lucide-react';
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -109,6 +109,320 @@ const ConfirmDialog = ({ open, title, message, onConfirm, onCancel, loading }) =
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <Btn variant="secondary" onClick={onCancel} disabled={loading}>Batal</Btn>
           <Btn variant="danger" onClick={onConfirm} loading={loading}>Ya, Hapus</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ── Bulk Import Modal ─────────────────────────────────────────────
+const CSV_TEMPLATE = `type,question,option_a,option_b,option_c,option_d,correct_answer,difficulty,score_weight
+multiple_choice,Ibu kota Indonesia adalah?,Jakarta,Surabaya,Bandung,Medan,A,easy,1
+multiple_choice,2 + 2 = ?,3,4,5,6,B,easy,1
+true_false,Matahari terbit dari timur,,,,,Benar,easy,1
+essay,Jelaskan proses fotosintesis!,,,,,,medium,2`;
+
+const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
+  const [rows,      setRows]      = useState([]);
+  const [preview,   setPreview]   = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [result,    setResult]    = useState(null);
+  const [error,     setError]     = useState('');
+  const fileRef = useRef();
+
+  const reset = () => { setRows([]); setPreview(false); setResult(null); setError(''); if (fileRef.current) fileRef.current.value = ''; };
+
+  const parseCSV = (text) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) { setError('File harus punya minimal 1 header + 1 baris data.'); return; }
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["\']/g, ''));
+    const idx = (name) => headers.findIndex(h => h === name);
+
+    const typeI    = idx('type');
+    const qI       = idx('question');
+    const aI       = idx('option_a');
+    const bI       = idx('option_b');
+    const cI       = idx('option_c');
+    const dI       = idx('option_d');
+    const ansI     = idx('correct_answer');
+    const diffI    = idx('difficulty');
+    const weightI  = idx('score_weight');
+
+    if (qI < 0) { setError('Kolom "question" wajib ada.'); return; }
+
+    const parsed = lines.slice(1).map((line, i) => {
+      // Handle commas inside quotes
+      const cols = [];
+      let cur = '', inQ = false;
+      for (const ch of line) {
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      cols.push(cur.trim());
+
+      const type    = typeI >= 0 ? (cols[typeI] || 'multiple_choice').trim() : 'multiple_choice';
+      const qText   = qI >= 0 ? cols[qI] || '' : '';
+      const optA    = aI >= 0 ? cols[aI] || '' : '';
+      const optB    = bI >= 0 ? cols[bI] || '' : '';
+      const optC    = cI >= 0 ? cols[cI] || '' : '';
+      const optD    = dI >= 0 ? cols[dI] || '' : '';
+      const answer  = ansI >= 0 ? cols[ansI] || '' : '';
+      const diff    = diffI >= 0 ? (cols[diffI] || 'medium').trim() : 'medium';
+      const weight  = weightI >= 0 ? parseFloat(cols[weightI]) || 1 : 1;
+
+      const validTypes = ['multiple_choice', 'essay', 'true_false'];
+      const validDiffs = ['easy', 'medium', 'hard'];
+
+      let _errors = [];
+      if (!qText) _errors.push('Teks soal kosong');
+      if (!validTypes.includes(type)) _errors.push(`Tipe tidak valid: ${type}`);
+      if (!validDiffs.includes(diff)) _errors.push(`Kesulitan tidak valid: ${diff}`);
+      if (type === 'multiple_choice') {
+        if (!optA || !optB) _errors.push('Min. 2 pilihan (option_a, option_b)');
+        if (!answer) _errors.push('Jawaban wajib diisi');
+        const validAnswers = ['A','B','C','D'];
+        if (answer && !validAnswers.includes(answer.toUpperCase())) _errors.push('Jawaban harus A/B/C/D');
+      }
+      if (type === 'true_false') {
+        const validTF = ['Benar','Salah','benar','salah','true','false'];
+        if (!validTF.includes(answer)) _errors.push('Jawaban harus Benar/Salah');
+      }
+
+      const options = type === 'multiple_choice' ? [optA, optB, optC, optD].filter(Boolean) : null;
+      const correctAnswer = type === 'multiple_choice' ? answer.toUpperCase()
+        : type === 'true_false' ? (['benar','true'].includes(answer.toLowerCase()) ? 'Benar' : 'Salah')
+        : answer;
+
+      return { _row: i + 2, type, question: qText, options, correct_answer: correctAnswer, difficulty: diff, score_weight: weight, _errors, _valid: _errors.length === 0 };
+    });
+
+    setRows(parsed);
+    setPreview(true);
+    setError('');
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) { setError('Hanya file .csv yang didukung.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { try { parseCSV(ev.target.result); } catch { setError('Gagal membaca file CSV.'); } };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    const valid = rows.filter(r => r._valid);
+    if (!valid.length) return;
+    setImporting(true);
+    let success = 0, failed = 0;
+    for (const row of valid) {
+      const { error } = await supabase.from('questions').insert([{
+        bank_id: bankId, type: row.type, question: row.question,
+        options: row.options, correct_answer: row.correct_answer,
+        difficulty: row.difficulty, score_weight: row.score_weight,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }]);
+      error ? failed++ : success++;
+    }
+    // Update total_questions count
+    if (success > 0) {
+      const { data: bank } = await supabase.from('question_banks').select('total_questions').eq('id', bankId).single();
+      await supabase.from('question_banks').update({ total_questions: (bank?.total_questions || 0) + success }).eq('id', bankId);
+    }
+    setResult({ success, failed, skipped: rows.length - valid.length });
+    setImporting(false);
+    if (success > 0) onImported();
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template_soal.csv'; a.click();
+  };
+
+  if (!open) return null;
+
+  const validCount   = rows.filter(r => r._valid).length;
+  const invalidCount = rows.filter(r => !r._valid).length;
+
+  const DIFF_COLOR = { easy: '#16A34A', medium: '#D97706', hard: '#DC2626' };
+  const TYPE_LABEL = { multiple_choice: 'PG', essay: 'Essay', true_false: 'B/S' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', backdropFilter: 'blur(6px)', zIndex: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,.25)', animation: 'scaleIn .2s ease' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+            <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Upload size={16} style={{ color: '#0891B2' }} />
+            </div>
+            <div>
+              <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Import Soal via CSV</h2>
+              <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>Pilihan ganda, essay, dan benar/salah</p>
+            </div>
+          </div>
+          <button onClick={() => { reset(); onClose(); }} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94A3B8' }}><X size={14} /></button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {!preview && !result && (
+            <div style={{ padding: '24px' }}>
+              {/* Template download */}
+              <div style={{ background: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Format CSV yang diperlukan</span>
+                  <button onClick={downloadTemplate} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#fff', fontSize: '12px', fontWeight: '600', color: '#4F46E5', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    <Download size={11} /> Download Template
+                  </button>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%', minWidth: '500px' }}>
+                    <thead>
+                      <tr style={{ background: '#EEF2FF' }}>
+                        {['type','question','option_a','option_b','option_c','option_d','correct_answer','difficulty','score_weight'].map(col => (
+                          <th key={col} style={{ padding: '6px 10px', textAlign: 'left', color: '#4F46E5', fontWeight: '700', whiteSpace: 'nowrap', borderRadius: '4px' }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td style={{ padding: '5px 10px', color: '#64748B', fontSize: '11px' }} colSpan={9}>
+                        <span style={{ color: '#4F46E5', fontWeight: '600' }}>type</span>: multiple_choice | essay | true_false &nbsp;·&nbsp;
+                        <span style={{ color: '#4F46E5', fontWeight: '600' }}>correct_answer</span>: A/B/C/D (PG), Benar/Salah (B/S), teks (essay) &nbsp;·&nbsp;
+                        <span style={{ color: '#4F46E5', fontWeight: '600' }}>difficulty</span>: easy | medium | hard
+                      </td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Drop zone */}
+              <div style={{ border: '2px dashed #C7D2FE', borderRadius: '14px', padding: '40px 24px', textAlign: 'center', background: '#FAFAFF', cursor: 'pointer', transition: 'all .2s' }}
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#4F46E5'; e.currentTarget.style.background = '#EEF2FF'; }}
+                onDragLeave={e => { e.currentTarget.style.borderColor = '#C7D2FE'; e.currentTarget.style.background = '#FAFAFF'; }}
+                onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#C7D2FE'; e.currentTarget.style.background = '#FAFAFF'; const file = e.dataTransfer.files[0]; if (file) { const dt = new DataTransfer(); dt.items.add(file); fileRef.current.files = dt.files; handleFile({ target: { files: [file] } }); } }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                  <Upload size={22} style={{ color: '#4F46E5' }} />
+                </div>
+                <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '15px', fontWeight: '700', color: '#0F172A', marginBottom: '6px' }}>Drag & drop file CSV</div>
+                <div style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px' }}>atau klik untuk pilih file dari komputer</div>
+                <div style={{ display: 'inline-block', padding: '8px 18px', borderRadius: '9px', background: '#4F46E5', color: '#fff', fontSize: '13px', fontWeight: '600', fontFamily: "'DM Sans', sans-serif" }}>Pilih File</div>
+                <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ display: 'none' }} />
+              </div>
+
+              {error && (
+                <div style={{ marginTop: '14px', padding: '11px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '9px', color: '#DC2626', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={14} />{error}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preview table */}
+          {preview && !result && (
+            <div style={{ padding: '20px 24px' }}>
+              {/* Summary bar */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ padding: '8px 14px', borderRadius: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0', fontSize: '13px', fontWeight: '600', color: '#16A34A' }}>
+                  ✓ {validCount} soal siap diimport
+                </div>
+                {invalidCount > 0 && (
+                  <div style={{ padding: '8px 14px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FECACA', fontSize: '13px', fontWeight: '600', color: '#DC2626' }}>
+                    ✗ {invalidCount} soal tidak valid (akan dilewati)
+                  </div>
+                )}
+              </div>
+
+              {/* Table */}
+              <div style={{ border: '1px solid #F1F5F9', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto', maxHeight: '380px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '500px' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 1 }}>
+                      <tr>
+                        {['#', 'Tipe', 'Teks Soal', 'Jawaban', 'Kesulitan', 'Bobot', 'Status'].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #F1F5F9', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, i) => (
+                        <tr key={i} style={{ background: row._valid ? '#fff' : '#FEF9F9', borderBottom: '1px solid #F8FAFC' }}>
+                          <td style={{ padding: '9px 12px', color: '#94A3B8', fontWeight: '600' }}>{row._row}</td>
+                          <td style={{ padding: '9px 12px' }}>
+                            <span style={{ padding: '2px 7px', borderRadius: '999px', fontSize: '10px', fontWeight: '700',
+                              background: row.type === 'multiple_choice' ? '#EEF2FF' : row.type === 'essay' ? '#EFF6FF' : '#F5F3FF',
+                              color: row.type === 'multiple_choice' ? '#4F46E5' : row.type === 'essay' ? '#0891B2' : '#7C3AED' }}>
+                              {TYPE_LABEL[row.type] || row.type}
+                            </span>
+                          </td>
+                          <td style={{ padding: '9px 12px', color: '#0F172A', maxWidth: '200px' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.question || '—'}</div>
+                          </td>
+                          <td style={{ padding: '9px 12px', color: '#374151', maxWidth: '80px' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.correct_answer || '—'}</div>
+                          </td>
+                          <td style={{ padding: '9px 12px' }}>
+                            <span style={{ fontWeight: '600', color: DIFF_COLOR[row.difficulty] || '#94A3B8' }}>
+                              {row.difficulty === 'easy' ? 'Mudah' : row.difficulty === 'medium' ? 'Sedang' : 'Sulit'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '9px 12px', color: '#374151' }}>{row.score_weight}</td>
+                          <td style={{ padding: '9px 12px' }}>
+                            {row._valid
+                              ? <span style={{ color: '#16A34A', fontWeight: '600', fontSize: '11px' }}>✓ Valid</span>
+                              : <span title={row._errors.join(', ')} style={{ color: '#DC2626', fontWeight: '600', fontSize: '11px', cursor: 'help', borderBottom: '1px dashed #DC2626' }}>✗ {row._errors[0]}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <button onClick={reset} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '12px', background: 'none', border: 'none', fontSize: '12px', color: '#94A3B8', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                ← Pilih file lain
+              </button>
+            </div>
+          )}
+
+          {/* Result */}
+          {result && (
+            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: result.success > 0 ? '#F0FDF4' : '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                {result.success > 0 ? <CheckCircle2 size={26} style={{ color: '#16A34A' }} /> : <AlertCircle size={26} style={{ color: '#DC2626' }} />}
+              </div>
+              <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' }}>Import Selesai!</div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Berhasil', value: result.success, color: '#16A34A', bg: '#F0FDF4' },
+                  { label: 'Gagal', value: result.failed, color: '#DC2626', bg: '#FEF2F2' },
+                  { label: 'Dilewati', value: result.skipped, color: '#D97706', bg: '#FFFBEB' },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: '12px 20px', borderRadius: '12px', background: s.bg, textAlign: 'center' }}>
+                    <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '22px', fontWeight: '700', color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: '12px', color: s.color, fontWeight: '600' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          {result
+            ? <Btn variant="secondary" onClick={() => { reset(); onClose(); }}>Tutup</Btn>
+            : <>
+                <Btn variant="secondary" onClick={() => { reset(); onClose(); }}>Batal</Btn>
+                {preview && <Btn icon={Upload} loading={importing} onClick={handleImport} disabled={validCount === 0}>
+                  Import {validCount} Soal
+                </Btn>}
+              </>}
         </div>
       </div>
     </div>
@@ -466,6 +780,7 @@ const QuestionBank = () => {
   const [qModal,     setQModal]     = useState(false);
   const [editQ,      setEditQ]      = useState(null);
   const [confirm,    setConfirm]    = useState({ open: false });
+  const [bulkModal,  setBulkModal]  = useState(false);
   const [actLoading, setActLoading] = useState(false);
   const [toast,      setToast]      = useState(null);
 
@@ -711,6 +1026,7 @@ const QuestionBank = () => {
               </div>
               <div style={{ display: 'flex', gap: '9px' }}>
                 <Btn variant="secondary" icon={RefreshCw} loading={qLoading} onClick={() => fetchQuestions(activeBank.id)} sm>Refresh</Btn>
+                <Btn variant="secondary" icon={Upload} onClick={() => setBulkModal(true)} sm>Import CSV</Btn>
                 <Btn icon={Plus} onClick={() => { setEditQ(null); setQModal(true); }}>Tambah Soal</Btn>
               </div>
             </div>
@@ -812,6 +1128,10 @@ const QuestionBank = () => {
           fetchBanks();
           showToast(editQ ? 'Soal diperbarui' : 'Soal berhasil ditambahkan');
         }} />
+
+      <BulkImportModal open={bulkModal} bankId={activeBank?.id}
+        onClose={() => setBulkModal(false)}
+        onImported={() => { fetchQuestions(activeBank?.id); fetchBanks(); showToast('Import soal berhasil!'); setBulkModal(false); }} />
 
       <ConfirmDialog {...confirm} loading={actLoading} />
       {toast && <Toast {...toast} />}
