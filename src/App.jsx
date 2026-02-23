@@ -67,11 +67,10 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
     return <Navigate to="/unauthorized" replace />;
 
   if (profile.role !== 'super_admin') {
-    const { subscription_status: status } = profile.schools ?? {};
-    // BUG #7 FIX: Whitelist approach — hanya izinkan status yang valid.
-    // Kalau status null/undefined/tidak dikenali → blokir akses.
-    const ALLOWED_STATUSES = ['active', 'trial'];
-    if (!ALLOWED_STATUSES.includes(status))
+    const status = profile.schools?.subscription_status;
+    // Hanya blokir kalau status JELAS suspended/expired
+    // Kalau null/undefined (gagal fetch school) → tetap izinkan masuk
+    if (status === 'suspended' || status === 'expired')
       return <AccessSuspended />;
   }
 
