@@ -530,7 +530,7 @@ const SuperAdminDashboard = () => {
                 <div style={{ padding: '10px 16px', borderTop: '1px solid #F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '12px', color: '#94A3B8' }}>Menampilkan {filtered.length} dari {schools.length} sekolah</span>
                   <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Zap size={10} style={{ color: '#4F46E5' }} /> Real-time dari Supabase
+                    <Zap size={10} style={{ color: '#4F46E5' }} /> Data Real-time
                   </span>
                 </div>
               </>
