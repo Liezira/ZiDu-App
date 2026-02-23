@@ -38,12 +38,13 @@ const Login = () => {
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused] = useState('');
   const [formData, setFormData] = useState({ email: '', password: '' });
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const handle = () => setIsMobile(window.innerWidth < 1024);
-    window.addEventListener('resize', handle);
-    return () => window.removeEventListener('resize', handle);
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check(); // set initial value safely after mount
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
   const handleLogin = async (e) => {

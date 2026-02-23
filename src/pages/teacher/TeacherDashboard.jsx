@@ -75,8 +75,9 @@ const TeacherDashboard = () => {
 
   const fetchData = useCallback(async () => {
     if (!profile?.id) return;
+    let mounted = true;
     try {
-      const [banksRes, sessionsRes, resultsRes] = await Promise.all([
+      const [banksRes, sessionsRes] = await Promise.all([
         supabase.from('question_banks')
           .select('id, name, exam_type, total_questions, created_at, subjects(name, code)')
           .eq('teacher_id', profile.id)
@@ -87,17 +88,28 @@ const TeacherDashboard = () => {
           .eq('teacher_id', profile.id)
           .order('start_time', { ascending: false })
           .limit(20),
-
-        supabase.from('exam_results')
-          .select('id, status, score, passed, submitted_at, exam_session_id, student_id, exam_sessions!inner(teacher_id, title)')
-          .eq('exam_sessions.teacher_id', profile.id)
-          .order('submitted_at', { ascending: false })
-          .limit(50),
       ]);
+
+      if (!mounted) return;
 
       const banks    = banksRes.data    || [];
       const sessions = sessionsRes.data || [];
-      const results  = resultsRes.data  || [];
+
+      // BUG #3 FIX: Ambil results berdasarkan session IDs milik guru ini,
+      // bukan filter via join (tidak reliable di Supabase JS v2)
+      let results = [];
+      if (sessions.length > 0) {
+        const sessionIds = sessions.map(s => s.id);
+        const { data: resultsData } = await supabase
+          .from('exam_results')
+          .select('id, status, score, passed, submitted_at, exam_session_id, student_id')
+          .in('exam_session_id', sessionIds)
+          .order('submitted_at', { ascending: false })
+          .limit(50);
+        results = resultsData || [];
+      }
+
+      if (!mounted) return;
 
       const now = new Date();
       const activeSessions = sessions.filter(s => new Date(s.start_time) <= now && new Date(s.end_time) >= now);
@@ -131,11 +143,11 @@ const TeacherDashboard = () => {
         },
       });
     } catch (err) {
-      setError(err.message);
+      if (mounted) setError(err.message);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mounted) { setLoading(false); setRefreshing(false); }
     }
+    return () => { mounted = false; };
   }, [profile?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);

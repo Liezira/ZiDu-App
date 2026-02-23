@@ -199,7 +199,7 @@ const PersonModal = ({ open, person, tab, classes, subjects, schoolId, onClose, 
     if (!validate()) return;
     setSaving(true); setSaveErr('');
     try {
-      const payload = {
+      const profilePayload = {
         name:  form.name.trim(),
         phone: form.phone.trim() || null,
         updated_at: new Date().toISOString(),
@@ -207,23 +207,57 @@ const PersonModal = ({ open, person, tab, classes, subjects, schoolId, onClose, 
           ? { subject_ids: form.subject_ids }
           : { nis: form.nis.trim() || null, class_id: form.class_id || null }),
       };
-      if (!isEdit) {
-        payload.email = form.email.trim().toLowerCase();
-      }
 
-      const { error } = isEdit
-        ? await supabase.from('profiles').update(payload).eq('id', person.id)
-        : await supabase.from('profiles').insert([{
-            ...payload,
-            email:      form.email.trim().toLowerCase(),
+      if (isEdit) {
+        // EDIT: hanya update data profile, tidak ubah auth
+        const { error } = await supabase
+          .from('profiles')
+          .update(profilePayload)
+          .eq('id', person.id);
+        if (error) throw error;
+      } else {
+        // TAMBAH BARU: Buat auth user dulu via signUp,
+        // lalu profile dibuat oleh trigger atau upsert manual.
+        const email = form.email.trim().toLowerCase();
+        // Password sementara acak — user harus reset via email
+        const tempPassword = crypto.randomUUID();
+
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password: tempPassword,
+          options: {
+            data: {
+              name:      form.name.trim(),
+              role:      isTeacher ? 'teacher' : 'student',
+              school_id: schoolId,
+            },
+          },
+        });
+
+        if (authError) throw authError;
+
+        // Jika auth user berhasil dibuat, upsert profile dengan ID yang sama
+        if (authData?.user) {
+          const { error: profileError } = await supabase.from('profiles').upsert([{
+            id:         authData.user.id,
+            email,
             role:       isTeacher ? 'teacher' : 'student',
             school_id:  schoolId,
             created_at: new Date().toISOString(),
+            ...profilePayload,
           }]);
-      if (error) throw error;
+          if (profileError) throw profileError;
+        }
+      }
+
       onSaved(); onClose();
     } catch (err) {
-      setSaveErr(err.message?.includes('duplicate') ? 'Email sudah terdaftar.' : err.message);
+      const msg = err.message || '';
+      if (msg.includes('already registered') || msg.includes('duplicate')) {
+        setSaveErr('Email sudah terdaftar. Gunakan email lain.');
+      } else {
+        setSaveErr(msg || 'Terjadi kesalahan, coba lagi.');
+      }
     } finally {
       setSaving(false);
     }
@@ -344,15 +378,47 @@ const CsvImportModal = ({ open, classes, schoolId, preselectedClass, onClose, on
     setImporting(true);
     const valid = rows.filter(r => r._valid);
     let success = 0, failed = 0;
+
     for (const row of valid) {
-      const { error } = await supabase.from('profiles').insert([{
-        name: row.name, email: row.email, nis: row.nis || null,
-        class_id: row.class_id || null, role: 'student',
-        school_id: schoolId, created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }]);
-      error ? failed++ : success++;
+      try {
+        // Langkah 1: Buat auth user terlebih dahulu
+        const tempPassword = crypto.randomUUID();
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: row.email,
+          password: tempPassword,
+          options: {
+            data: {
+              name:      row.name,
+              role:      'student',
+              school_id: schoolId,
+            },
+          },
+        });
+
+        if (authError) throw authError;
+
+        // Langkah 2: Upsert profile dengan ID dari auth user
+        if (authData?.user) {
+          const { error: profileError } = await supabase.from('profiles').upsert([{
+            id:         authData.user.id,
+            name:       row.name,
+            email:      row.email,
+            nis:        row.nis || null,
+            class_id:   row.class_id || null,
+            role:       'student',
+            school_id:  schoolId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }]);
+          if (profileError) throw profileError;
+        }
+
+        success++;
+      } catch {
+        failed++;
+      }
     }
+
     setResult({ success, failed, skipped: rows.length - valid.length });
     setImporting(false);
     if (success > 0) onImported();
@@ -562,6 +628,7 @@ const StaffManagement = () => {
   const fetchData = useCallback(async () => {
     if (!profile?.school_id) { setLoading(false); return; }
     const sid = profile.school_id;
+    let mounted = true;
     try {
       const [tRes, sRes, cRes, subRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('school_id', sid).eq('role', 'teacher').order('name'),
@@ -569,13 +636,15 @@ const StaffManagement = () => {
         supabase.from('classes').select('id, name, grade_level').eq('school_id', sid).order('grade_level'),
         supabase.from('subjects').select('id, name, code').eq('school_id', sid).order('name'),
       ]);
+      if (!mounted) return;
       if (tRes.error) throw tRes.error;
       setTeachers(tRes.data || []);
       setStudents(sRes.data || []);
       setClasses(cRes.data || []);
       setSubjects(subRes.data || []);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (err) { if (mounted) setError(err.message); }
+    finally { if (mounted) { setLoading(false); setRefreshing(false); } }
+    return () => { mounted = false; };
   }, [profile?.school_id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
