@@ -226,10 +226,10 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
       }]);
       error ? failed++ : success++;
     }
-    // Update total_questions count
+    // Sync total_questions dari COUNT aktual di DB (bukan increment)
     if (success > 0) {
-      const { data: bank } = await supabase.from('question_banks').select('total_questions').eq('id', bankId).single();
-      await supabase.from('question_banks').update({ total_questions: (bank?.total_questions || 0) + success }).eq('id', bankId);
+      const { count } = await supabase.from('questions').select('*', { count: 'exact', head: true }).eq('bank_id', bankId);
+      await supabase.from('question_banks').update({ total_questions: count ?? 0 }).eq('id', bankId);
     }
     setResult({ success, failed, skipped: rows.length - valid.length });
     setImporting(false);
@@ -569,12 +569,9 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
       } else {
         const { error } = await supabase.from('questions').insert([{ ...payload, bank_id: bankId, created_at: new Date().toISOString() }]);
         if (error) throw error;
-        // Update total_questions count
-        await supabase.rpc('increment_bank_questions', { bank_id: bankId }).catch(() => {
-          // Fallback: manually update count
-          supabase.from('question_banks').select('total_questions').eq('id', bankId).single()
-            .then(({ data }) => supabase.from('question_banks').update({ total_questions: (data?.total_questions || 0) + 1 }).eq('id', bankId));
-        });
+        // Sync total_questions dari COUNT aktual (bukan increment agar tidak drift)
+        const { count } = await supabase.from('questions').select('*', { count: 'exact', head: true }).eq('bank_id', bankId);
+        await supabase.from('question_banks').update({ total_questions: count ?? 0 }).eq('id', bankId);
       }
       onSaved(); onClose();
     } catch (err) { setSaveErr(err.message); }
@@ -857,8 +854,9 @@ const QuestionBank = () => {
         const { error } = await supabase.from('questions').delete().eq('id', q.id);
         if (error) { showToast(error.message, 'error'); }
         else {
-          // Update count
-          await supabase.from('question_banks').update({ total_questions: Math.max(0, (activeBank?.total_questions || 1) - 1) }).eq('id', activeBank.id);
+          // Sync total_questions dari COUNT aktual setelah hapus
+          const { count } = await supabase.from('questions').select('*', { count: 'exact', head: true }).eq('bank_id', activeBank.id);
+          await supabase.from('question_banks').update({ total_questions: count ?? 0 }).eq('id', activeBank.id);
           showToast('Soal berhasil dihapus');
           fetchQuestions(activeBank.id);
           fetchBanks();
