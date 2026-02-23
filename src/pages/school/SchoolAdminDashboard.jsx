@@ -1068,8 +1068,7 @@ const SchoolAdminDashboard = () => {
               gap: '5px',
             }}
           >
-            <Zap size={10} style={{ color: '#4F46E5' }} /> Data real-time dari
-            Supabase
+            <Zap size={10} style={{ color: '#4F46E5' }} /> Data Real-time
           </span>
         </div>
       </div>

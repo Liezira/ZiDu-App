@@ -308,7 +308,7 @@ const TeacherDashboard = () => {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', opacity: 0, animation: 'fadeUp 0.4s ease 540ms forwards' }}>
           <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Zap size={10} style={{ color: '#4F46E5' }} /> Real-time dari Supabase
+            <Zap size={10} style={{ color: '#4F46E5' }} /> Data Real-time
           </span>
         </div>
       </div>

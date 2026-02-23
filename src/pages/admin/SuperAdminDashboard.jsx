@@ -840,8 +840,7 @@ const SuperAdminDashboard = () => {
                   color: '#94A3B8',
                 }}
               >
-                <Zap size={11} style={{ color: '#4F46E5' }} /> Data real-time
-                dari Supabase
+                <Zap size={11} style={{ color: '#4F46E5' }} /> Data Real-time
               </div>
             </div>
           )}
