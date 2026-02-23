@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -86,6 +87,7 @@ const ScoreRing = ({ score, passed, size = 44 }) => {
 // ── Main ──────────────────────────────────────────────────────────
 const StudentDashboard = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [data, setData]         = useState(null);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -242,7 +244,7 @@ const StudentDashboard = () => {
               <div style={{ fontFamily: 'Sora, sans-serif', fontWeight: '700', fontSize: '14px', color: '#92400E', marginBottom: '3px' }}>Ujian Belum Selesai</div>
               <div style={{ fontSize: '13px', color: '#78350F' }}>{data.inProgressResult.exam_sessions?.title} — Segera lanjutkan sebelum waktu habis!</div>
             </div>
-            <button style={{ padding: '9px 18px', borderRadius: '9px', background: '#D97706', color: '#fff', border: 'none', fontSize: '13px', fontWeight: '700', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
+            <button onClick={() => navigate('/student/exam')} style={{ padding: '9px 18px', borderRadius: '9px', background: '#D97706', color: '#fff', border: 'none', fontSize: '13px', fontWeight: '700', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
               Lanjutkan →
             </button>
           </div>
@@ -266,7 +268,7 @@ const StudentDashboard = () => {
                 const countdown = !isLive ? getCountdown(s.start_time) : null;
                 return (
                   <div key={s.id} className="exam-card"
-                    style={{ padding: '13px 0', borderBottom: i < data.availableSessions.length - 1 ? '1px solid #F8FAFC' : 'none', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s', cursor: isLive ? 'pointer' : 'default' }}>
+                    style={{ padding: '13px 0', borderBottom: i < data.availableSessions.length - 1 ? '1px solid #F8FAFC' : 'none', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s', cursor: isLive ? 'pointer' : 'default', }} onClick={() => isLive && navigate('/student/exam')}>
                     <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: isLive ? '#FEF2F2' : '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {isLive
                         ? <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#DC2626', animation: 'pulse 1.2s infinite' }} />
@@ -374,7 +376,7 @@ const StudentDashboard = () => {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', opacity: 0, animation: 'fadeUp 0.4s ease 540ms forwards' }}>
           <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Zap size={10} style={{ color: '#4F46E5' }} /> Data Real-time
+            <Zap size={10} style={{ color: '#4F46E5' }} /> Real-time dari Supabase
           </span>
         </div>
       </div>

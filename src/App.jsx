@@ -19,6 +19,9 @@ const ClassManagement      = lazy(() => import('./pages/school/ClassManagement')
 const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
 const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
 const QuestionBank         = lazy(() => import('./pages/teacher/QuestionBank'));
+const ExamManagement       = lazy(() => import('./pages/teacher/ExamManagement'));
+const GradesPage           = lazy(() => import('./pages/teacher/GradesPage'));
+const ExamRoom             = lazy(() => import('./pages/student/ExamRoom'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -152,8 +155,8 @@ const App = () => {
       >
         <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
         <Route path="questions" element={<Lazy><QuestionBank /></Lazy>} />
-        <Route path="exams"     element={<PlaceholderPage title="Kelola Ujian" role="Guru" />} />
-        <Route path="grades"    element={<PlaceholderPage title="Rekap Nilai"  role="Guru" />} />
+        <Route path="exams"     element={<Lazy><ExamManagement /></Lazy>} />
+        <Route path="grades"    element={<Lazy><GradesPage /></Lazy>} />
       </Route>
 
       {/* ── STUDENT ── */}
@@ -167,6 +170,7 @@ const App = () => {
       >
         <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />} />
+        <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
       </Route>
 
       {/* ── 403 ── */}
