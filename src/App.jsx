@@ -22,6 +22,9 @@ const QuestionBank         = lazy(() => import('./pages/teacher/QuestionBank'));
 const ExamManagement       = lazy(() => import('./pages/teacher/ExamManagement'));
 const GradesPage           = lazy(() => import('./pages/teacher/GradesPage'));
 const ExamRoom             = lazy(() => import('./pages/student/ExamRoom'));
+const StudentResults       = lazy(() => import('./pages/student/StudentResults'));
+const ProfilePage          = lazy(() => import('./pages/shared/ProfilePage'));
+const LandingPage          = lazy(() => import('./pages/LandingPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -113,7 +116,8 @@ const App = () => {
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
 
       {/* ── ROOT ── */}
-      <Route path="/" element={<RootRedirect />} />
+      <Route path="/" element={<Lazy><LandingPage /></Lazy>} />
+      <Route path="/dashboard" element={<RootRedirect />} />
 
       {/* ── SUPER ADMIN ── */}
       <Route
@@ -126,7 +130,9 @@ const App = () => {
       >
         <Route index            element={<Lazy><SuperAdminDashboard /></Lazy>} />
         <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
+        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
+        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
@@ -140,8 +146,10 @@ const App = () => {
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
         <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
+        <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="classes"  element={<Lazy><ClassManagement /></Lazy>} />
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
+        <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── TEACHER ── */}
@@ -155,8 +163,10 @@ const App = () => {
       >
         <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
         <Route path="questions" element={<Lazy><QuestionBank /></Lazy>} />
+        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="exams"     element={<Lazy><ExamManagement /></Lazy>} />
         <Route path="grades"    element={<Lazy><GradesPage /></Lazy>} />
+        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── STUDENT ── */}
@@ -169,8 +179,10 @@ const App = () => {
         }
       >
         <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
-        <Route path="results" element={<PlaceholderPage title="Riwayat Nilai" role="Siswa" />} />
-        <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
+        <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
+        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="exam"    element={<Lazy><ExamRoom /></Lazy>} />
+        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── 403 ── */}

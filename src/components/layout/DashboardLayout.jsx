@@ -14,6 +14,7 @@ import {
   X,
   ChevronRight,
   Layers,
+  UserCircle,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -52,13 +53,15 @@ const DashboardLayout = () => {
             icon: FileText,
             path: '/admin/analytics',
           },
+          { label: 'Profil Saya', icon: UserCircle, path: '/admin/profile' },
         ];
       case 'school_admin':
         return [
           { label: 'Dashboard', icon: LayoutDashboard, path: '/school' },
           { label: 'Data Guru & Murid', icon: Users,     path: '/school/staff' },
           { label: 'Manajemen Kelas',   icon: Layers,    path: '/school/classes' },
-          { label: 'Mata Pelajaran',    icon: BookOpen,  path: '/school/subjects' },
+          { label: 'Mata Pelajaran', icon: BookOpen, path: '/school/subjects' },
+          { label: 'Profil Saya', icon: UserCircle, path: '/school/profile' },
         ];
       case 'teacher':
         return [
@@ -66,11 +69,13 @@ const DashboardLayout = () => {
           { label: 'Bank Soal', icon: BookOpen, path: '/teacher/questions' },
           { label: 'Kelola Ujian', icon: FileText, path: '/teacher/exams' },
           { label: 'Rekap Nilai', icon: Award, path: '/teacher/grades' },
+          { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];
       case 'student':
         return [
           { label: 'Ujian Saya', icon: FileText, path: '/student' },
           { label: 'Riwayat Nilai', icon: Award, path: '/student/results' },
+          { label: 'Profil Saya', icon: UserCircle, path: '/student/profile' },
         ];
       default:
         return [];
@@ -528,16 +533,21 @@ const DashboardLayout = () => {
                 }}
               />
 
-              {/* Avatar */}
+              {/* Avatar — clickable → profile */}
               <div
+                onClick={() => navigate(`/${role === 'super_admin' ? 'admin' : role === 'school_admin' ? 'school' : role}/profile`)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
                   padding: '4px 8px',
                   borderRadius: '10px',
-                  cursor: 'default',
+                  cursor: 'pointer',
+                  transition: 'background .15s',
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = C.hover || '#F8FAFC'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                title="Lihat profil"
               >
                 <div style={{ textAlign: 'right' }}>
                   <div
@@ -554,24 +564,27 @@ const DashboardLayout = () => {
                     {roleLabel}
                   </div>
                 </div>
-                <div
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    background: C.brandBg,
-                    color: C.brand,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    border: `2px solid ${C.border}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  {initials}
-                </div>
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} alt="avatar" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${C.border}`, flexShrink: 0 }} />
+                  : <div
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '50%',
+                        background: C.brandBg,
+                        color: C.brand,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        border: `2px solid ${C.border}`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials}
+                    </div>
+                }
               </div>
             </div>
           </header>
