@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../hooks/useNotifications';
+import NotificationBell from '../notifications/NotificationBell';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -10,16 +12,15 @@ import {
   FileText,
   Award,
   Menu,
-  Bell,
   X,
   ChevronRight,
   Layers,
   UserCircle,
-  ClipboardCheck,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
   const { profile, signOut } = useAuth();
+  const { notifications, unreadCount, loading: nLoading, markRead, markAllRead, deleteNotif } = useNotifications(profile?.id, profile?.role);
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -494,36 +495,16 @@ const DashboardLayout = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {/* Bell */}
-              <button
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
-                  border: `1px solid ${C.border}`,
-                  background: C.bg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#475569',
-                  position: 'relative',
-                }}
-              >
-                <Bell size={17} />
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    width: '7px',
-                    height: '7px',
-                    background: C.danger,
-                    borderRadius: '50%',
-                    border: '2px solid #fff',
-                  }}
-                />
-              </button>
+              {/* Bell — NotificationBell component */}
+              <NotificationBell
+                notifications={notifications}
+                unreadCount={unreadCount}
+                loading={nLoading}
+                onMarkRead={markRead}
+                onMarkAllRead={markAllRead}
+                onDelete={deleteNotif}
+                C={C}
+              />
 
               {/* Divider */}
               <div

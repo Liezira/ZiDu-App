@@ -217,14 +217,38 @@ const ExamModal = ({ open, session, banks, classes, schoolId, teacherId, onClose
         max_violations:          parseInt(form.max_violations),
         updated_at:              new Date().toISOString(),
       };
-      const { error } = isEdit
-        ? await supabase.from('exam_sessions').update(payload).eq('id', session.id)
+      const { error, data: savedData } = isEdit
+        ? await supabase.from('exam_sessions').update(payload).eq('id', session.id).select('id').single()
         : await supabase.from('exam_sessions').insert([{
             ...payload, token: form.token, token_status: 'active',
             school_id: schoolId, teacher_id: teacherId,
             created_at: new Date().toISOString(),
-          }]);
+          }]).select('id').single();
       if (error) throw error;
+
+      // Kirim notifikasi ke semua siswa aktif di sekolah (hanya saat CREATE baru)
+      if (!isEdit && form.class_id) {
+        // Notify students in this class
+        const { data: classStudents } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('class_id', form.class_id)
+          .eq('role', 'student')
+          .eq('status', 'active');
+        if (classStudents?.length) {
+          await supabase.from('notifications').insert(
+            classStudents.map(s => ({
+              user_id:  s.id,
+              type:     'exam_new',
+              title:    'Ujian Baru Tersedia! 📝',
+              body:     `${payload.title} — ${payload.exam_type}. Mulai: ${new Date(payload.start_time).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+              link:     '/student',
+              metadata: { exam_session_id: savedData?.id },
+            }))
+          );
+        }
+      }
+
       onSaved(); onClose();
     } catch (err) { setSaveErr(err.message); }
     finally { setSaving(false); }
