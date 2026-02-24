@@ -291,29 +291,37 @@ const StudentApprovals = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ── Call Edge Function ─────────────────────────────────────────
+  const callEdgeFunction = async (payload) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-activation-email`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Edge function error');
+    return data;
+  };
+
   // ── Approve ────────────────────────────────────────────────────
   const handleApproveConfirm = async (classId) => {
     if (!approveModal) return;
     setActLoading(true);
     try {
-      // 1. Update profile: status active, assign class, set approved_at
-      const { error: updateErr } = await supabase.from('profiles').update({
-        status: 'active',
+      const result = await callEdgeFunction({
+        student_id: approveModal.id,
+        action: 'approve',
         class_id: classId,
-        approved_at: new Date().toISOString(),
-        approved_by: profile.id,
-        rejection_reason: null,
-      }).eq('id', approveModal.id);
-      if (updateErr) throw updateErr;
+      });
 
-      // 2. Send magic link / invite via Supabase Auth Admin
-      // Supabase built-in: generateLink with type 'magiclink'
-      // Note: requires service_role key – kita pakai RPC atau edge function
-      // Untuk sekarang, kita kirim reset password link sebagai "aktivasi"
-      // karena admin client tidak punya akses generateLink
-      // Solusi terbaik: Supabase Edge Function yang pakai service_role
-      // Fallback: siswa login dengan password yang mereka set saat register
-      
       // Update local state
       setStudents(prev => prev.map(s =>
         s.id === approveModal.id
@@ -323,7 +331,8 @@ const StudentApprovals = () => {
 
       setApproveModal(null);
       setDetailStudent(null);
-      showToast(`${approveModal.name} berhasil disetujui dan di-assign ke kelas`);
+      const emailInfo = result.email_sent ? ' · Link aktivasi dikirim ke email' : ' · (email gagal terkirim)';
+      showToast(`${approveModal.name} disetujui${emailInfo}`);
     } catch (err) { showToast(err.message, 'error'); }
     finally { setActLoading(false); }
   };
@@ -333,11 +342,11 @@ const StudentApprovals = () => {
     if (!rejectModal) return;
     setActLoading(true);
     try {
-      const { error: updateErr } = await supabase.from('profiles').update({
-        status: 'rejected',
+      await callEdgeFunction({
+        student_id: rejectModal.id,
+        action: 'reject',
         rejection_reason: reason || null,
-      }).eq('id', rejectModal.id);
-      if (updateErr) throw updateErr;
+      });
 
       setStudents(prev => prev.map(s =>
         s.id === rejectModal.id
@@ -347,7 +356,7 @@ const StudentApprovals = () => {
 
       setRejectModal(null);
       setDetailStudent(null);
-      showToast(`Pendaftaran ${rejectModal.name} ditolak`, 'warning');
+      showToast(`Pendaftaran ${rejectModal.name} ditolak · Email notifikasi dikirim`, 'warning');
     } catch (err) { showToast(err.message, 'error'); }
     finally { setActLoading(false); }
   };
