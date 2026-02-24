@@ -24,6 +24,8 @@ const GradesPage           = lazy(() => import('./pages/teacher/GradesPage'));
 const ExamRoom             = lazy(() => import('./pages/student/ExamRoom'));
 const StudentResults       = lazy(() => import('./pages/student/StudentResults'));
 const ProfilePage          = lazy(() => import('./pages/shared/ProfilePage'));
+const StudentApprovals     = lazy(() => import('./pages/school/StudentApprovals'));
+const PendingApproval      = lazy(() => import('./pages/shared/PendingApproval'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -71,6 +73,13 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
   if (!user) return <Navigate to="/login" replace />;
   if (!profile || !allowedRoles.includes(profile.role))
     return <Navigate to="/unauthorized" replace />;
+
+  // Block students who are pending or rejected
+  if (profile.role === 'student') {
+    if (profile.status === 'pending' || profile.status === 'rejected') {
+      return <Lazy><PendingApproval /></Lazy>;
+    }
+  }
 
   if (profile.role !== 'super_admin') {
     const status = profile.schools?.subscription_status;
@@ -143,6 +152,7 @@ const App = () => {
         <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
         <Route path="classes"  element={<Lazy><ClassManagement /></Lazy>} />
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
+        <Route path="approvals" element={<Lazy><StudentApprovals /></Lazy>} />
         <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 

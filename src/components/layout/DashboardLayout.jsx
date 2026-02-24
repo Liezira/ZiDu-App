@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Layers,
   UserCircle,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -61,6 +62,7 @@ const DashboardLayout = () => {
           { label: 'Data Guru & Murid', icon: Users,     path: '/school/staff' },
           { label: 'Manajemen Kelas',   icon: Layers,    path: '/school/classes' },
           { label: 'Mata Pelajaran', icon: BookOpen, path: '/school/subjects' },
+          { label: 'Persetujuan Siswa', icon: ClipboardCheck, path: '/school/approvals' },
           { label: 'Profil Saya', icon: UserCircle, path: '/school/profile' },
         ];
       case 'teacher':
