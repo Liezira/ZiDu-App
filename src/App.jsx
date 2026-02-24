@@ -24,7 +24,6 @@ const GradesPage           = lazy(() => import('./pages/teacher/GradesPage'));
 const ExamRoom             = lazy(() => import('./pages/student/ExamRoom'));
 const StudentResults       = lazy(() => import('./pages/student/StudentResults'));
 const ProfilePage          = lazy(() => import('./pages/shared/ProfilePage'));
-const LandingPage          = lazy(() => import('./pages/LandingPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -75,8 +74,6 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 
   if (profile.role !== 'super_admin') {
     const status = profile.schools?.subscription_status;
-    // Hanya blokir kalau status JELAS suspended/expired
-    // Kalau null/undefined (gagal fetch school) → tetap izinkan masuk
     if (status === 'suspended' || status === 'expired')
       return <AccessSuspended />;
   }
@@ -115,9 +112,8 @@ const App = () => {
       <Route path="/login"    element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
 
-      {/* ── ROOT ── */}
-      <Route path="/" element={<Lazy><LandingPage /></Lazy>} />
-      <Route path="/dashboard" element={<RootRedirect />} />
+      {/* ── ROOT → redirect ke dashboard sesuai role ── */}
+      <Route path="/" element={<RootRedirect />} />
 
       {/* ── SUPER ADMIN ── */}
       <Route
@@ -130,7 +126,6 @@ const App = () => {
       >
         <Route index            element={<Lazy><SuperAdminDashboard /></Lazy>} />
         <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
-        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
@@ -146,7 +141,6 @@ const App = () => {
       >
         <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
         <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
-        <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="classes"  element={<Lazy><ClassManagement /></Lazy>} />
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
         <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
@@ -163,7 +157,6 @@ const App = () => {
       >
         <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
         <Route path="questions" element={<Lazy><QuestionBank /></Lazy>} />
-        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="exams"     element={<Lazy><ExamManagement /></Lazy>} />
         <Route path="grades"    element={<Lazy><GradesPage /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
@@ -180,7 +173,6 @@ const App = () => {
       >
         <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
-        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="exam"    element={<Lazy><ExamRoom /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
@@ -193,8 +185,8 @@ const App = () => {
             <div className="text-8xl font-extrabold text-gray-200 leading-none">403</div>
             <h2 className="text-2xl font-bold text-gray-800 mt-4 mb-2">Akses Ditolak</h2>
             <p className="text-gray-500 mb-6">Anda mencoba masuk ke ruangan yang salah.</p>
-            <a href="/" className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
-              Kembali ke Beranda
+            <a href="/login" className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+              Kembali ke Login
             </a>
           </div>
         }
