@@ -26,6 +26,7 @@ const StudentResults       = lazy(() => import('./pages/student/StudentResults')
 const ProfilePage          = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals     = lazy(() => import('./pages/school/StudentApprovals'));
 const PendingApproval      = lazy(() => import('./pages/shared/PendingApproval'));
+const LandingPage          = lazy(() => import('./pages/LandingPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -122,7 +123,8 @@ const App = () => {
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
 
       {/* ── ROOT → redirect ke dashboard sesuai role ── */}
-      <Route path="/" element={<RootRedirect />} />
+      <Route path="/" element={<Lazy><LandingPage /></Lazy>} />
+      <Route path="/dashboard" element={<RootRedirect />} />
 
       {/* ── SUPER ADMIN ── */}
       <Route
