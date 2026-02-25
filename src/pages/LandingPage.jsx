@@ -610,7 +610,7 @@ const LandingPage = () => {
           </div>
 
           <div style={{ borderTop: '1px solid #1E293B', paddingTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <p style={{ fontSize: '13px', color: '#475569' }}>© 2025 ZiDu. Hak cipta dilindungi.</p>
+            <p style={{ fontSize: '13px', color: '#475569' }}>© 2026 ZiDu. All Right Reserved.</p>
             <div style={{ display: 'flex', gap: '20px' }}>
               {['Kebijakan Privasi', 'Syarat & Ketentuan'].map(l => (
                 <a key={l} href="#" style={{ fontSize: '13px', color: '#475569', textDecoration: 'none', transition: 'color .15s' }}
