@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Layers,
   UserCircle,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const DashboardLayout = () => {

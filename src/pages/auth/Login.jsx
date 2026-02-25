@@ -191,33 +191,31 @@ const Login = () => {
               overflow: 'hidden',
             }}
           >
+            {/* Animated grid pattern */}
+            <div style={{
+              position: 'absolute', inset: 0, opacity: 0.07, pointerEvents: 'none',
+              backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+            }} />
+
             {/* Orbs */}
-            <div
-              style={{
-                position: 'absolute',
-                width: '280px',
-                height: '280px',
-                borderRadius: '50%',
-                background: 'rgba(129,140,248,0.2)',
-                filter: 'blur(70px)',
-                top: '-60px',
-                right: '-60px',
-                pointerEvents: 'none',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                width: '200px',
-                height: '200px',
-                borderRadius: '50%',
-                background: 'rgba(251,191,36,0.12)',
-                filter: 'blur(60px)',
-                bottom: '80px',
-                left: '-40px',
-                pointerEvents: 'none',
-              }}
-            />
+            <div style={{ position: 'absolute', width: '320px', height: '320px', borderRadius: '50%', background: 'rgba(129,140,248,0.25)', filter: 'blur(80px)', top: '-80px', right: '-80px', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(251,191,36,0.15)', filter: 'blur(60px)', bottom: '60px', left: '-50px', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(52,211,153,0.12)', filter: 'blur(50px)', top: '45%', right: '10%', pointerEvents: 'none' }} />
+
+            {/* Floating badge cards */}
+            <div className="zidu-float" style={{ position: 'absolute', top: '22%', right: '-10px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '10px 14px', animationDelay: '0.5s', zIndex: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
+                <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#34d399', flexShrink: 0, boxShadow: '0 0 6px #34d399' }} />
+                <span style={{ fontSize: '11px', fontWeight: '600' }}>120K+ Ujian Selesai</span>
+              </div>
+            </div>
+            <div className="zidu-float" style={{ position: 'absolute', bottom: '28%', left: '-8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '10px 14px', animationDelay: '1.3s', zIndex: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '14px' }}>🏫</span>
+                <span style={{ fontSize: '11px', fontWeight: '600' }}>500+ Sekolah</span>
+              </div>
+            </div>
 
             {/* Logo */}
             <div
@@ -361,6 +359,22 @@ const Login = () => {
                   <span style={{ fontSize: '13px', opacity: 0.8 }}>{text}</span>
                 </div>
               ))}
+
+              {/* Stat cards grid */}
+              <div className="zidu-fadeup" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '28px', animationDelay: '650ms' }}>
+                {[
+                  { emoji: '📚', val: '50K+', label: 'Bank Soal' },
+                  { emoji: '👥', val: '12K+', label: 'Pengguna' },
+                  { emoji: '🎯', val: '99.9%', label: 'Uptime' },
+                  { emoji: '🏆', val: '4.9★', label: 'Rating' },
+                ].map(({ emoji, val, label }) => (
+                  <div key={label} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ fontSize: '18px', marginBottom: '4px' }}>{emoji}</div>
+                    <div style={{ fontSize: '17px', fontWeight: '700', fontFamily: 'Sora', lineHeight: 1 }}>{val}</div>
+                    <div style={{ fontSize: '11px', opacity: 0.6, marginTop: '2px' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Testimonial */}
