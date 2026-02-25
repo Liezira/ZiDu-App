@@ -778,7 +778,7 @@ const Login = () => {
               color: dark ? '#334155' : '#cbd5e1',
             }}
           >
-            © 2025 ZiDu · RuangSimulasi · All rights reserved
+            © 2026 ZiDu · RuangSimulasi · All rights reserved
           </p>
         </div>
       </div>

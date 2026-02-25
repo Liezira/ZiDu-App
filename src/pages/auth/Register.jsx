@@ -4,16 +4,18 @@ import { supabase } from '../../lib/supabase';
 import {
   Mail,
   Lock,
-  LogIn,
-  AlertCircle,
   Eye,
   EyeOff,
   Sun,
   Moon,
-  BookOpen,
-  Zap,
-  Shield,
+  Building2,
+  User,
+  Phone,
+  AlertCircle,
   CheckCircle2,
+  ArrowLeft,
+  Sparkles,
+  MapPin,
 } from 'lucide-react';
 
 const useTheme = () => {
@@ -31,44 +33,44 @@ const useTheme = () => {
   return [dark, () => setDark((d) => !d)];
 };
 
-const Login = () => {
+const getStrength = (p) => {
+  let s = 0;
+  if (p.length >= 8) s++;
+  if (/[A-Z]/.test(p)) s++;
+  if (/[0-9]/.test(p)) s++;
+  if (/[^A-Za-z0-9]/.test(p)) s++;
+  return s;
+};
+
+const Register = () => {
   const [dark, toggleTheme] = useTheme();
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused] = useState('');
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    schoolName: '',
+    schoolPhone: '',
+    schoolCity: '',
+  });
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check(); // set initial value safely after mount
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    const handle = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }));
     setErrorMsg('');
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-      if (error) throw error;
-    } catch (error) {
-      setErrorMsg(
-        error.message === 'Invalid login credentials'
-          ? 'Email atau password salah. Coba lagi.'
-          : error.message
-      );
-    } finally {
-      setLoading(false);
-    }
   };
 
-  // ── Colors ──
   const C = {
     bg: dark ? '#0f1117' : '#f8fafc',
     card: dark ? '#161823' : '#ffffff',
@@ -96,71 +98,108 @@ const Login = () => {
     fontFamily: "'DM Sans', sans-serif",
   });
 
+  const validateStep0 = () => {
+    if (!form.fullName.trim()) return 'Nama lengkap wajib diisi.';
+    if (!form.email.includes('@')) return 'Format email tidak valid.';
+    if (getStrength(form.password) < 2)
+      return 'Password terlalu lemah. Gunakan min. 8 karakter.';
+    return null;
+  };
+
+  const handleNext = () => {
+    const err = validateStep0();
+    if (err) {
+      setErrorMsg(err);
+      return;
+    }
+    setErrorMsg('');
+    setStep(1);
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (!form.schoolName.trim()) {
+      setErrorMsg('Nama sekolah wajib diisi.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            full_name: form.fullName,
+            school_name: form.schoolName,
+            school_phone: form.schoolPhone,
+            school_city: form.schoolCity,
+            role: 'school_admin',
+          },
+        },
+      });
+      if (error) throw error;
+      setSuccess(true);
+    } catch (error) {
+      setErrorMsg(
+        error.message === 'User already registered'
+          ? 'Email ini sudah terdaftar.'
+          : error.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const strength = getStrength(form.password);
+  const strengthColors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981'];
+  const strengthLabels = ['Sangat Lemah', 'Lemah', 'Cukup', 'Kuat'];
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', sans-serif; }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'DM Sans',sans-serif; }
 
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(18px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.96) translateY(10px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes float {
-          0%,100% { transform: translateY(0); }
-          50%      { transform: translateY(-10px); }
-        }
-        @keyframes shimmer {
-          0%   { background-position: 0% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        @keyframes scaleIn { from{opacity:0;transform:scale(0.96) translateY(10px);} to{opacity:1;transform:scale(1) translateY(0);} }
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes slideR  { from{opacity:0;transform:translateX(20px);} to{opacity:1;transform:translateX(0);} }
+        @keyframes spin    { to{transform:rotate(360deg);} }
+        @keyframes bounceIn {
+          0%{transform:scale(0.3);opacity:0;}
+          50%{transform:scale(1.1);}
+          70%{transform:scale(0.9);}
+          100%{transform:scale(1);opacity:1;}
         }
 
-        .zidu-card    { animation: scaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
-        .zidu-float   { animation: float 5s ease-in-out infinite; }
-        .zidu-fadeup  { opacity: 0; animation: fadeUp 0.5s ease forwards; }
+        .zidu-card     { animation: scaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+        .zidu-fadeup   { opacity:0; animation: fadeUp 0.5s ease forwards; }
+        .zidu-slide    { animation: slideR 0.35s ease both; }
+        .zidu-bounce   { animation: bounceIn 0.6s cubic-bezier(0.68,-0.55,0.27,1.55) both; }
 
         .zidu-btn {
-          background: linear-gradient(90deg, #4338CA, #5B6CF6, #818CF8, #5B6CF6);
-          background-size: 200% auto;
-          border: none;
-          cursor: pointer;
-          transition: background-position 0.5s ease, transform 0.15s, box-shadow 0.2s;
+          background: linear-gradient(90deg,#4338CA,#5B6CF6,#818CF8,#5B6CF6);
+          background-size:200% auto; border:none; cursor:pointer;
+          transition: background-position 0.5s,transform 0.15s,box-shadow 0.2s;
         }
-        .zidu-btn:hover:not(:disabled) {
-          background-position: right center;
-          transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(91,108,246,0.35);
-        }
-        .zidu-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .zidu-btn:active:not(:disabled) { transform: translateY(0); }
+        .zidu-btn:hover:not(:disabled) { background-position:right center; transform:translateY(-1px); box-shadow:0 8px 24px rgba(91,108,246,0.35); }
+        .zidu-btn:disabled { opacity:0.6; cursor:not-allowed; }
 
-        .zidu-toggle {
-          cursor: pointer;
-          border: none;
-          transition: transform 0.3s, background 0.2s;
+        .zidu-back {
+          background:none; cursor:pointer; transition:transform 0.15s,background 0.2s;
+          display:flex; align-items:center; gap:6px;
         }
-        .zidu-toggle:hover { transform: rotate(20deg); }
+        .zidu-back:hover { transform:translateX(-2px); }
 
-        .zidu-showpass {
-          background: none; border: none; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          transition: color 0.2s;
-        }
+        .zidu-toggle { cursor:pointer; border:none; transition:transform 0.3s; }
+        .zidu-toggle:hover { transform:rotate(20deg); }
 
         .zidu-spinner {
-          width: 16px; height: 16px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.7s linear infinite;
+          width:16px; height:16px;
+          border:2px solid rgba(255,255,255,0.3);
+          border-top-color:white; border-radius:50%;
+          animation:spin 0.7s linear infinite;
         }
       `}</style>
 
@@ -170,52 +209,52 @@ const Login = () => {
           minHeight: '100vh',
           background: C.bg,
           color: C.text,
-          fontFamily: "'DM Sans', sans-serif",
         }}
       >
-        {/* ══ LEFT BRAND PANEL ══ */}
+        {/* ══ LEFT PANEL ══ */}
         {!isMobile && (
           <div
             style={{
-              width: '44%',
+              width: '40%',
               flexShrink: 0,
+              color: '#fff',
               background: `linear-gradient(145deg, ${C.panelBg} 0%, ${
                 dark ? '#1a1f45' : '#5B6CF6'
-              } 50%, ${dark ? '#0f1020' : '#7C3AED'} 100%)`,
-              color: '#fff',
+              } 50%, ${dark ? '#0f1020' : '#6D28D9'} 100%)`,
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              padding: '48px 44px',
+              padding: '48px 40px',
               position: 'relative',
               overflow: 'hidden',
             }}
           >
-            {/* Animated grid pattern */}
-            <div style={{
-              position: 'absolute', inset: 0, opacity: 0.07, pointerEvents: 'none',
-              backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
-              backgroundSize: '40px 40px',
-            }} />
-
-            {/* Orbs */}
-            <div style={{ position: 'absolute', width: '320px', height: '320px', borderRadius: '50%', background: 'rgba(129,140,248,0.25)', filter: 'blur(80px)', top: '-80px', right: '-80px', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(251,191,36,0.15)', filter: 'blur(60px)', bottom: '60px', left: '-50px', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(52,211,153,0.12)', filter: 'blur(50px)', top: '45%', right: '10%', pointerEvents: 'none' }} />
-
-            {/* Floating badge cards */}
-            <div className="zidu-float" style={{ position: 'absolute', top: '22%', right: '-10px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '10px 14px', animationDelay: '0.5s', zIndex: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#34d399', flexShrink: 0, boxShadow: '0 0 6px #34d399' }} />
-                <span style={{ fontSize: '11px', fontWeight: '600' }}>120K+ Ujian Selesai</span>
-              </div>
-            </div>
-            <div className="zidu-float" style={{ position: 'absolute', bottom: '28%', left: '-8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', padding: '10px 14px', animationDelay: '1.3s', zIndex: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                <span style={{ fontSize: '14px' }}>🏫</span>
-                <span style={{ fontSize: '11px', fontWeight: '600' }}>500+ Sekolah</span>
-              </div>
-            </div>
+            <div
+              style={{
+                position: 'absolute',
+                width: '240px',
+                height: '240px',
+                borderRadius: '50%',
+                background: 'rgba(129,140,248,0.2)',
+                filter: 'blur(70px)',
+                top: '-50px',
+                right: '-50px',
+                pointerEvents: 'none',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                width: '180px',
+                height: '180px',
+                borderRadius: '50%',
+                background: 'rgba(251,191,36,0.12)',
+                filter: 'blur(60px)',
+                bottom: '80px',
+                left: '-30px',
+                pointerEvents: 'none',
+              }}
+            />
 
             {/* Logo */}
             <div
@@ -231,11 +270,10 @@ const Login = () => {
               >
                 <div
                   style={{
-                    width: '42px',
-                    height: '42px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '12px',
                     background: 'rgba(255,255,255,0.15)',
-                    backdropFilter: 'blur(8px)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -250,7 +288,7 @@ const Login = () => {
                   style={{
                     fontFamily: 'Sora',
                     fontWeight: '600',
-                    fontSize: '18px',
+                    fontSize: '17px',
                   }}
                 >
                   ZiDu
@@ -259,7 +297,7 @@ const Login = () => {
               <p
                 style={{
                   marginTop: '6px',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   opacity: 0.55,
                   fontWeight: 300,
                 }}
@@ -268,35 +306,37 @@ const Login = () => {
               </p>
             </div>
 
-            {/* Hero */}
+            {/* Content */}
             <div style={{ position: 'relative', zIndex: 1 }}>
-              <div className="zidu-float" style={{ marginBottom: '24px' }}>
-                <div
-                  style={{
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '16px',
-                    background: 'rgba(255,255,255,0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BookOpen size={26} />
-                </div>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  background: 'rgba(251,191,36,0.18)',
+                  border: '1px solid rgba(251,191,36,0.3)',
+                  color: '#FCD34D',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  marginBottom: '20px',
+                }}
+              >
+                <Sparkles size={12} /> Gratis 30 hari pertama
               </div>
 
               <h1
                 className="zidu-fadeup"
                 style={{
                   fontFamily: 'Sora',
-                  fontSize: '36px',
+                  fontSize: '32px',
                   fontWeight: '700',
-                  lineHeight: 1.25,
+                  lineHeight: 1.3,
                   animationDelay: '200ms',
                 }}
               >
-                Belajar lebih
+                Daftarkan
                 <br />
                 <span
                   style={{
@@ -305,138 +345,91 @@ const Login = () => {
                     WebkitTextFillColor: 'transparent',
                   }}
                 >
-                  cerdas & efisien
+                  sekolahmu
                 </span>
+                <br />
+                sekarang
               </h1>
-
               <p
                 className="zidu-fadeup"
                 style={{
-                  marginTop: '16px',
-                  fontSize: '14px',
+                  marginTop: '14px',
+                  fontSize: '13px',
                   opacity: 0.65,
                   lineHeight: 1.7,
-                  maxWidth: '280px',
+                  maxWidth: '260px',
                   fontWeight: 300,
                   animationDelay: '300ms',
                 }}
               >
-                Kelola ujian, pantau progres siswa, dan tingkatkan kualitas
-                pembelajaran sekolahmu dalam satu platform.
+                Bergabung bersama sekolah-sekolah yang telah menggunakan ZiDu
+                untuk ujian yang lebih modern.
               </p>
 
-              {/* Features */}
-              {[
-                { icon: Zap, text: 'Ujian online real-time', delay: 400 },
-                { icon: Shield, text: 'Data aman & terenkripsi', delay: 500 },
-                { icon: BookOpen, text: 'Bank soal tak terbatas', delay: 600 },
-              ].map(({ icon: Icon, text, delay }) => (
-                <div
-                  key={text}
-                  className="zidu-fadeup"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginTop: '14px',
-                    animationDelay: `${delay}ms`,
-                  }}
-                >
+              {/* Steps */}
+              <div
+                style={{
+                  marginTop: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                {[
+                  { n: '1', t: 'Buat akun admin sekolah', done: step >= 0 },
+                  { n: '2', t: 'Lengkapi data sekolah', done: step >= 1 },
+                  { n: '3', t: 'Langsung bisa digunakan!', done: false },
+                ].map((s, i) => (
                   <div
+                    key={i}
+                    className="zidu-fadeup"
                     style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.12)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      gap: '12px',
+                      animationDelay: `${400 + i * 100}ms`,
                     }}
                   >
-                    <Icon size={14} />
-                  </div>
-                  <span style={{ fontSize: '13px', opacity: 0.8 }}>{text}</span>
-                </div>
-              ))}
-
-              {/* Stat cards grid */}
-              <div className="zidu-fadeup" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '28px', animationDelay: '650ms' }}>
-                {[
-                  { emoji: '📚', val: '50K+', label: 'Bank Soal' },
-                  { emoji: '👥', val: '12K+', label: 'Pengguna' },
-                  { emoji: '🎯', val: '99.9%', label: 'Uptime' },
-                  { emoji: '🏆', val: '4.9★', label: 'Rating' },
-                ].map(({ emoji, val, label }) => (
-                  <div key={label} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px', backdropFilter: 'blur(4px)' }}>
-                    <div style={{ fontSize: '18px', marginBottom: '4px' }}>{emoji}</div>
-                    <div style={{ fontSize: '17px', fontWeight: '700', fontFamily: 'Sora', lineHeight: 1 }}>{val}</div>
-                    <div style={{ fontSize: '11px', opacity: 0.6, marginTop: '2px' }}>{label}</div>
+                    <div
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        background:
+                          i <= step ? '#5B6CF6' : 'rgba(255,255,255,0.12)',
+                        transition: 'background 0.3s',
+                      }}
+                    >
+                      {i < step ? <CheckCircle2 size={14} /> : s.n}
+                    </div>
+                    <span
+                      style={{ fontSize: '13px', opacity: i <= step ? 1 : 0.6 }}
+                    >
+                      {s.t}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Testimonial */}
             <div
-              className="zidu-fadeup"
               style={{
-                animationDelay: '700ms',
-                background: 'rgba(255,255,255,0.09)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '16px',
-                padding: '18px',
-                border: '1px solid rgba(255,255,255,0.1)',
                 position: 'relative',
                 zIndex: 1,
+                fontSize: '12px',
+                opacity: 0.4,
               }}
             >
-              <p
-                style={{
-                  fontSize: '13px',
-                  opacity: 0.8,
-                  lineHeight: 1.65,
-                  fontStyle: 'italic',
-                  fontWeight: 300,
-                }}
-              >
-                "ZiDu mengubah cara kami mengadakan ujian. Lebih mudah, lebih
-                akurat."
-              </p>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginTop: '12px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    background: '#F59E0B',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    color: '#78350f',
-                    flexShrink: 0,
-                  }}
-                >
-                  SR
-                </div>
-                <div>
-                  <p style={{ fontSize: '12px', fontWeight: '600' }}>
-                    Sari Rahayu
-                  </p>
-                  <p style={{ fontSize: '11px', opacity: 0.5 }}>
-                    Guru Matematika, SMAN 3 Jakarta
-                  </p>
-                </div>
-              </div>
+              Sudah punya akun?{' '}
+              <Link to="/login" style={{ color: '#fff', fontWeight: '600' }}>
+                Masuk di sini
+              </Link>
             </div>
           </div>
         )}
@@ -476,300 +469,600 @@ const Login = () => {
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
-          {/* Card */}
+          {/* Progress bar */}
           <div
-            className="zidu-card"
             style={{
               width: '100%',
               maxWidth: '420px',
-              background: C.card,
-              borderRadius: '20px',
-              border: `1px solid ${C.border}`,
-              boxShadow: dark
-                ? '0 20px 60px rgba(0,0,0,0.5)'
-                : '0 20px 60px rgba(0,0,0,0.08)',
-              padding: '40px 36px',
+              marginBottom: '20px',
+              display: 'flex',
+              gap: '6px',
             }}
           >
-            {/* Mobile Logo */}
-            {isMobile && (
+            {[0, 1].map((i) => (
               <div
+                key={i}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '28px',
+                  height: '4px',
+                  borderRadius: '99px',
+                  flex: i === step ? 2 : 1,
+                  background: i <= step ? C.brand : C.border,
+                  transition: 'all 0.4s ease',
                 }}
-              >
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: C.brand,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: 'Sora',
-                    fontWeight: '700',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                >
-                  Z
-                </div>
-                <span style={{ fontFamily: 'Sora', fontWeight: '600' }}>
-                  ZiDu
-                </span>
-              </div>
-            )}
+              />
+            ))}
+          </div>
 
-            {/* Header */}
-            <div style={{ marginBottom: '28px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '6px',
-                }}
-              >
-                <h2
-                  style={{
-                    fontFamily: 'Sora',
-                    fontSize: '22px',
-                    fontWeight: '700',
-                    color: C.text,
-                  }}
-                >
-                  Selamat datang
-                </h2>
-                <span style={{ fontSize: '20px' }}>👋</span>
-              </div>
-              <p style={{ fontSize: '14px', color: C.muted }}>
-                Masuk ke akun ZiDu kamu untuk melanjutkan
-              </p>
-            </div>
-
-            {/* Error */}
-            {errorMsg && (
-              <div
-                style={{
-                  marginBottom: '20px',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  background: dark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
-                  border: '1px solid rgba(239,68,68,0.25)',
-                  color: '#ef4444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontSize: '13px',
-                }}
-              >
-                <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            {/* Form */}
-            <form
-              onSubmit={handleLogin}
-              style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}
+          {/* SUCCESS */}
+          {success ? (
+            <div
+              className="zidu-card"
+              style={{
+                width: '100%',
+                maxWidth: '420px',
+                background: C.card,
+                borderRadius: '20px',
+                border: `1px solid ${C.border}`,
+                boxShadow: dark
+                  ? '0 20px 60px rgba(0,0,0,0.5)'
+                  : '0 20px 60px rgba(0,0,0,0.08)',
+                padding: '48px 36px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+              }}
             >
-              {/* Email */}
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    marginBottom: '7px',
-                    color: dark ? '#cbd5e1' : '#374151',
-                  }}
-                >
-                  Alamat Email
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <Mail
-                    size={15}
-                    style={{
-                      position: 'absolute',
-                      left: '13px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      pointerEvents: 'none',
-                      color: focused === 'email' ? C.brand : C.muted,
-                    }}
-                  />
-                  <input
-                    type="email"
-                    placeholder="nama@sekolah.sch.id"
-                    required
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    onFocus={() => setFocused('email')}
-                    onBlur={() => setFocused('')}
-                    style={inputStyle('email')}
-                  />
-                </div>
+              <div
+                className="zidu-bounce"
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  background: 'rgba(16,185,129,0.1)',
+                  border: '2px solid #10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <CheckCircle2 size={38} color="#10b981" />
               </div>
-
-              {/* Password */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '7px',
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: '500',
-                      color: dark ? '#cbd5e1' : '#374151',
-                    }}
-                  >
-                    Password
-                  </label>
-                  <a
-                    href="#"
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      color: C.brand,
-                      textDecoration: 'none',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.target.style.textDecoration = 'underline')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.textDecoration = 'none')
-                    }
-                  >
-                    Lupa password?
-                  </a>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <Lock
-                    size={15}
-                    style={{
-                      position: 'absolute',
-                      left: '13px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      pointerEvents: 'none',
-                      color: focused === 'password' ? C.brand : C.muted,
-                    }}
-                  />
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    required
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    onFocus={() => setFocused('password')}
-                    onBlur={() => setFocused('')}
-                    style={{ ...inputStyle('password'), paddingRight: '42px' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass((s) => !s)}
-                    className="zidu-showpass"
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: C.muted,
-                    }}
-                  >
-                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
+              <h2
+                style={{
+                  fontFamily: 'Sora',
+                  fontSize: '22px',
+                  fontWeight: '700',
+                  color: C.text,
+                }}
+              >
+                Pendaftaran Berhasil!
+              </h2>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: C.muted,
+                  lineHeight: 1.7,
+                  maxWidth: '300px',
+                }}
+              >
+                Email verifikasi dikirim ke{' '}
+                <strong style={{ color: C.text }}>{form.email}</strong>. Cek
+                inbox untuk mengaktifkan akun.
+              </p>
+              <Link
+                to="/login"
                 className="zidu-btn"
                 style={{
-                  width: '100%',
-                  padding: '11px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '11px 28px',
                   borderRadius: '12px',
                   color: '#fff',
                   fontSize: '14px',
                   fontWeight: '600',
                   fontFamily: 'Sora',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  marginTop: '4px',
+                  textDecoration: 'none',
+                  marginTop: '8px',
                 }}
               >
-                {loading ? (
-                  <>
-                    <div className="zidu-spinner" /> Memverifikasi...
-                  </>
-                ) : (
-                  <>
-                    <LogIn size={15} /> Masuk Sekarang
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                margin: '20px 0',
-              }}
-            >
-              <div style={{ flex: 1, height: '1px', background: C.border }} />
-              <span style={{ fontSize: '12px', color: C.muted }}>atau</span>
-              <div style={{ flex: 1, height: '1px', background: C.border }} />
+                Ke Halaman Login →
+              </Link>
             </div>
-
-            {/* Register CTA */}
+          ) : (
             <div
+              className="zidu-card"
               style={{
-                background: dark ? '#1e2130' : '#f8fafc',
+                width: '100%',
+                maxWidth: '420px',
+                background: C.card,
+                borderRadius: '20px',
                 border: `1px solid ${C.border}`,
-                borderRadius: '14px',
-                padding: '14px 16px',
-                textAlign: 'center',
+                boxShadow: dark
+                  ? '0 20px 60px rgba(0,0,0,0.5)'
+                  : '0 20px 60px rgba(0,0,0,0.08)',
+                padding: '36px 32px',
               }}
             >
-              <p style={{ fontSize: '13px', color: C.muted }}>
-                Sekolah belum terdaftar?{' '}
+              {/* Mobile Logo */}
+              {isMobile && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '24px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '10px',
+                      background: C.brand,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: 'Sora',
+                      fontWeight: '700',
+                      color: '#fff',
+                      fontSize: '15px',
+                    }}
+                  >
+                    Z
+                  </div>
+                  <span style={{ fontFamily: 'Sora', fontWeight: '600' }}>
+                    ZiDu
+                  </span>
+                </div>
+              )}
+
+              {/* Header */}
+              <div style={{ marginBottom: '24px' }}>
+                <h2
+                  style={{
+                    fontFamily: 'Sora',
+                    fontSize: '20px',
+                    fontWeight: '700',
+                    color: C.text,
+                  }}
+                >
+                  {step === 0 ? '🙋 Buat akun kamu' : '🏫 Data sekolah'}
+                </h2>
+                <p
+                  style={{ fontSize: '13px', color: C.muted, marginTop: '4px' }}
+                >
+                  {step === 0
+                    ? 'Langkah 1 dari 2 — informasi akun'
+                    : 'Langkah 2 dari 2 — hampir selesai!'}
+                </p>
+              </div>
+
+              {/* Error */}
+              {errorMsg && (
+                <div
+                  style={{
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    background: dark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '13px',
+                  }}
+                >
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {/* STEP 0 */}
+              {step === 0 && (
+                <div
+                  className="zidu-slide"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                  }}
+                >
+                  {/* Full Name */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      Nama Lengkap
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <User
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'fullName' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Nama lengkap kamu"
+                        required
+                        value={form.fullName}
+                        onChange={set('fullName')}
+                        onFocus={() => setFocused('fullName')}
+                        onBlur={() => setFocused('')}
+                        style={inputStyle('fullName')}
+                      />
+                    </div>
+                  </div>
+                  {/* Email */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      Alamat Email
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Mail
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'email' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type="email"
+                        placeholder="email@sekolah.sch.id"
+                        required
+                        value={form.email}
+                        onChange={set('email')}
+                        onFocus={() => setFocused('email')}
+                        onBlur={() => setFocused('')}
+                        style={inputStyle('email')}
+                      />
+                    </div>
+                  </div>
+                  {/* Password */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'password' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        placeholder="Min. 8 karakter"
+                        required
+                        value={form.password}
+                        onChange={set('password')}
+                        onFocus={() => setFocused('password')}
+                        onBlur={() => setFocused('')}
+                        style={{
+                          ...inputStyle('password'),
+                          paddingRight: '42px',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPass((s) => !s)}
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: C.muted,
+                          display: 'flex',
+                        }}
+                      >
+                        {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    {/* Strength */}
+                    {form.password && (
+                      <div style={{ marginTop: '8px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '4px',
+                            marginBottom: '5px',
+                          }}
+                        >
+                          {[0, 1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              style={{
+                                flex: 1,
+                                height: '3px',
+                                borderRadius: '99px',
+                                background:
+                                  i < strength
+                                    ? strengthColors[strength - 1]
+                                    : C.border,
+                                transition: 'background 0.3s',
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <p
+                          style={{
+                            fontSize: '11px',
+                            color: strengthColors[strength - 1],
+                          }}
+                        >
+                          {strengthLabels[strength - 1]}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="zidu-btn"
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '12px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      fontFamily: 'Sora',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    Lanjut ke Data Sekolah →
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 1 */}
+              {step === 1 && (
+                <form
+                  onSubmit={handleRegister}
+                  className="zidu-slide"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                  }}
+                >
+                  {/* School Name */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      Nama Sekolah
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Building2
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'schoolName' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="SMA Negeri 1 Contoh"
+                        required
+                        value={form.schoolName}
+                        onChange={set('schoolName')}
+                        onFocus={() => setFocused('schoolName')}
+                        onBlur={() => setFocused('')}
+                        style={inputStyle('schoolName')}
+                      />
+                    </div>
+                  </div>
+                  {/* Phone */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      No. Telepon Sekolah{' '}
+                      <span style={{ color: C.muted, fontWeight: 400 }}>
+                        (opsional)
+                      </span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Phone
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'schoolPhone' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="021-xxxxxxx"
+                        value={form.schoolPhone}
+                        onChange={set('schoolPhone')}
+                        onFocus={() => setFocused('schoolPhone')}
+                        onBlur={() => setFocused('')}
+                        style={inputStyle('schoolPhone')}
+                      />
+                    </div>
+                  </div>
+                  {/* City */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        marginBottom: '7px',
+                        color: dark ? '#cbd5e1' : '#374151',
+                      }}
+                    >
+                      Kota / Kabupaten{' '}
+                      <span style={{ color: C.muted, fontWeight: 400 }}>
+                        (opsional)
+                      </span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <MapPin
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '13px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: focused === 'schoolCity' ? C.brand : C.muted,
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Jakarta Selatan"
+                        value={form.schoolCity}
+                        onChange={set('schoolCity')}
+                        onFocus={() => setFocused('schoolCity')}
+                        onBlur={() => setFocused('')}
+                        style={inputStyle('schoolCity')}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{ display: 'flex', gap: '10px', marginTop: '4px' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      className="zidu-back"
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '12px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        color: C.muted,
+                        border: `1.5px solid ${C.border}`,
+                        background: C.inputBg,
+                      }}
+                    >
+                      <ArrowLeft size={14} /> Kembali
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="zidu-btn"
+                      style={{
+                        flex: 1,
+                        padding: '11px',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        fontFamily: 'Sora',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      {loading ? (
+                        <>
+                          <div className="zidu-spinner" /> Mendaftar...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={14} /> Daftar Sekarang
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <p
+                style={{
+                  textAlign: 'center',
+                  fontSize: '13px',
+                  marginTop: '20px',
+                  color: C.muted,
+                }}
+              >
+                Sudah punya akun?{' '}
                 <Link
-                  to="/register"
+                  to="/login"
                   style={{
                     fontWeight: '600',
                     color: C.brand,
                     textDecoration: 'none',
                   }}
-                  onMouseEnter={(e) =>
-                    (e.target.style.textDecoration = 'underline')
-                  }
-                  onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                 >
-                  Daftar gratis →
+                  Masuk di sini
                 </Link>
               </p>
             </div>
-          </div>
+          )}
 
           <p
             style={{
@@ -786,4 +1079,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Register;
