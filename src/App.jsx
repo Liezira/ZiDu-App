@@ -2,31 +2,33 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
+
 
 // ── Static imports ────────────────────────────────────────────────
-import Login    from './pages/auth/Login';
+import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 
 // ── Lazy imports ──────────────────────────────────────────────────
-const DashboardLayout      = lazy(() => import('./components/layout/DashboardLayout'));
-const SuperAdminDashboard  = lazy(() => import('./pages/admin/SuperAdminDashboard'));
-const SchoolManagement     = lazy(() => import('./pages/admin/SchoolManagement'));
-const GlobalAnalytics      = lazy(() => import('./pages/admin/GlobalAnalytics'));
+const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
+const SuperAdminDashboard = lazy(() => import('./pages/admin/SuperAdminDashboard'));
+const SchoolManagement = lazy(() => import('./pages/admin/SchoolManagement'));
+const GlobalAnalytics = lazy(() => import('./pages/admin/GlobalAnalytics'));
 const SchoolAdminDashboard = lazy(() => import('./pages/school/SchoolAdminDashboard'));
-const StaffManagement      = lazy(() => import('./pages/school/StaffManagement'));
-const SubjectManagement    = lazy(() => import('./pages/school/SubjectManagement'));
-const ClassManagement      = lazy(() => import('./pages/school/ClassManagement'));
-const TeacherDashboard     = lazy(() => import('./pages/teacher/TeacherDashboard'));
-const StudentDashboard     = lazy(() => import('./pages/student/StudentDashboard'));
-const QuestionBank         = lazy(() => import('./pages/teacher/QuestionBank'));
-const ExamManagement       = lazy(() => import('./pages/teacher/ExamManagement'));
-const GradesPage           = lazy(() => import('./pages/teacher/GradesPage'));
-const ExamRoom             = lazy(() => import('./pages/student/ExamRoom'));
-const StudentResults       = lazy(() => import('./pages/student/StudentResults'));
-const ProfilePage          = lazy(() => import('./pages/shared/ProfilePage'));
-const StudentApprovals     = lazy(() => import('./pages/school/StudentApprovals'));
-const PendingApproval      = lazy(() => import('./pages/shared/PendingApproval'));
-const LandingPage          = lazy(() => import('./pages/LandingPage'));
+const StaffManagement = lazy(() => import('./pages/school/StaffManagement'));
+const SubjectManagement = lazy(() => import('./pages/school/SubjectManagement'));
+const ClassManagement = lazy(() => import('./pages/school/ClassManagement'));
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
+const QuestionBank = lazy(() => import('./pages/teacher/QuestionBank'));
+const ExamManagement = lazy(() => import('./pages/teacher/ExamManagement'));
+const GradesPage = lazy(() => import('./pages/teacher/GradesPage'));
+const ExamRoom = lazy(() => import('./pages/student/ExamRoom'));
+const StudentResults = lazy(() => import('./pages/student/StudentResults'));
+const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
+const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
+const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -37,7 +39,9 @@ const PageLoader = () => (
 );
 
 const Lazy = ({ children }) => (
-  <Suspense fallback={<PageLoader />}>{children}</Suspense>
+  <ErrorBoundary>
+    <Suspense fallback={<PageLoader />}>{children}</Suspense>
+  </ErrorBoundary>
 );
 
 // ── Placeholder ───────────────────────────────────────────────────
@@ -93,10 +97,10 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 
 // ── Root Redirect ─────────────────────────────────────────────────
 const ROLE_ROUTES = {
-  super_admin:  '/admin',
+  super_admin: '/admin',
   school_admin: '/school',
-  teacher:      '/teacher',
-  student:      '/student',
+  teacher: '/teacher',
+  student: '/student',
 };
 
 const RootRedirect = () => {
@@ -119,7 +123,7 @@ const App = () => {
   return (
     <Routes>
       {/* ── AUTH ── */}
-      <Route path="/login"    element={<AuthRoute><Login /></AuthRoute>} />
+      <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
 
       {/* ── ROOT → redirect ke dashboard sesuai role ── */}
@@ -135,10 +139,10 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index            element={<Lazy><SuperAdminDashboard /></Lazy>} />
-        <Route path="schools"   element={<Lazy><SchoolManagement /></Lazy>} />
+        <Route index element={<Lazy><SuperAdminDashboard /></Lazy>} />
+        <Route path="schools" element={<Lazy><SchoolManagement /></Lazy>} />
         <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
-        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
@@ -150,12 +154,12 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index           element={<Lazy><SchoolAdminDashboard /></Lazy>} />
-        <Route path="staff"    element={<Lazy><StaffManagement /></Lazy>} />
-        <Route path="classes"  element={<Lazy><ClassManagement /></Lazy>} />
+        <Route index element={<Lazy><SchoolAdminDashboard /></Lazy>} />
+        <Route path="staff" element={<Lazy><StaffManagement /></Lazy>} />
+        <Route path="classes" element={<Lazy><ClassManagement /></Lazy>} />
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
         <Route path="approvals" element={<Lazy><StudentApprovals /></Lazy>} />
-        <Route path="profile"  element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── TEACHER ── */}
@@ -167,11 +171,11 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index            element={<Lazy><TeacherDashboard /></Lazy>} />
+        <Route index element={<Lazy><TeacherDashboard /></Lazy>} />
         <Route path="questions" element={<Lazy><QuestionBank /></Lazy>} />
-        <Route path="exams"     element={<Lazy><ExamManagement /></Lazy>} />
-        <Route path="grades"    element={<Lazy><GradesPage /></Lazy>} />
-        <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="exams" element={<Lazy><ExamManagement /></Lazy>} />
+        <Route path="grades" element={<Lazy><GradesPage /></Lazy>} />
+        <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
       {/* ── STUDENT ── */}
@@ -183,9 +187,9 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index          element={<Lazy><StudentDashboard /></Lazy>} />
+        <Route index element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
-        <Route path="exam"    element={<Lazy><ExamRoom /></Lazy>} />
+        <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
