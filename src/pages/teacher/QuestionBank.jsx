@@ -9,17 +9,17 @@ import {
 } from 'lucide-react';
 
 // ── Constants ─────────────────────────────────────────────────────
-const EXAM_TYPES   = ['Ulangan Harian', 'UTS', 'UAS', 'Try Out', 'Kuis'];
+const EXAM_TYPES = ['Ulangan Harian', 'UTS', 'UAS', 'Try Out', 'Kuis'];
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
-const DIFF_META    = {
-  easy:   { label: 'Mudah',  bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
+const DIFF_META = {
+  easy: { label: 'Mudah', bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
   medium: { label: 'Sedang', bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-  hard:   { label: 'Sulit',  bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
+  hard: { label: 'Sulit', bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
 };
 const TYPE_META = {
-  multiple_choice: { label: 'Pilihan Ganda', icon: List,       color: '#4F46E5', bg: '#EEF2FF' },
-  essay:           { label: 'Essay',         icon: FileText,   color: '#0891B2', bg: '#EFF6FF' },
-  true_false:      { label: 'Benar/Salah',   icon: ToggleLeft, color: '#7C3AED', bg: '#F5F3FF' },
+  multiple_choice: { label: 'Pilihan Ganda', icon: List, color: '#4F46E5', bg: '#EEF2FF' },
+  essay: { label: 'Essay', icon: FileText, color: '#0891B2', bg: '#EFF6FF' },
+  true_false: { label: 'Benar/Salah', icon: ToggleLeft, color: '#7C3AED', bg: '#F5F3FF' },
 };
 
 // ── Atoms ─────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ const SelectField = ({ label, required, error, options, placeholder, ...props })
 );
 
 const Btn = ({ children, variant = 'primary', icon: Icon, loading, sm, ...props }) => {
-  const S = { primary: ['#4F46E5','#fff','#4F46E5','#4338CA'], secondary: ['#fff','#374151','#E2E8F0','#F1F5F9'], danger: ['#DC2626','#fff','#DC2626','#B91C1C'], ghost: ['transparent','#64748B','transparent','#F1F5F9'] };
+  const S = { primary: ['#4F46E5', '#fff', '#4F46E5', '#4338CA'], secondary: ['#fff', '#374151', '#E2E8F0', '#F1F5F9'], danger: ['#DC2626', '#fff', '#DC2626', '#B91C1C'], ghost: ['transparent', '#64748B', 'transparent', '#F1F5F9'] };
   const [bg, color, border, hbg] = S[variant] || S.primary;
   return (
     <button {...props} disabled={loading || props.disabled}
@@ -95,7 +95,7 @@ const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
 
 const Toast = ({ msg, type }) => (
   <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 300, display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 18px', borderRadius: '12px', background: type === 'error' ? '#DC2626' : '#0F172A', color: '#fff', fontSize: '13px', fontWeight: '500', boxShadow: '0 8px 30px rgba(0,0,0,.2)', fontFamily: "'DM Sans', sans-serif", animation: 'slideDown .25s ease' }}>
-  {type === 'error' ? <AlertCircle size={15} /> : <CheckCircle2 size={15} style={{ color: '#4ADE80' }} />}{msg}
+    {type === 'error' ? <AlertCircle size={15} /> : <CheckCircle2 size={15} style={{ color: '#4ADE80' }} />}{msg}
   </div>
 );
 
@@ -124,11 +124,11 @@ true_false,Matahari terbit dari timur,,,,,Benar,easy,1
 essay,Jelaskan proses fotosintesis!,,,,,,medium,2`;
 
 const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
-  const [rows,      setRows]      = useState([]);
-  const [preview,   setPreview]   = useState(false);
+  const [rows, setRows] = useState([]);
+  const [preview, setPreview] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [result,    setResult]    = useState(null);
-  const [error,     setError]     = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
   const fileRef = useRef();
 
   const reset = () => { setRows([]); setPreview(false); setResult(null); setError(''); if (fileRef.current) fileRef.current.value = ''; };
@@ -139,15 +139,15 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["\']/g, ''));
     const idx = (name) => headers.findIndex(h => h === name);
 
-    const typeI    = idx('type');
-    const qI       = idx('question');
-    const aI       = idx('option_a');
-    const bI       = idx('option_b');
-    const cI       = idx('option_c');
-    const dI       = idx('option_d');
-    const ansI     = idx('correct_answer');
-    const diffI    = idx('difficulty');
-    const weightI  = idx('score_weight');
+    const typeI = idx('type');
+    const qI = idx('question');
+    const aI = idx('option_a');
+    const bI = idx('option_b');
+    const cI = idx('option_c');
+    const dI = idx('option_d');
+    const ansI = idx('correct_answer');
+    const diffI = idx('difficulty');
+    const weightI = idx('score_weight');
 
     if (qI < 0) { setError('Kolom "question" wajib ada.'); return; }
 
@@ -162,15 +162,15 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
       }
       cols.push(cur.trim());
 
-      const type    = typeI >= 0 ? (cols[typeI] || 'multiple_choice').trim() : 'multiple_choice';
-      const qText   = qI >= 0 ? cols[qI] || '' : '';
-      const optA    = aI >= 0 ? cols[aI] || '' : '';
-      const optB    = bI >= 0 ? cols[bI] || '' : '';
-      const optC    = cI >= 0 ? cols[cI] || '' : '';
-      const optD    = dI >= 0 ? cols[dI] || '' : '';
-      const answer  = ansI >= 0 ? cols[ansI] || '' : '';
-      const diff    = diffI >= 0 ? (cols[diffI] || 'medium').trim() : 'medium';
-      const weight  = weightI >= 0 ? parseFloat(cols[weightI]) || 1 : 1;
+      const type = typeI >= 0 ? (cols[typeI] || 'multiple_choice').trim() : 'multiple_choice';
+      const qText = qI >= 0 ? cols[qI] || '' : '';
+      const optA = aI >= 0 ? cols[aI] || '' : '';
+      const optB = bI >= 0 ? cols[bI] || '' : '';
+      const optC = cI >= 0 ? cols[cI] || '' : '';
+      const optD = dI >= 0 ? cols[dI] || '' : '';
+      const answer = ansI >= 0 ? cols[ansI] || '' : '';
+      const diff = diffI >= 0 ? (cols[diffI] || 'medium').trim() : 'medium';
+      const weight = weightI >= 0 ? parseFloat(cols[weightI]) || 1 : 1;
 
       const validTypes = ['multiple_choice', 'essay', 'true_false'];
       const validDiffs = ['easy', 'medium', 'hard'];
@@ -182,18 +182,18 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
       if (type === 'multiple_choice') {
         if (!optA || !optB) _errors.push('Min. 2 pilihan (option_a, option_b)');
         if (!answer) _errors.push('Jawaban wajib diisi');
-        const validAnswers = ['A','B','C','D'];
+        const validAnswers = ['A', 'B', 'C', 'D'];
         if (answer && !validAnswers.includes(answer.toUpperCase())) _errors.push('Jawaban harus A/B/C/D');
       }
       if (type === 'true_false') {
-        const validTF = ['Benar','Salah','benar','salah','true','false'];
+        const validTF = ['Benar', 'Salah', 'benar', 'salah', 'true', 'false'];
         if (!validTF.includes(answer)) _errors.push('Jawaban harus Benar/Salah');
       }
 
       const options = type === 'multiple_choice' ? [optA, optB, optC, optD].filter(Boolean) : null;
       const correctAnswer = type === 'multiple_choice' ? answer.toUpperCase()
-        : type === 'true_false' ? (['benar','true'].includes(answer.toLowerCase()) ? 'Benar' : 'Salah')
-        : answer;
+        : type === 'true_false' ? (['benar', 'true'].includes(answer.toLowerCase()) ? 'Benar' : 'Salah')
+          : answer;
 
       return { _row: i + 2, type, question: qText, options, correct_answer: correctAnswer, difficulty: diff, score_weight: weight, _errors, _valid: _errors.length === 0 };
     });
@@ -243,7 +243,7 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
 
   if (!open) return null;
 
-  const validCount   = rows.filter(r => r._valid).length;
+  const validCount = rows.filter(r => r._valid).length;
   const invalidCount = rows.filter(r => !r._valid).length;
 
   const DIFF_COLOR = { easy: '#16A34A', medium: '#D97706', hard: '#DC2626' };
@@ -284,7 +284,7 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
                   <table style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%', minWidth: '500px' }}>
                     <thead>
                       <tr style={{ background: '#EEF2FF' }}>
-                        {['type','question','option_a','option_b','option_c','option_d','correct_answer','difficulty','score_weight'].map(col => (
+                        {['type', 'question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'difficulty', 'score_weight'].map(col => (
                           <th key={col} style={{ padding: '6px 10px', textAlign: 'left', color: '#4F46E5', fontWeight: '700', whiteSpace: 'nowrap', borderRadius: '4px' }}>{col}</th>
                         ))}
                       </tr>
@@ -354,9 +354,11 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
                         <tr key={i} style={{ background: row._valid ? '#fff' : '#FEF9F9', borderBottom: '1px solid #F8FAFC' }}>
                           <td style={{ padding: '9px 12px', color: '#94A3B8', fontWeight: '600' }}>{row._row}</td>
                           <td style={{ padding: '9px 12px' }}>
-                            <span style={{ padding: '2px 7px', borderRadius: '999px', fontSize: '10px', fontWeight: '700',
+                            <span style={{
+                              padding: '2px 7px', borderRadius: '999px', fontSize: '10px', fontWeight: '700',
                               background: row.type === 'multiple_choice' ? '#EEF2FF' : row.type === 'essay' ? '#EFF6FF' : '#F5F3FF',
-                              color: row.type === 'multiple_choice' ? '#4F46E5' : row.type === 'essay' ? '#0891B2' : '#7C3AED' }}>
+                              color: row.type === 'multiple_choice' ? '#4F46E5' : row.type === 'essay' ? '#0891B2' : '#7C3AED'
+                            }}>
                               {TYPE_LABEL[row.type] || row.type}
                             </span>
                           </td>
@@ -418,11 +420,11 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
           {result
             ? <Btn variant="secondary" onClick={() => { reset(); onClose(); }}>Tutup</Btn>
             : <>
-                <Btn variant="secondary" onClick={() => { reset(); onClose(); }}>Batal</Btn>
-                {preview && <Btn icon={Upload} loading={importing} onClick={handleImport} disabled={validCount === 0}>
-                  Import {validCount} Soal
-                </Btn>}
-              </>}
+              <Btn variant="secondary" onClick={() => { reset(); onClose(); }}>Batal</Btn>
+              {preview && <Btn icon={Upload} loading={importing} onClick={handleImport} disabled={validCount === 0}>
+                Import {validCount} Soal
+              </Btn>}
+            </>}
         </div>
       </div>
     </div>
@@ -432,8 +434,8 @@ const BulkImportModal = ({ open, bankId, onClose, onImported }) => {
 // ── Bank Modal (Add/Edit) ─────────────────────────────────────────
 const BankModal = ({ open, bank, subjects, schoolId, teacherId, onClose, onSaved }) => {
   const isEdit = !!bank?.id;
-  const EMPTY  = { name: '', subject_id: '', exam_type: 'Ulangan Harian', description: '' };
-  const [form, setForm]     = useState(EMPTY);
+  const EMPTY = { name: '', subject_id: '', exam_type: 'Ulangan Harian', description: '' };
+  const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
@@ -450,7 +452,7 @@ const BankModal = ({ open, bank, subjects, schoolId, teacherId, onClose, onSaved
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Nama bank soal wajib diisi';
-    if (!form.subject_id)   e.subject_id = 'Mata pelajaran wajib dipilih';
+    if (!form.subject_id) e.subject_id = 'Mata pelajaran wajib dipilih';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -508,8 +510,8 @@ const OPTS_DEFAULT = ['', '', '', ''];
 
 const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
   const isEdit = !!question?.id;
-  const EMPTY  = { type: 'multiple_choice', question: '', options: [...OPTS_DEFAULT], correct_answer: '', difficulty: 'medium', score_weight: 1 };
-  const [form, setForm]     = useState(EMPTY);
+  const EMPTY = { type: 'multiple_choice', question: '', options: [...OPTS_DEFAULT], correct_answer: '', difficulty: 'medium', score_weight: 1 };
+  const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
@@ -518,12 +520,12 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
     if (open) {
       if (question) {
         setForm({
-          type:           question.type || 'multiple_choice',
-          question:       question.question || '',
-          options:        question.options ? [...question.options, ...OPTS_DEFAULT].slice(0, 4) : [...OPTS_DEFAULT],
+          type: question.type || 'multiple_choice',
+          question: question.question || '',
+          options: question.options ? [...question.options, ...OPTS_DEFAULT].slice(0, 4) : [...OPTS_DEFAULT],
           correct_answer: question.correct_answer || '',
-          difficulty:     question.difficulty || 'medium',
-          score_weight:   question.score_weight || 1,
+          difficulty: question.difficulty || 'medium',
+          score_weight: question.score_weight || 1,
         });
       } else {
         setForm({ ...EMPTY, options: [...OPTS_DEFAULT] });
@@ -554,13 +556,13 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
     setSaving(true); setSaveErr('');
     try {
       const payload = {
-        type:           form.type,
-        question:       form.question.trim(),
-        options:        form.type === 'multiple_choice' ? form.options.filter(o => o.trim()) : null,
+        type: form.type,
+        question: form.question.trim(),
+        options: form.type === 'multiple_choice' ? form.options.filter(o => o.trim()) : null,
         correct_answer: form.correct_answer,
-        difficulty:     form.difficulty,
-        score_weight:   parseFloat(form.score_weight) || 1,
-        updated_at:     new Date().toISOString(),
+        difficulty: form.difficulty,
+        score_weight: parseFloat(form.score_weight) || 1,
+        updated_at: new Date().toISOString(),
       };
 
       if (isEdit) {
@@ -724,7 +726,7 @@ const QuestionPreview = ({ question, number }) => {
           {question.type === 'multiple_choice' && question.options && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
               {question.options.map((opt, i) => {
-                const label = ['A','B','C','D'][i];
+                const label = ['A', 'B', 'C', 'D'][i];
                 const isCorrect = question.correct_answer === label;
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '8px', background: isCorrect ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${isCorrect ? '#BBF7D0' : '#F1F5F9'}` }}>
@@ -756,40 +758,48 @@ const QuestionPreview = ({ question, number }) => {
 // ── Main ──────────────────────────────────────────────────────────
 const QuestionBank = () => {
   const { profile } = useAuth();
-  const [view, setView]   = useState('banks'); // 'banks' | 'questions'
-  const [banks,    setBanks]    = useState([]);
+  const [view, setView] = useState('banks'); // 'banks' | 'questions'
+  const [banks, setBanks] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [activeBank, setActiveBank] = useState(null);
 
-  const [loading,    setLoading]    = useState(true);
-  const [qLoading,   setQLoading]   = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [qLoading, setQLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error,      setError]      = useState(null);
+  const [error, setError] = useState(null);
 
-  const [search,       setSearch]       = useState('');
-  const [filterType,   setFilterType]   = useState('all');
-  const [filterDiff,   setFilterDiff]   = useState('all');
-  const [filterSubject,setFilterSubject]= useState('all');
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterDiff, setFilterDiff] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
 
-  const [bankModal,  setBankModal]  = useState(false);
-  const [editBank,   setEditBank]   = useState(null);
-  const [qModal,     setQModal]     = useState(false);
-  const [editQ,      setEditQ]      = useState(null);
-  const [confirm,    setConfirm]    = useState({ open: false });
-  const [bulkModal,  setBulkModal]  = useState(false);
+  const [bankModal, setBankModal] = useState(false);
+  const [editBank, setEditBank] = useState(null);
+  const [qModal, setQModal] = useState(false);
+  const [editQ, setEditQ] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false });
+  const [bulkModal, setBulkModal] = useState(false);
   const [actLoading, setActLoading] = useState(false);
-  const [toast,      setToast]      = useState(null);
+  const [toast, setToast] = useState(null);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
+  // fetchingRef: cegah double-call dari React StrictMode (mount 2x di development)
+  const fetchingRef = useRef(false);
+
   // Fetch banks + subjects
+  // Menggunakan questions(count) langsung dari relasi — bukan kolom total_questions
+  // yang berpotensi drift (tidak sync) dengan data aktual.
   const fetchBanks = useCallback(async () => {
     if (!profile?.id) return;
+    if (fetchingRef.current) return; // Guard: cegah double-call dari StrictMode
+    fetchingRef.current = true;
+
     try {
       const [banksRes, subjectsRes] = await Promise.all([
         supabase.from('question_banks')
-          .select('*, subjects(name, code)')
+          .select('*, subjects(name, code), questions(count)')
           .eq('teacher_id', profile.id)
           .order('created_at', { ascending: false }),
         supabase.from('subjects')
@@ -798,10 +808,21 @@ const QuestionBank = () => {
           .order('name'),
       ]);
       if (banksRes.error) throw banksRes.error;
-      setBanks(banksRes.data || []);
+
+      // Ambil hitungan dari relasi langsung (aktual) — bukan kolom total_questions
+      const banksWithCount = (banksRes.data || []).map(bank => ({
+        ...bank,
+        total_questions: bank.questions?.[0]?.count ?? 0,
+      }));
+
+      setBanks(banksWithCount);
       setSubjects(subjectsRes.data || []);
     } catch (err) { setError(err.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    finally {
+      setLoading(false);
+      setRefreshing(false);
+      fetchingRef.current = false;
+    }
   }, [profile?.id, profile?.school_id]);
 
   // Fetch questions for active bank
@@ -870,26 +891,26 @@ const QuestionBank = () => {
   // Filtered questions
   const filteredQ = questions.filter(q => {
     const matchSearch = !search || q.question.toLowerCase().includes(search.toLowerCase());
-    const matchType   = filterType === 'all' || q.type === filterType;
-    const matchDiff   = filterDiff === 'all' || q.difficulty === filterDiff;
+    const matchType = filterType === 'all' || q.type === filterType;
+    const matchDiff = filterDiff === 'all' || q.difficulty === filterDiff;
     return matchSearch && matchType && matchDiff;
   });
 
   // Filtered banks
   const filteredBanks = banks.filter(b => {
-    const matchSearch  = !search || b.name.toLowerCase().includes(search.toLowerCase()) || b.subjects?.name?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || b.name.toLowerCase().includes(search.toLowerCase()) || b.subjects?.name?.toLowerCase().includes(search.toLowerCase());
     const matchSubject = filterSubject === 'all' || b.subject_id === filterSubject;
     return matchSearch && matchSubject;
   });
 
   const qStats = {
     total: questions.length,
-    mc:    questions.filter(q => q.type === 'multiple_choice').length,
+    mc: questions.filter(q => q.type === 'multiple_choice').length,
     essay: questions.filter(q => q.type === 'essay').length,
-    tf:    questions.filter(q => q.type === 'true_false').length,
-    easy:  questions.filter(q => q.difficulty === 'easy').length,
-    medium:questions.filter(q => q.difficulty === 'medium').length,
-    hard:  questions.filter(q => q.difficulty === 'hard').length,
+    tf: questions.filter(q => q.type === 'true_false').length,
+    easy: questions.filter(q => q.difficulty === 'easy').length,
+    medium: questions.filter(q => q.difficulty === 'medium').length,
+    hard: questions.filter(q => q.difficulty === 'hard').length,
   };
 
   return (
@@ -953,20 +974,20 @@ const QuestionBank = () => {
           {/* Bank Cards Grid */}
           {loading
             ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <Shimmer h={18} w="70%" /><Shimmer h={13} w="50%" /><Shimmer h={13} w="40%" />
-                  </div>
-                ))}
-              </div>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <Shimmer h={18} w="70%" /><Shimmer h={13} w="50%" /><Shimmer h={13} w="40%" />
+                </div>
+              ))}
+            </div>
             : filteredBanks.length === 0
-            ? <div style={{ padding: '64px 20px', textAlign: 'center', background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9' }}>
+              ? <div style={{ padding: '64px 20px', textAlign: 'center', background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9' }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px' }}>📚</div>
                 <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', marginBottom: '6px' }}>Belum ada bank soal</div>
                 <div style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '20px' }}>Buat bank soal pertama untuk mulai menambahkan soal</div>
                 <Btn icon={Plus} onClick={() => { setEditBank(null); setBankModal(true); }}>Buat Bank Soal</Btn>
               </div>
-            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+              : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
                 {filteredBanks.map((bank, idx) => (
                   <div key={bank.id} className="bank-card"
                     style={{ background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9', padding: '20px', cursor: 'pointer', transition: 'all .2s', boxShadow: '0 1px 4px rgba(0,0,0,.03)', opacity: 0, animation: `fadeUp .35s ease ${idx * 40}ms forwards`, position: 'relative' }}
@@ -977,7 +998,7 @@ const QuestionBank = () => {
                       </div>
                       <div onClick={e => e.stopPropagation()}>
                         <ActionMenu items={[
-                          { icon: Edit2,  label: 'Edit',  action: () => { setEditBank(bank); setBankModal(true); } },
+                          { icon: Edit2, label: 'Edit', action: () => { setEditBank(bank); setBankModal(true); } },
                           { icon: Trash2, label: 'Hapus', action: () => handleDeleteBank(bank), color: '#DC2626' },
                         ]} />
                       </div>
@@ -1033,13 +1054,13 @@ const QuestionBank = () => {
           {/* Stats pills */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', opacity: 0, animation: 'fadeUp .35s ease 60ms forwards' }}>
             {[
-              { label: 'Total',         value: qStats.total,  color: '#4F46E5', bg: '#EEF2FF' },
-              { label: 'Pilihan Ganda', value: qStats.mc,     color: '#4F46E5', bg: '#EEF2FF' },
-              { label: 'Essay',         value: qStats.essay,  color: '#0891B2', bg: '#EFF6FF' },
-              { label: 'Benar/Salah',   value: qStats.tf,     color: '#7C3AED', bg: '#F5F3FF' },
-              { label: 'Mudah',         value: qStats.easy,   color: '#16A34A', bg: '#F0FDF4' },
-              { label: 'Sedang',        value: qStats.medium, color: '#D97706', bg: '#FFFBEB' },
-              { label: 'Sulit',         value: qStats.hard,   color: '#DC2626', bg: '#FEF2F2' },
+              { label: 'Total', value: qStats.total, color: '#4F46E5', bg: '#EEF2FF' },
+              { label: 'Pilihan Ganda', value: qStats.mc, color: '#4F46E5', bg: '#EEF2FF' },
+              { label: 'Essay', value: qStats.essay, color: '#0891B2', bg: '#EFF6FF' },
+              { label: 'Benar/Salah', value: qStats.tf, color: '#7C3AED', bg: '#F5F3FF' },
+              { label: 'Mudah', value: qStats.easy, color: '#16A34A', bg: '#F0FDF4' },
+              { label: 'Sedang', value: qStats.medium, color: '#D97706', bg: '#FFFBEB' },
+              { label: 'Sulit', value: qStats.hard, color: '#DC2626', bg: '#FEF2F2' },
             ].map(p => (
               <div key={p.label} style={{ padding: '5px 12px', borderRadius: '999px', background: p.bg, color: p.color, fontSize: '12px', fontWeight: '600' }}>
                 {p.label}: <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: '700' }}>{p.value}</span>
@@ -1076,12 +1097,12 @@ const QuestionBank = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', opacity: 0, animation: 'fadeUp .35s ease 140ms forwards' }}>
             {qLoading
               ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #F1F5F9', padding: '16px', display: 'flex', gap: '12px' }}>
-                    <Shimmer w="28px" h={28} r={8} /><div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}><Shimmer h={14} /><Shimmer h={12} w="60%" /></div>
-                  </div>
-                ))
+                <div key={i} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #F1F5F9', padding: '16px', display: 'flex', gap: '12px' }}>
+                  <Shimmer w="28px" h={28} r={8} /><div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}><Shimmer h={14} /><Shimmer h={12} w="60%" /></div>
+                </div>
+              ))
               : filteredQ.length === 0
-              ? <div style={{ padding: '48px 20px', textAlign: 'center', background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9' }}>
+                ? <div style={{ padding: '48px 20px', textAlign: 'center', background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9' }}>
                   <div style={{ fontSize: '32px', marginBottom: '10px' }}>📝</div>
                   <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '15px', fontWeight: '700', color: '#0F172A', marginBottom: '6px' }}>
                     {search || filterType !== 'all' || filterDiff !== 'all' ? 'Tidak ada soal yang cocok' : 'Belum ada soal'}
@@ -1091,12 +1112,12 @@ const QuestionBank = () => {
                   </div>
                   {!search && filterType === 'all' && filterDiff === 'all' && <Btn icon={Plus} onClick={() => { setEditQ(null); setQModal(true); }}>Tambah Soal</Btn>}
                 </div>
-              : filteredQ.map((q, i) => (
+                : filteredQ.map((q, i) => (
                   <div key={q.id} style={{ position: 'relative' }}>
                     <QuestionPreview question={q} number={i + 1} />
                     <div style={{ position: 'absolute', top: '12px', right: '12px' }} onClick={e => e.stopPropagation()}>
                       <ActionMenu items={[
-                        { icon: Edit2,  label: 'Edit',  action: () => { setEditQ(q); setQModal(true); } },
+                        { icon: Edit2, label: 'Edit', action: () => { setEditQ(q); setQModal(true); } },
                         { icon: Trash2, label: 'Hapus', action: () => handleDeleteQuestion(q), color: '#DC2626' },
                       ]} />
                     </div>

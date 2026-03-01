@@ -790,7 +790,7 @@ const ExamManagement = () => {
                 <div style={{ padding: '10px 16px', borderTop: '1px solid #F8FAFC', display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '12px', color: '#94A3B8' }}>Menampilkan {filtered.length} dari {sessions.length} sesi ujian</span>
                   <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Zap size={10} style={{ color: '#0891B2' }} /> Real-time dari Supabase
+                    <Zap size={10} style={{ color: '#0891B2' }} /> Data Real-Time
                   </span>
                 </div>
               </>
