@@ -50,7 +50,7 @@ const Register = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused] = useState('');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -1071,7 +1071,7 @@ const Register = () => {
               color: dark ? '#334155' : '#cbd5e1',
             }}
           >
-            © 2025 ZiDu · RuangSimulasi · All rights reserved
+            © 2026 ZiDu · RuangSimulasi · All rights reserved
           </p>
         </div>
       </div>
