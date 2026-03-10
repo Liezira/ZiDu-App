@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 // ── Static imports ────────────────────────────────────────────────
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import ResetPassword from './pages/auth/ResetPassword';
 
 // ── Lazy imports ──────────────────────────────────────────────────
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
@@ -125,6 +126,7 @@ const App = () => {
       {/* ── AUTH ── */}
       <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* ── ROOT → redirect ke dashboard sesuai role ── */}
       <Route path="/" element={<Lazy><LandingPage /></Lazy>} />
