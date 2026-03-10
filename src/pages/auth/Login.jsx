@@ -14,6 +14,8 @@ import {
   Zap,
   Shield,
   CheckCircle2,
+  ArrowLeft,
+  Send,
 } from 'lucide-react';
 
 const useTheme = () => {
@@ -38,13 +40,76 @@ const Login = () => {
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused] = useState('');
   const [formData, setFormData] = useState({ email: '', password: '' });
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+  );
+
+  // ── Forgot Password State ──
+  const [showForgot, setShowForgot]       = useState(false);
+  const [forgotEmail, setForgotEmail]     = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError]     = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotFocused, setForgotFocused] = useState(false);
+
+  const openForgot = () => {
+    // Pre-fill dengan email yang sudah diketik di form login (jika ada)
+    setForgotEmail(formData.email || '');
+    setForgotError('');
+    setForgotSuccess(false);
+    setShowForgot(true);
+  };
+
+  const closeForgot = () => {
+    setShowForgot(false);
+    setForgotEmail('');
+    setForgotError('');
+    setForgotSuccess(false);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Masukkan alamat email kamu.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(forgotEmail.trim())) {
+      setForgotError('Format email tidak valid.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        forgotEmail.trim(),
+        { redirectTo: window.location.origin + '/reset-password' }
+      );
+      if (error) throw error;
+      setForgotSuccess(true);
+    } catch (err) {
+      setForgotError(
+        err.message === 'For security purposes, you can only request this after 60 seconds.'
+          ? 'Tunggu 60 detik sebelum mengirim ulang.'
+          : 'Gagal mengirim email. Coba lagi.'
+      );
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handle = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handle);
     return () => window.removeEventListener('resize', handle);
   }, []);
+
+  // Tutup modal forgot dengan Escape key
+  useEffect(() => {
+    if (!showForgot) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeForgot(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showForgot]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -121,10 +186,28 @@ const Login = () => {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @keyframes backdropIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.93) translateY(16px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
 
         .zidu-card    { animation: scaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
         .zidu-float   { animation: float 5s ease-in-out infinite; }
         .zidu-fadeup  { opacity: 0; animation: fadeUp 0.5s ease forwards; }
+
+        .zidu-backdrop {
+          position: fixed; inset: 0; z-index: 1000;
+          background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+          display: flex; align-items: center; justify-content: center; padding: 20px;
+          animation: backdropIn 0.2s ease both;
+        }
+        .zidu-modal {
+          animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1) both;
+        }
 
         .zidu-btn {
           background: linear-gradient(90deg, #4338CA, #5B6CF6, #818CF8, #5B6CF6);
@@ -621,23 +704,25 @@ const Login = () => {
                   >
                     Password
                   </label>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
+                    onClick={openForgot}
                     style={{
                       fontSize: '12px',
                       fontWeight: '500',
                       color: C.brand,
                       textDecoration: 'none',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontFamily: "'DM Sans', sans-serif",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.target.style.textDecoration = 'underline')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.textDecoration = 'none')
-                    }
+                    onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
+                    onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                   >
                     Lupa password?
-                  </a>
+                  </button>
                 </div>
                 <div style={{ position: 'relative' }}>
                   <Lock
@@ -767,6 +852,241 @@ const Login = () => {
           </p>
         </div>
       </div>
+      {/* ══ FORGOT PASSWORD MODAL ══ */}
+      {showForgot && (
+        <div
+          className="zidu-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) closeForgot(); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset Password"
+        >
+          <div
+            className="zidu-modal"
+            style={{
+              width: '100%',
+              maxWidth: '400px',
+              background: C.card,
+              borderRadius: '20px',
+              border: `1px solid ${C.border}`,
+              boxShadow: dark
+                ? '0 32px 80px rgba(0,0,0,0.7)'
+                : '0 32px 80px rgba(0,0,0,0.15)',
+              padding: '36px 32px',
+              position: 'relative',
+            }}
+          >
+            {/* Close button */}
+            <button
+              onClick={closeForgot}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                background: dark ? '#1e2130' : '#f1f5f9',
+                border: `1px solid ${C.border}`,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: C.muted,
+                fontSize: '16px',
+                lineHeight: 1,
+                fontFamily: 'monospace',
+              }}
+              aria-label="Tutup"
+            >
+              ×
+            </button>
+
+            {forgotSuccess ? (
+              /* ── SUCCESS STATE ── */
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: '56px', height: '56px', borderRadius: '50%',
+                  background: dark ? 'rgba(74,222,128,0.12)' : '#F0FDF4',
+                  border: '2px solid #4ADE80',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 20px',
+                }}>
+                  <CheckCircle2 size={26} color="#4ADE80" />
+                </div>
+                <h3 style={{
+                  fontFamily: 'Sora', fontSize: '18px', fontWeight: '700',
+                  color: C.text, marginBottom: '10px',
+                }}>
+                  Email terkirim!
+                </h3>
+                <p style={{
+                  fontSize: '13px', color: C.muted, lineHeight: 1.65,
+                  marginBottom: '8px',
+                }}>
+                  Link reset password sudah dikirim ke
+                </p>
+                <p style={{
+                  fontSize: '13px', fontWeight: '600', color: C.brand,
+                  wordBreak: 'break-all', marginBottom: '20px',
+                }}>
+                  {forgotEmail}
+                </p>
+                <p style={{ fontSize: '12px', color: C.muted, lineHeight: 1.6 }}>
+                  Cek folder <strong>Spam</strong> jika tidak muncul dalam beberapa menit.
+                  Link berlaku selama <strong>1 jam</strong>.
+                </p>
+                <button
+                  onClick={closeForgot}
+                  className="zidu-btn"
+                  style={{
+                    width: '100%', marginTop: '24px', padding: '10px',
+                    borderRadius: '12px', color: '#fff', fontSize: '13px',
+                    fontWeight: '600', fontFamily: 'Sora',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <ArrowLeft size={14} /> Kembali ke Login
+                </button>
+              </div>
+            ) : (
+              /* ── FORM STATE ── */
+              <>
+                {/* Icon + Header */}
+                <div style={{
+                  width: '48px', height: '48px', borderRadius: '14px',
+                  background: C.brandGlow,
+                  border: `1.5px solid rgba(91,108,246,0.25)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: '18px',
+                }}>
+                  <Lock size={22} color={C.brand} />
+                </div>
+
+                <h3 style={{
+                  fontFamily: 'Sora', fontSize: '18px', fontWeight: '700',
+                  color: C.text, marginBottom: '6px',
+                }}>
+                  Lupa password?
+                </h3>
+                <p style={{
+                  fontSize: '13px', color: C.muted, lineHeight: 1.6,
+                  marginBottom: '24px',
+                }}>
+                  Masukkan email akun ZiDu kamu. Kami akan kirimkan link untuk membuat password baru.
+                </p>
+
+                {/* Error */}
+                {forgotError && (
+                  <div style={{
+                    marginBottom: '16px', padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: dark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#ef4444',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    fontSize: '13px',
+                  }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                {/* Email input */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{
+                    display: 'block', fontSize: '13px', fontWeight: '500',
+                    color: dark ? '#cbd5e1' : '#374151', marginBottom: '7px',
+                  }}>
+                    Alamat Email
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail
+                      size={15}
+                      style={{
+                        position: 'absolute', left: '13px', top: '50%',
+                        transform: 'translateY(-50%)', pointerEvents: 'none',
+                        color: forgotFocused ? C.brand : C.muted,
+                      }}
+                    />
+                    <input
+                      type="email"
+                      placeholder="nama@sekolah.sch.id"
+                      autoFocus
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        if (forgotError) setForgotError('');
+                      }}
+                      onFocus={() => setForgotFocused(true)}
+                      onBlur={() => setForgotFocused(false)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleForgotPassword(); }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 40px',
+                        fontSize: '14px',
+                        borderRadius: '12px',
+                        border: `1.5px solid ${forgotFocused ? C.brand : C.border}`,
+                        background: C.inputBg,
+                        color: C.text,
+                        outline: 'none',
+                        boxShadow: forgotFocused ? `0 0 0 3px ${C.brandGlow}` : 'none',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                        boxSizing: 'border-box',
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <button
+                  onClick={handleForgotPassword}
+                  disabled={forgotLoading}
+                  className="zidu-btn"
+                  style={{
+                    width: '100%', padding: '11px', borderRadius: '12px',
+                    color: '#fff', fontSize: '14px', fontWeight: '600',
+                    fontFamily: 'Sora', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  }}
+                >
+                  {forgotLoading ? (
+                    <><div className="zidu-spinner" /> Mengirim...</>
+                  ) : (
+                    <><Send size={14} /> Kirim Link Reset</>
+                  )}
+                </button>
+
+                <button
+                  onClick={closeForgot}
+                  style={{
+                    width: '100%', marginTop: '10px', padding: '10px',
+                    borderRadius: '12px', background: 'none',
+                    border: `1.5px solid ${C.border}`,
+                    color: C.muted, fontSize: '13px', fontWeight: '500',
+                    fontFamily: "'DM Sans', sans-serif",
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '6px', transition: 'border-color 0.2s, color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = C.brand;
+                    e.currentTarget.style.color = C.brand;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = C.border;
+                    e.currentTarget.style.color = C.muted;
+                  }}
+                >
+                  <ArrowLeft size={13} /> Batal
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };
