@@ -75,6 +75,7 @@ const DashboardLayout = () => {
           { label: 'Kelola Ujian', icon: FileText, path: '/teacher/exams' },
           { label: 'Rekap Nilai', icon: Award, path: '/teacher/grades' },
           { label: 'Analitik', icon: BarChart2, path: '/teacher/analytics' },
+          { label: 'Remedial', icon: RotateCcw, path: '/teacher/remedial' },
           { label: 'Kelas Saya', icon: Layers, path: '/teacher/classes' },
           { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];

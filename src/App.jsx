@@ -29,6 +29,7 @@ const StudentResults = lazy(() => import('./pages/student/StudentResults'));
 const MyClassPage   = lazy(() => import('./pages/student/MyClassPage'));
 const ClassesPage      = lazy(() => import('./pages/teacher/ClassesPage'));
 const TeacherAnalytics = lazy(() => import('./pages/teacher/TeacherAnalytics'));
+const RemedialPage     = lazy(() => import('./pages/teacher/RemedialPage'));
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
@@ -196,6 +197,7 @@ const App = () => {
         <Route path="grades" element={<Lazy><GradesPage /></Lazy>} />
         <Route path="classes"   element={<Lazy><ClassesPage /></Lazy>} />
         <Route path="analytics" element={<Lazy><TeacherAnalytics /></Lazy>} />
+        <Route path="remedial"  element={<Lazy><RemedialPage /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
