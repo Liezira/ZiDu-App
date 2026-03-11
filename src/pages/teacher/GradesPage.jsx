@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Award, Search, RefreshCw, ChevronDown, AlertCircle,
   Download, BarChart2, Users, CheckCircle2, XCircle,
-  TrendingUp, Zap, Edit3, X, Save, Eye, ArrowLeft,
+  TrendingUp, Zap, Edit3, X, Save, Eye, ArrowLeft, FileText,
 } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
