@@ -501,8 +501,6 @@ const ExamRoom = () => {
   const handleEnterToken = async (inputToken) => {
     setTokenLoading(true); setTokenError('');
     try {
-      console.log('[DEBUG] Token input:', inputToken.trim().toUpperCase());
-      console.log('[DEBUG] Profile class_id:', profile.class_id);
 
       const { data: sessions, error } = await supabase.from('exam_sessions')
         .select('*')
@@ -510,7 +508,6 @@ const ExamRoom = () => {
         .eq('class_id', profile.class_id)
         .single();
 
-      console.log('[DEBUG] Session query result:', sessions, 'Error:', error);
 
       if (error || !sessions) { setTokenError('Token tidak valid atau bukan untuk kelasmu.'); return; }
 
@@ -518,8 +515,6 @@ const ExamRoom = () => {
       const start = new Date(sessions.start_time);
       const end   = new Date(sessions.end_time);
 
-      console.log('[DEBUG] now:', now.toISOString(), 'start:', start.toISOString(), 'end:', end.toISOString());
-      console.log('[DEBUG] now < start:', now < start, '| now > end:', now > end);
 
       if (now < start) { setTokenError(`Ujian belum dimulai. Mulai: ${start.toLocaleString('id-ID')}`); return; }
       if (now > end)   { setTokenError('Ujian sudah berakhir.'); return; }
@@ -528,20 +523,16 @@ const ExamRoom = () => {
       const { data: existing } = await supabase.from('exam_results')
         .select('*').eq('exam_session_id', sessions.id).eq('student_id', profile.id).maybeSingle();
 
-      console.log('[DEBUG] Existing result:', existing);
 
       if (existing?.status === 'submitted' || existing?.status === 'graded') {
         setSession(sessions); setResult(existing); setScreen('result'); return;
       }
 
       // Load questions
-      console.log('[DEBUG] Fetching questions for bank_id:', sessions.question_bank_id);
       const { data: qs, error: qError } = await supabase.from('questions')
         .select('id, bank_id, type, question, options, image_url, difficulty, tags, score_weight')
         .eq('bank_id', sessions.question_bank_id);
 
-      console.log('[DEBUG] Questions result:', qs, 'Error:', qError);
-      console.log('[DEBUG] Questions count:', qs?.length);
 
       let questionsToShow = qs || [];
       if (sessions.shuffle_questions) {
@@ -549,7 +540,6 @@ const ExamRoom = () => {
       }
 
       if (!questionsToShow.length) {
-        console.log('[DEBUG] No questions found! bank_id was:', sessions.question_bank_id);
         setTokenError('Bank soal kosong atau belum ada soal. Hubungi guru.');
         return;
       }
