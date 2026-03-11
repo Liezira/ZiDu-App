@@ -590,7 +590,20 @@ const ExamRoom = () => {
 
   if (screen === 'token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError} />;
   if (screen === 'confirm') return <ExamConfirm session={session} onStart={() => setScreen('exam')} onBack={() => setScreen('token')} />;
-  if (screen === 'exam')    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} />;
+  if (screen === 'exam') {
+    // Guard: tunggu sampai result & questions benar-benar ready
+    if (!result || !result.id || !questions.length) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: '#0891B2', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
+            <p style={{ color: '#64748B', fontSize: '14px' }}>Memuat soal ujian...</p>
+          </div>
+        </div>
+      );
+    }
+    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} />;
+  }
   if (screen === 'result')  return <ResultScreen result={result} session={session} onBack={() => navigate('/student')} />;
 
   return null;
