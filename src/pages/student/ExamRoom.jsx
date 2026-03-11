@@ -176,16 +176,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
   }, [answers, questions, result.id]);
 
   // ── Timer countdown ───────────────────────────────────────────
-  // Ref untuk handleSubmit — biar timer & visibility selalu pakai versi terbaru
-  // tanpa perlu masuk ke dependency array (menghindari restart effect)
-  const handleSubmitRef = useRef(handleSubmit);
-  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
-
   // ── Timer countdown ───────────────────────────────────────────
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) { clearInterval(timer); handleSubmitRef.current(true); return 0; }
+        if (t <= 1) { clearInterval(timer); handleSubmitRef.current?.(true); return 0; }
         return t - 1;
       });
     }, 1000);
@@ -210,13 +205,13 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
           violationsRef.current = newCount;
 
           if (newCount >= maxViolations) {
-            handleSubmitRef.current(true);
+            handleSubmitRef.current?.(true);
           }
         } catch (err) {
           console.error('Gagal mencatat pelanggaran:', err);
           violationsRef.current++;
           if (violationsRef.current >= maxViolations) {
-            handleSubmitRef.current(true);
+            handleSubmitRef.current?.(true);
           }
         }
       }
@@ -234,6 +229,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
     }));
     onSubmit(answersArray, violationsRef.current, autoSubmit);
   }, [answers, questions, onSubmit]);
+
+  // Ref untuk handleSubmit — harus di-declare SETELAH handleSubmit
+  // agar tidak terjadi "cannot access before initialization"
+  const handleSubmitRef = useRef(null);
+  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
 
   const q = questions[current];
   const answeredCount = Object.values(answers).filter(a => a !== undefined && a !== null && a !== '').length;
