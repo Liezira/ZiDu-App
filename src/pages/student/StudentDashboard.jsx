@@ -39,7 +39,7 @@ const StudentDashboard = () => {
     try {
       const [sessionsRes, resultsRes] = await Promise.all([
         supabase.from('exam_sessions')
-          .select('id, title, exam_type, start_time, end_time, duration_minutes, passing_score, total_questions, token_status, subjects(name, code)')
+          .select('id, title, exam_type, start_time, end_time, duration_minutes, passing_score, total_questions, token_status, question_banks(subjects(name, code))')
           .eq('class_id', profile.class_id)
           .order('start_time', { ascending: false })
           .limit(30),
@@ -136,7 +136,7 @@ const StudentDashboard = () => {
                     {isLive ? <LiveDot color={T.red} /> : <Clock size={14} style={{ color: T.textMuted }} />}
                   </div>}
                   title={s.title}
-                  sub={<span>{s.subjects?.name && <>{s.subjects.name} · </>}{s.total_questions} soal · {s.duration_minutes}m{s.passing_score && <> · KKM {s.passing_score}</>}<br />{fmtDate(s.start_time)} {fmtTime(s.start_time)}</span>}
+                  sub={<span>{s.question_banks?.subjects?.name && <>{s.question_banks.subjects.name} · </>}{s.total_questions} soal · {s.duration_minutes}m{s.passing_score && <> · KKM {s.passing_score}</>}<br />{fmtDate(s.start_time)} {fmtTime(s.start_time)}</span>}
                   right={isLive ? <Badge label="MULAI →" color={T.red} bg={T.redLight} /> : countdown ? <span style={{ fontSize: '11px', color: T.amber, fontWeight: '600', fontFamily: T.fontBody }}>{countdown}</span> : null}
                 />
               );
