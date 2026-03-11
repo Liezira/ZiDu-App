@@ -304,6 +304,103 @@ const GradesPage = () => {
     return matchStatus && matchSearch;
   });
 
+  const [pdfLoading, setPdfLoading] = React.useState(false);
+
+  const exportPDF = async () => {
+    if (!displayed.length) return;
+    setPdfLoading(true);
+    try {
+      // Dynamic load jsPDF + autotable
+      const { jsPDF } = await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').catch(() => ({ jsPDF: null }));
+      // Fallback: build a printable HTML report if jsPDF unavailable
+      const sessTitle = sessions.find(s => s.id === filterSession)?.title || 'Semua Ujian';
+      const schoolName = profile?.schools?.name || 'Sekolah';
+      const now = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+      const rows = displayed.map((r, i) => `
+        <tr style="background:${i%2===0?'#fff':'#F8FAFC'}">
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9">${i+1}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;font-weight:600">${r.profiles?.name || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;color:#64748B">${r.profiles?.nis || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9">${r.exam_sessions?.title || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9">${r.exam_sessions?.classes?.name || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;font-weight:700;color:${r.passed?'#16A34A':'#DC2626'};font-size:15px">${r.score !== null ? Math.round(r.score) : '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9">
+            <span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${r.passed?'#F0FDF4':'#FEF2F2'};color:${r.passed?'#16A34A':'#DC2626'}">${r.passed===true?'Lulus':r.passed===false?'Tidak Lulus':'—'}</span>
+          </td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;font-size:12px;color:#64748B">${r.submitted_at?`${fmtDate(r.submitted_at)} ${fmtTime(r.submitted_at)}`:'—'}</td>
+        </tr>`).join('');
+
+      const gradedCount = displayed.filter(r=>r.status==='graded'&&r.score!==null).length;
+      const avgScoreVal = gradedCount ? Math.round(displayed.filter(r=>r.status==='graded'&&r.score!==null).reduce((s,r)=>s+r.score,0)/gradedCount) : '—';
+      const passCount   = displayed.filter(r=>r.passed).length;
+      const passRate    = gradedCount ? Math.round((passCount/gradedCount)*100) : '—';
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Rekap Nilai — ${sessTitle}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; color: #0F172A; padding: 32px; font-size: 13px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #4F46E5; margin-bottom: 24px; }
+    .school { font-size: 18px; font-weight: 700; color: #4F46E5; }
+    .sub    { font-size: 12px; color: #64748B; margin-top: 2px; }
+    .title  { font-size: 22px; font-weight: 700; color: #0F172A; margin-bottom: 4px; }
+    .stats  { display: flex; gap: 20px; margin-bottom: 24px; }
+    .stat   { background: #F8FAFC; border-radius: 8px; padding: 12px 18px; text-align: center; border: 1px solid #E2E8F0; }
+    .stat-v { font-size: 22px; font-weight: 700; color: #0F172A; }
+    .stat-l { font-size: 11px; color: #64748B; margin-top: 2px; }
+    table   { width: 100%; border-collapse: collapse; }
+    th      { background: #F1F5F9; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.04em; border-bottom: 2px solid #E2E8F0; }
+    .footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #94A3B8; display: flex; justify-content: space-between; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="school">${schoolName}</div>
+      <div class="sub">ZiDu — Sistem Manajemen Ujian</div>
+    </div>
+    <div style="text-align:right">
+      <div class="title">Rekap Nilai</div>
+      <div class="sub">${sessTitle} · ${now}</div>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-v">${displayed.length}</div><div class="stat-l">Total Peserta</div></div>
+    <div class="stat"><div class="stat-v">${avgScoreVal}</div><div class="stat-l">Rata-rata Nilai</div></div>
+    <div class="stat"><div class="stat-v" style="color:#16A34A">${passRate}%</div><div class="stat-l">Tingkat Lulus</div></div>
+    <div class="stat"><div class="stat-v">${passCount}</div><div class="stat-l">Siswa Lulus</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>#</th><th>Nama Siswa</th><th>NIS</th><th>Ujian</th><th>Kelas</th><th>Nilai</th><th>Status</th><th>Waktu Submit</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">
+    <span>Dicetak dari ZiDu App · ${now}</span>
+    <span>Total ${displayed.length} data</span>
+  </div>
+  <script>window.onload=()=>{window.print();}</script>
+</body>
+</html>`;
+
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+      }
+    } catch (e) {
+      console.error('Export PDF error:', e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const exportCSV = () => {
     const header = ['Nama Siswa', 'NIS', 'Ujian', 'Kelas', 'Tipe', 'Nilai', 'Lulus', 'Status', 'Waktu Submit'];
     const rows = displayed.map(r => [
@@ -354,10 +451,16 @@ const GradesPage = () => {
               <RefreshCw size={13} style={{ animation: refreshing ? 'spin .7s linear infinite' : 'none' }} />Refresh
             </button>
             {displayed.length > 0 && (
-              <button onClick={exportCSV}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '9px', border: '1.5px solid #D97706', background: '#FFFBEB', fontSize: '13px', fontWeight: '600', color: '#D97706', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                <Download size={13} />Export CSV
-              </button>
+              <>
+                <button onClick={exportCSV}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '9px', border: '1.5px solid #D97706', background: '#FFFBEB', fontSize: '13px', fontWeight: '600', color: '#D97706', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  <Download size={13} />Export CSV
+                </button>
+                <button onClick={exportPDF} disabled={pdfLoading}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '9px', border: '1.5px solid #4F46E5', background: '#EFF6FF', fontSize: '13px', fontWeight: '600', color: '#4F46E5', cursor: pdfLoading ? 'not-allowed' : 'pointer', opacity: pdfLoading ? 0.7 : 1, fontFamily: "'DM Sans', sans-serif" }}>
+                  <FileText size={13} style={{ animation: pdfLoading ? 'spin .7s linear infinite' : 'none' }} />{pdfLoading ? 'Membuat...' : 'Export PDF'}
+                </button>
+              </>
             )}
           </div>
         </div>
