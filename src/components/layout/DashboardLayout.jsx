@@ -17,6 +17,7 @@ import {
   Layers,
   UserCircle,
   ClipboardCheck,
+  BarChart2,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
