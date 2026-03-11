@@ -275,7 +275,7 @@ const GradesPage = () => {
     try {
       const mySessionIds = sessions.map(s => s.id);
       let query = supabase.from('exam_results')
-        .select('*, profiles(name, nis, email, class_id), exam_sessions(id, title, exam_type, passing_score, question_bank_id, allow_review, start_time, class_id, classes(name))')
+        .select('id, exam_session_id, student_id, score, passed, status, submitted_at, violation_count, answers, profiles(name, nis, class_id), exam_sessions(id, title, exam_type, passing_score, question_bank_id, allow_review, start_time, class_id, classes(name))')
         .in('exam_session_id', mySessionIds)
         .order('submitted_at', { ascending: false })
         .limit(200);
@@ -304,15 +304,10 @@ const GradesPage = () => {
     return matchStatus && matchSearch;
   });
 
-  const [pdfLoading, setPdfLoading] = React.useState(false);
-
   const exportPDF = async () => {
     if (!displayed.length) return;
     setPdfLoading(true);
     try {
-      // Dynamic load jsPDF + autotable
-      const { jsPDF } = await import('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').catch(() => ({ jsPDF: null }));
-      // Fallback: build a printable HTML report if jsPDF unavailable
       const sessTitle = sessions.find(s => s.id === filterSession)?.title || 'Semua Ujian';
       const schoolName = profile?.schools?.name || 'Sekolah';
       const now = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });

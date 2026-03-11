@@ -36,9 +36,23 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-    <Loader2 className="animate-spin text-primary-600 mb-4" size={40} />
-    <p className="text-gray-500 font-medium animate-pulse">Memuat ZiDu Workspace...</p>
+  <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F7F8FA', fontFamily: "'DM Sans', sans-serif", gap: '16px' }}>
+    {/* Animated skeleton bars */}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '280px' }}>
+      <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(79,70,229,.25)', marginBottom: '8px' }}>
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+      <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', fontWeight: '700', color: '#0F172A' }}>ZiDu</div>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4F46E5', animation: `bounce .9s ease ${i * 0.15}s infinite alternate`, opacity: 0.7 }} />
+        ))}
+      </div>
+    </div>
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700&display=swap');
+      @keyframes bounce { from{transform:translateY(0);opacity:.4;} to{transform:translateY(-8px);opacity:1;} }
+    `}</style>
   </div>
 );
 

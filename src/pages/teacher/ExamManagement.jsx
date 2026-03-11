@@ -578,7 +578,7 @@ const ExamManagement = () => {
     try {
       const [sessRes, banksRes, classesRes] = await Promise.all([
         supabase.from('exam_sessions')
-          .select('*, classes(name, grade_level), question_banks(name, total_questions)')
+          .select('id, title, exam_type, token, token_status, start_time, end_time, duration_minutes, passing_score, total_questions, shuffle_questions, class_id, teacher_id, question_bank_id, classes(name, grade_level), question_banks(name, total_questions)')
           .eq('teacher_id', profile.id)
           .order('start_time', { ascending: false }),
         supabase.from('question_banks')
@@ -601,7 +601,7 @@ const ExamManagement = () => {
   const fetchResults = useCallback(async (sessionId) => {
     if (!sessionId) return;
     const { data } = await supabase.from('exam_results')
-      .select('*, profiles(name, nis)')
+      .select('id, exam_session_id, student_id, score, passed, status, submitted_at, violation_count, profiles(name, nis)')
       .eq('exam_session_id', sessionId)
       .order('submitted_at', { ascending: false });
     setResults(data || []);

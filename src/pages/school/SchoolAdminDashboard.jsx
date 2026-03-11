@@ -55,10 +55,10 @@ const SchoolAdminDashboard = () => {
     const sid = profile.school_id;
     try {
       const [schoolRes, profilesRes, classesRes, subjectsRes, sessionsRes] = await Promise.all([
-        supabase.from('schools').select('*').eq('id', sid).single(),
+        supabase.from('schools').select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers').eq('id', sid).single(),
         supabase.from('profiles').select('id, name, email, role, created_at').eq('school_id', sid),
-        supabase.from('classes').select('*').eq('school_id', sid).order('grade_level'),
-        supabase.from('subjects').select('*').eq('school_id', sid).order('name'),
+        supabase.from('classes').select('id, name, grade_level, academic_year, homeroom_teacher_id').eq('school_id', sid).order('grade_level'),
+        supabase.from('subjects').select('id, name, code').eq('school_id', sid).order('name'),
         supabase.from('exam_sessions').select('id, title, exam_type, start_time, end_time, total_questions').eq('school_id', sid).order('start_time', { ascending: false }).limit(6),
       ]);
       if (schoolRes.error) throw schoolRes.error;
