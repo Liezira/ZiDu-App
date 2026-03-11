@@ -26,6 +26,8 @@ const ExamManagement = lazy(() => import('./pages/teacher/ExamManagement'));
 const GradesPage = lazy(() => import('./pages/teacher/GradesPage'));
 const ExamRoom = lazy(() => import('./pages/student/ExamRoom'));
 const StudentResults = lazy(() => import('./pages/student/StudentResults'));
+const MyClassPage   = lazy(() => import('./pages/student/MyClassPage'));
+const ClassesPage   = lazy(() => import('./pages/teacher/ClassesPage'));
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
@@ -177,6 +179,7 @@ const App = () => {
         <Route path="questions" element={<Lazy><QuestionBank /></Lazy>} />
         <Route path="exams" element={<Lazy><ExamManagement /></Lazy>} />
         <Route path="grades" element={<Lazy><GradesPage /></Lazy>} />
+        <Route path="classes" element={<Lazy><ClassesPage /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
@@ -191,6 +194,7 @@ const App = () => {
       >
         <Route index element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
+        <Route path="class" element={<Lazy><MyClassPage /></Lazy>} />
         <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>

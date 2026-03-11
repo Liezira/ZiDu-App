@@ -73,12 +73,14 @@ const DashboardLayout = () => {
           { label: 'Bank Soal', icon: BookOpen, path: '/teacher/questions' },
           { label: 'Kelola Ujian', icon: FileText, path: '/teacher/exams' },
           { label: 'Rekap Nilai', icon: Award, path: '/teacher/grades' },
+          { label: 'Kelas Saya', icon: Layers, path: '/teacher/classes' },
           { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];
       case 'student':
         return [
           { label: 'Ujian Saya', icon: FileText, path: '/student' },
           { label: 'Riwayat Nilai', icon: Award, path: '/student/results' },
+          { label: 'Kelas Saya', icon: Layers, path: '/student/class' },
           { label: 'Profil Saya', icon: UserCircle, path: '/student/profile' },
         ];
       default:
