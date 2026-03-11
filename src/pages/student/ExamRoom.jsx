@@ -176,45 +176,54 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
   }, [answers, questions, result.id]);
 
   // ── Timer countdown ───────────────────────────────────────────
+  // Ref untuk handleSubmit — biar timer & visibility selalu pakai versi terbaru
+  // tanpa perlu masuk ke dependency array (menghindari restart effect)
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
+
+  // ── Timer countdown ───────────────────────────────────────────
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) { clearInterval(timer); handleSubmit(true); return 0; }
+        if (t <= 1) { clearInterval(timer); handleSubmitRef.current(true); return 0; }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty: timer hanya boleh start sekali saat mount
 
   // ── Detect tab switch / visibility change ─────────────────────
-  //    Menggunakan RPC atomic untuk mencegah race condition
+  //    result.id & session.max_violations di-capture sebagai primitif
+  //    agar deps array stabil dan tidak trigger re-subscribe terus
   useEffect(() => {
+    const resultId      = result.id;
+    const maxViolations = session.max_violations;
+
     const handleVisibility = async () => {
       if (document.hidden) {
         try {
           const { data } = await supabase.rpc('append_violation', {
-            p_result_id: result.id,
+            p_result_id: resultId,
             p_type: 'tab_switch',
           });
           const newCount = data?.violation_count ?? violationsRef.current + 1;
           violationsRef.current = newCount;
 
-          if (newCount >= session.max_violations) {
-            handleSubmit(true);
+          if (newCount >= maxViolations) {
+            handleSubmitRef.current(true);
           }
         } catch (err) {
           console.error('Gagal mencatat pelanggaran:', err);
-          // Fallback: increment lokal
           violationsRef.current++;
-          if (violationsRef.current >= session.max_violations) {
-            handleSubmit(true);
+          if (violationsRef.current >= maxViolations) {
+            handleSubmitRef.current(true);
           }
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [result?.id, session?.max_violations]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [result.id, session.max_violations]); // primitif — aman & exhaustive
 
   // ── Submit — scoring dilakukan di server via RPC ──────────────
   const handleSubmit = useCallback((autoSubmit = false) => {
