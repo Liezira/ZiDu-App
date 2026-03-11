@@ -112,10 +112,11 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
 );
 
 // ── Question Navigator ────────────────────────────────────────────
-const QuestionNav = ({ total, current, answers, onGo }) => (
+const QuestionNav = ({ total, current, answers, questions, onGo }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
     {Array.from({ length: total }, (_, i) => {
-      const answered = answers[i] !== undefined && answers[i] !== null && answers[i] !== '';
+      const qid = questions?.[i]?.id;
+      const answered = qid && answers[qid] !== undefined && answers[qid] !== null && answers[qid] !== '';
       const isCurrent = i === current;
       return (
         <button key={i} onClick={() => onGo(i)}
@@ -158,9 +159,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
   useEffect(() => {
     const interval = setInterval(async () => {
       if (Object.keys(answers).length === 0) return;
-      const answersArray = questions.map((q, i) => ({
+      const answersArray = questions.map((q) => ({
         question_id: q.id,
-        answer: answers[i] ?? null,
+        answer: answers[q.id] ?? null,
         type: q.type,
       }));
       try {
@@ -222,9 +223,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
 
   // ── Submit — scoring dilakukan di server via RPC ──────────────
   const handleSubmit = useCallback((autoSubmit = false) => {
-    const answersArray = questions.map((q, i) => ({
+    const answersArray = questions.map((q) => ({
       question_id: q.id,
-      answer: answers[i] ?? null,
+      answer: answers[q.id] ?? null,
       type: q.type,
     }));
     onSubmit(answersArray, violationsRef.current, autoSubmit);
@@ -248,7 +249,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
     </div>
   );
 
-  const answeredCount = Object.values(answers).filter(a => a !== undefined && a !== null && a !== '').length;
+  const answeredCount = questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== '').length;
   const timerCritical = timeLeft < TIMER_WARNING_THRESHOLD;
   const optLabels = ['A', 'B', 'C', 'D'];
 
@@ -307,9 +308,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {q.options?.map((opt, i) => {
                 const label = optLabels[i];
-                const selected = answers[current] === label;
+                const selected = answers[q.id] === label;
                 return (
-                  <button key={i} onClick={() => setAnswers(a => ({ ...a, [current]: label }))}
+                  <button key={i} onClick={() => setAnswers(a => ({ ...a, [q.id]: label }))}
                     style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 16px', borderRadius: '12px', border: `2px solid ${selected ? '#0891B2' : '#E2E8F0'}`, background: selected ? '#EFF6FF' : '#F8FAFC', cursor: 'pointer', textAlign: 'left', transition: 'all .15s', fontFamily: "'DM Sans', sans-serif" }}
                     onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = '#BAE6FD'; }}
                     onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = '#E2E8F0'; }}>
@@ -324,9 +325,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
           {q.type === 'true_false' && (
             <div style={{ display: 'flex', gap: '12px' }}>
               {['Benar', 'Salah'].map(v => {
-                const selected = answers[current] === v;
+                const selected = answers[q.id] === v;
                 return (
-                  <button key={v} onClick={() => setAnswers(a => ({ ...a, [current]: v }))}
+                  <button key={v} onClick={() => setAnswers(a => ({ ...a, [q.id]: v }))}
                     style={{ flex: 1, padding: '16px', borderRadius: '12px', border: `2px solid ${selected ? '#0891B2' : '#E2E8F0'}`, background: selected ? '#EFF6FF' : '#F8FAFC', cursor: 'pointer', fontFamily: 'Sora, sans-serif', fontWeight: '700', fontSize: '15px', color: selected ? '#0891B2' : '#94A3B8', transition: 'all .15s' }}>
                     {v === 'Benar' ? '✓ Benar' : '✗ Salah'}
                   </button>
@@ -337,8 +338,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
 
           {q.type === 'essay' && (
             <textarea
-              value={answers[current] || ''}
-              onChange={e => setAnswers(a => ({ ...a, [current]: e.target.value }))}
+              value={answers[q.id] || ''}
+              onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
               placeholder="Tulis jawaban kamu di sini..."
               rows={6}
               style={{ width: '100%', padding: '13px 16px', borderRadius: '12px', border: '1.5px solid #E2E8F0', background: '#F8FAFC', fontSize: '14px', color: '#0F172A', fontFamily: "'DM Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.6 }}
@@ -369,7 +370,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'sticky', top: '72px' }}>
           <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #F1F5F9', padding: '16px' }}>
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#94A3B8', marginBottom: '10px', letterSpacing: '0.05em' }}>NAVIGASI SOAL</div>
-            <QuestionNav total={questions.length} current={current} answers={answers} onGo={setCurrent} />
+            <QuestionNav total={questions.length} current={current} answers={answers} questions={questions} onGo={setCurrent} />
             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F8FAFC', display: 'flex', gap: '12px', fontSize: '11px', color: '#64748B' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#EFF6FF', border: '1px solid #BAE6FD', display: 'inline-block' }} /> Dijawab
