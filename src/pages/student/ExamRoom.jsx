@@ -236,6 +236,18 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) =
   useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
 
   const q = questions[current];
+
+  // Guard: soal tidak ditemukan (seharusnya tidak terjadi, tapi aman)
+  if (!q) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', color: '#0F172A', marginBottom: '8px' }}>Soal tidak dapat dimuat</h2>
+        <p style={{ fontSize: '14px', color: '#64748B' }}>Hubungi guru untuk memastikan bank soal sudah terisi.</p>
+      </div>
+    </div>
+  );
+
   const answeredCount = Object.values(answers).filter(a => a !== undefined && a !== null && a !== '').length;
   const timerCritical = timeLeft < TIMER_WARNING_THRESHOLD;
   const optLabels = ['A', 'B', 'C', 'D'];
@@ -519,6 +531,11 @@ const ExamRoom = () => {
       let questionsToShow = qs || [];
       if (sessions.shuffle_questions) {
         questionsToShow = [...questionsToShow].sort(() => Math.random() - 0.5);
+      }
+
+      if (!questionsToShow.length) {
+        setTokenError('Bank soal kosong atau belum ada soal. Hubungi guru.');
+        return;
       }
 
       setSession(sessions);
