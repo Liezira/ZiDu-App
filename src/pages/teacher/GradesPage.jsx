@@ -244,6 +244,7 @@ const GradesPage = () => {
   const [loading,   setLoading]   = useState(true);
   const [rLoading,  setRLoading]  = useState(false);
   const [refreshing,setRefreshing]= useState(false);
+  const [pdfLoading,setPdfLoading]= useState(false);
   const [error,     setError]     = useState(null);
 
   const [filterSession, setFilterSession] = useState('all');
