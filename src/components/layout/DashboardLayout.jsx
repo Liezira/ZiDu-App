@@ -20,6 +20,7 @@ import {
   BarChart2,
   Megaphone,
   RotateCcw,
+  ClipboardList,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -80,6 +81,7 @@ const DashboardLayout = () => {
           { label: 'Analitik', icon: BarChart2, path: '/teacher/analytics' },
           { label: 'Remedial', icon: RotateCcw, path: '/teacher/remedial' },
           { label: 'Pengumuman', icon: Megaphone, path: '/teacher/announcements' },
+          { label: 'Absensi',    icon: ClipboardList, path: '/teacher/attendance' },
           { label: 'Kelas Saya', icon: Layers, path: '/teacher/classes' },
           { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];
@@ -89,6 +91,7 @@ const DashboardLayout = () => {
           { label: 'Riwayat Nilai', icon: Award, path: '/student/results' },
           { label: 'Kelas Saya', icon: Layers, path: '/student/class' },
           { label: 'Pengumuman', icon: Megaphone, path: '/student/announcements' },
+          { label: 'Check-in',   icon: ClipboardList, path: '/student/checkin' },
           { label: 'Profil Saya', icon: UserCircle, path: '/student/profile' },
         ];
       default:
