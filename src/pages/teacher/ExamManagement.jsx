@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   FileText, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
-  AlertCircle, CheckCircle2, ChevronDown, MoreVertical, Clock,
+  AlertCircle, CheckCircle2, ChevronDown, Clock,
   Users, Key, Eye, Copy, Play, Square, Calendar, BookOpen,
   BarChart2, Zap, Shield, Timer, ArrowLeft, Radio,
 } from 'lucide-react';
@@ -775,11 +775,20 @@ const ExamManagement = () => {
                             </td>
                             <td style={{ padding: '13px 16px', fontSize: '13px', color: '#374151', fontWeight: '600', fontFamily: 'Sora, sans-serif' }}>{s.total_questions}</td>
                             <td style={{ padding: '13px 16px' }} onClick={e => e.stopPropagation()}>
-                              <ActionMenu items={[
-                                { icon: Eye, label: 'Detail', action: () => openDetail(s) },
-                                { icon: Edit2, label: 'Edit', action: () => { setEditSession(s); setExamModal(true); } },
-                                { icon: Trash2, label: 'Hapus', action: () => handleDelete(s), color: '#DC2626' },
-                              ]} />
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button onClick={() => openDetail(s)}
+                                  style={{ padding: '5px 10px', borderRadius: '7px', border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif" }}>
+                                  <Eye size={11} />Detail
+                                </button>
+                                <button onClick={() => { setEditSession(s); setExamModal(true); }}
+                                  style={{ padding: '5px 10px', borderRadius: '7px', border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif" }}>
+                                  <Edit2 size={11} />Edit
+                                </button>
+                                <button onClick={() => handleDelete(s)}
+                                  style={{ padding: '5px 10px', borderRadius: '7px', border: '1px solid #FECACA', background: '#FEF2F2', fontSize: '11px', fontWeight: '600', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif" }}>
+                                  <Trash2 size={11} />Hapus
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
