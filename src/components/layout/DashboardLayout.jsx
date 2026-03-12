@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   BarChart2,
   Megaphone,
+  RotateCcw,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
