@@ -5,7 +5,7 @@ import {
   Megaphone, Plus, Pin, Trash2, X, AlertCircle,
   RefreshCw, Clock, ExternalLink, ChevronDown, Bell,
 } from 'lucide-react';
-import { ANN_TYPES, TARGET_LABELS, fmtAgo, fmtDate, deleteAnn, togglePin } from '../../lib/announcementUtils';
+import { ANN_TYPES, TARGET_LABELS, fmtAgo, fmtDate } from '../../lib/announcementUtils';
 
 const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
   <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
@@ -316,14 +316,14 @@ const TeacherAnnouncements = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Hapus pengumuman ini?')) return;
-    const { error } = await deleteAnn(id);
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
     if (error) { showToast(error.message, 'error'); return; }
     setAnns(p => p.filter(a => a.id !== id));
     showToast('Pengumuman dihapus');
   };
 
   const handleTogglePin = async (ann) => {
-    const { error } = await togglePin(ann.id, ann.is_pinned);
+    const { error } = await supabase.from('announcements').update({ is_pinned: !ann.is_pinned }).eq('id', ann.id);
     if (error) { showToast(error.message, 'error'); return; }
     setAnns(p => p.map(a => a.id === ann.id ? { ...a, is_pinned: !ann.is_pinned } : a)
       .sort((a, b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)));

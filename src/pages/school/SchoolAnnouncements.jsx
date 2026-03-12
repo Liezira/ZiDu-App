@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Megaphone, Plus, RefreshCw, AlertCircle, Users, Pin, Bell } from 'lucide-react';
-import { ANN_TYPES, TARGET_LABELS, fmtAgo, deleteAnn, togglePin } from '../../lib/announcementUtils';
-import { AnnCard } from './TeacherAnnouncements';
-import AnnModal from './TeacherAnnouncements';
+import { Megaphone, Plus, RefreshCw, AlertCircle, Users, Pin, Bell, Trash2, Clock, ExternalLink, ChevronDown, X } from 'lucide-react';
+import { ANN_TYPES, TARGET_LABELS, fmtAgo, fmtDate } from '../../lib/announcementUtils';
 
 const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
   <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
@@ -23,6 +21,60 @@ const StatCard = ({ icon: Icon, label, value, color, bg }) => (
 );
 
 // ── Create Modal (School Admin version — supports all targets) ─
+// ── Announcement Card ─────────────────────────────────────────
+const AnnCard = ({ ann, canEdit, onEdit, onDelete, onTogglePin }) => {
+  const t = ANN_TYPES[ann.type] || ANN_TYPES.info;
+  const isExpired = ann.expires_at && new Date(ann.expires_at) < new Date();
+  return (
+    <div style={{ background: '#fff', borderRadius: '14px', border: `1.5px solid ${ann.is_pinned ? '#C4B5FD' : '#F1F5F9'}`, padding: '16px 18px', boxShadow: ann.is_pinned ? '0 4px 16px rgba(124,58,237,.08)' : '0 1px 4px rgba(0,0,0,.03)', opacity: isExpired ? 0.6 : 1, position: 'relative' }}>
+      {ann.is_pinned && (
+        <div style={{ position: 'absolute', top: '12px', right: '14px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <Pin size={10} style={{ color: '#7C3AED' }} />
+          <span style={{ fontSize: '10px', fontWeight: '700', color: '#7C3AED' }}>PINNED</span>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>{t.icon}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <span style={{ padding: '1px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: '700', background: t.bg, color: t.color }}>{t.label}</span>
+            <span style={{ padding: '1px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: '600', background: '#F8FAFC', color: '#64748B' }}>
+              {TARGET_LABELS[ann.target]}{ann.classes?.name ? `: ${ann.classes.name}` : ''}
+            </span>
+            {isExpired && <span style={{ padding: '1px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: '700', background: '#FEF2F2', color: '#DC2626' }}>Kedaluwarsa</span>}
+          </div>
+          <h3 style={{ fontFamily: 'Sora, sans-serif', fontSize: '14px', fontWeight: '700', color: '#0F172A', margin: '0 0 6px', paddingRight: ann.is_pinned ? '80px' : 0 }}>{ann.title}</h3>
+          <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 10px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ann.body}</p>
+          {ann.link_url && (
+            <a href={ann.link_url} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600', color: '#4F46E5', textDecoration: 'none', padding: '4px 10px', background: '#EFF6FF', borderRadius: '6px', marginBottom: '10px' }}>
+              <ExternalLink size={11} />{ann.link_label || 'Lihat Detail'}
+            </a>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '11px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={10} />{fmtAgo(ann.created_at)}</span>
+              <span style={{ fontSize: '11px', color: '#94A3B8' }}>oleh {ann.profiles?.name || '—'}</span>
+              {ann.expires_at && <span style={{ fontSize: '11px', color: '#D97706' }}>Exp: {fmtDate(ann.expires_at)}</span>}
+            </div>
+            {canEdit && (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => onTogglePin(ann)} style={{ padding: '4px 9px', borderRadius: '6px', border: '1px solid #E2E8F0', background: ann.is_pinned ? '#F5F3FF' : '#F8FAFC', fontSize: '11px', fontWeight: '600', color: ann.is_pinned ? '#7C3AED' : '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Pin size={10} />{ann.is_pinned ? 'Unpin' : 'Pin'}
+                </button>
+                <button onClick={() => onEdit(ann)} style={{ padding: '4px 9px', borderRadius: '6px', border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '11px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}>Edit</button>
+                <button onClick={() => onDelete(ann.id)} style={{ padding: '4px 9px', borderRadius: '6px', border: '1px solid #FECACA', background: '#FEF2F2', fontSize: '11px', fontWeight: '600', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Trash2 size={10} />Hapus
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SchoolAnnModal = ({ ann, classes, profile, onClose, onSaved }) => {
   // Re-use logic from TeacherAnnouncements modal but import inline
   // to avoid circular dep — simplified version for school admin
@@ -193,14 +245,14 @@ const SchoolAnnouncements = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Hapus pengumuman ini?')) return;
-    const { error } = await deleteAnn(id);
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
     if (error) return;
     setAnns(p => p.filter(a => a.id !== id));
     showToast('Pengumuman dihapus');
   };
 
   const handleTogglePin = async (ann) => {
-    const { error } = await togglePin(ann.id, ann.is_pinned);
+    const { error } = await supabase.from('announcements').update({ is_pinned: !ann.is_pinned }).eq('id', ann.id);
     if (error) return;
     setAnns(p => p.map(a => a.id === ann.id ? { ...a, is_pinned: !ann.is_pinned } : a)
       .sort((a, b) => b.is_pinned - a.is_pinned || new Date(b.created_at) - new Date(a.created_at)));
