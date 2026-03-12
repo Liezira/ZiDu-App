@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Trash2, X, GraduationCap,
-  UserCheck, FileText, Award, Clock, Inbox,
+  UserCheck, FileText, Award, Clock, Inbox, Megaphone,
 } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -17,11 +17,13 @@ const fmtRelative = (d) => {
 };
 
 const TYPE_META = {
-  exam_new:         { icon: FileText,      color: '#4F46E5', bg: '#EEF2FF', label: 'Ujian Baru'   },
-  exam_graded:      { icon: Award,         color: '#D97706', bg: '#FFFBEB', label: 'Nilai Keluar' },
-  approval_pending: { icon: UserCheck,     color: '#0891B2', bg: '#EFF6FF', label: 'Pendaftaran'  },
-  approval_result:  { icon: GraduationCap, color: '#16A34A', bg: '#F0FDF4', label: 'Status Akun'  },
-  exam_reminder:    { icon: Clock,         color: '#DC2626', bg: '#FEF2F2', label: 'Pengingat'    },
+  exam_new:         { icon: FileText,      color: '#4F46E5', bg: '#EEF2FF', label: 'Ujian Baru'    },
+  exam_graded:      { icon: Award,         color: '#D97706', bg: '#FFFBEB', label: 'Nilai Keluar'  },
+  approval_pending: { icon: UserCheck,     color: '#0891B2', bg: '#EFF6FF', label: 'Pendaftaran'   },
+  approval_result:  { icon: GraduationCap, color: '#16A34A', bg: '#F0FDF4', label: 'Status Akun'   },
+  exam_reminder:    { icon: Clock,         color: '#DC2626', bg: '#FEF2F2', label: 'Pengingat'     },
+  announcement:     { icon: Megaphone,     color: '#4F46E5', bg: '#EFF6FF', label: 'Pengumuman'    },
+  remedial:         { icon: Clock,         color: '#DC2626', bg: '#FEF2F2', label: 'Remedial'      },
 };
 
 // ── Notification Item ─────────────────────────────────────────────
@@ -31,7 +33,7 @@ const NotifItem = ({ notif, onRead, onDelete, onNavigate }) => {
 
   return (
     <div
-      onClick={() => { onRead(notif.id); onNavigate(notif.link); }}
+      onClick={() => { onRead(notif.id); onNavigate(notif.link, notif); }}
       style={{
         display: 'flex', gap: '12px', padding: '12px 16px',
         background: notif.is_read ? '#fff' : '#F8FBFF',
@@ -128,9 +130,16 @@ const NotificationBell = ({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  const handleNavigate = (link) => {
+  const handleNavigate = (link, notif) => {
     if (!link) return;
     setOpen(false);
+    // For announcement type, redirect to role-specific announcements page
+    if (notif?.type === 'announcement' || notif?.type === 'remedial') {
+      const path = window.location.pathname;
+      if (path.startsWith('/student'))  { navigate('/student/announcements');  return; }
+      if (path.startsWith('/teacher'))  { navigate('/teacher/announcements');  return; }
+      if (path.startsWith('/school'))   { navigate('/school/announcements');   return; }
+    }
     navigate(link);
   };
 

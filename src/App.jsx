@@ -29,7 +29,10 @@ const StudentResults = lazy(() => import('./pages/student/StudentResults'));
 const MyClassPage   = lazy(() => import('./pages/student/MyClassPage'));
 const ClassesPage      = lazy(() => import('./pages/teacher/ClassesPage'));
 const TeacherAnalytics = lazy(() => import('./pages/teacher/TeacherAnalytics'));
-const RemedialPage     = lazy(() => import('./pages/teacher/RemedialPage'));
+const RemedialPage          = lazy(() => import('./pages/teacher/RemedialPage'));
+const TeacherAnnouncements  = lazy(() => import('./pages/teacher/TeacherAnnouncements'));
+const SchoolAnnouncements   = lazy(() => import('./pages/school/SchoolAnnouncements'));
+const StudentAnnouncements  = lazy(() => import('./pages/student/StudentAnnouncements'));
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
@@ -179,6 +182,7 @@ const App = () => {
         <Route path="classes" element={<Lazy><ClassManagement /></Lazy>} />
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
         <Route path="approvals" element={<Lazy><StudentApprovals /></Lazy>} />
+        <Route path="announcements" element={<Lazy><SchoolAnnouncements /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
@@ -198,6 +202,7 @@ const App = () => {
         <Route path="classes"   element={<Lazy><ClassesPage /></Lazy>} />
         <Route path="analytics" element={<Lazy><TeacherAnalytics /></Lazy>} />
         <Route path="remedial"  element={<Lazy><RemedialPage /></Lazy>} />
+        <Route path="announcements" element={<Lazy><TeacherAnnouncements /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
@@ -213,6 +218,7 @@ const App = () => {
         <Route index element={<Lazy><StudentDashboard /></Lazy>} />
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
         <Route path="class" element={<Lazy><MyClassPage /></Lazy>} />
+        <Route path="announcements" element={<Lazy><StudentAnnouncements /></Lazy>} />
         <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>

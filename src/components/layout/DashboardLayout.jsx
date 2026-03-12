@@ -18,6 +18,7 @@ import {
   UserCircle,
   ClipboardCheck,
   BarChart2,
+  Megaphone,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -66,6 +67,7 @@ const DashboardLayout = () => {
           { label: 'Manajemen Kelas',   icon: Layers,    path: '/school/classes' },
           { label: 'Mata Pelajaran', icon: BookOpen, path: '/school/subjects' },
           { label: 'Persetujuan Siswa', icon: ClipboardCheck, path: '/school/approvals' },
+          { label: 'Pengumuman',        icon: Megaphone,       path: '/school/announcements' },
           { label: 'Profil Saya', icon: UserCircle, path: '/school/profile' },
         ];
       case 'teacher':
@@ -76,6 +78,7 @@ const DashboardLayout = () => {
           { label: 'Rekap Nilai', icon: Award, path: '/teacher/grades' },
           { label: 'Analitik', icon: BarChart2, path: '/teacher/analytics' },
           { label: 'Remedial', icon: RotateCcw, path: '/teacher/remedial' },
+          { label: 'Pengumuman', icon: Megaphone, path: '/teacher/announcements' },
           { label: 'Kelas Saya', icon: Layers, path: '/teacher/classes' },
           { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];
@@ -84,6 +87,7 @@ const DashboardLayout = () => {
           { label: 'Ujian Saya', icon: FileText, path: '/student' },
           { label: 'Riwayat Nilai', icon: Award, path: '/student/results' },
           { label: 'Kelas Saya', icon: Layers, path: '/student/class' },
+          { label: 'Pengumuman', icon: Megaphone, path: '/student/announcements' },
           { label: 'Profil Saya', icon: UserCircle, path: '/student/profile' },
         ];
       default:
