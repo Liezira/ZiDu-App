@@ -91,7 +91,6 @@ const DashboardLayout = () => {
           { label: 'Riwayat Nilai', icon: Award, path: '/student/results' },
           { label: 'Kelas Saya', icon: Layers, path: '/student/class' },
           { label: 'Pengumuman', icon: Megaphone, path: '/student/announcements' },
-          { label: 'Check-in',   icon: ClipboardList, path: '/student/checkin' },
           { label: 'Profil Saya', icon: UserCircle, path: '/student/profile' },
         ];
       default:
