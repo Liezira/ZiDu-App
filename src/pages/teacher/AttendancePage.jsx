@@ -591,47 +591,56 @@ export default function AttendancePage() {
 
   // ── Fetch data ──────────────────────────────
   const load = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id || !profile?.school_id) return;
     try {
-      // Kelas & mapel guru via subject_teachers → subject_classes
+      // Step 1: subject_ids guru
       const { data: stRows } = await supabase
         .from('subject_teachers')
-        .select('subject_id, subjects(id, name)')
+        .select('subject_id')
         .eq('teacher_id', profile.id);
 
       const subjectIds = (stRows || []).map(r => r.subject_id);
-      const subjects   = [...new Map((stRows || []).map(r => [r.subject_id, r.subjects])).values()].filter(Boolean);
 
+      // Step 2: class_ids dari subject_classes
       let classIds = [];
       if (subjectIds.length) {
         const { data: scRows } = await supabase
-          .from('subject_classes').select('class_id').in('subject_id', subjectIds);
+          .from('subject_classes')
+          .select('class_id')
+          .in('subject_id', subjectIds);
         classIds = [...new Set((scRows || []).map(r => r.class_id))];
       }
 
-      const [sessRes, classRes] = await Promise.all([
+      // Step 3: fetch paralel — kelas, mapel, dan sesi absensi
+      const [sessRes, classRes, subjRes] = await Promise.all([
         supabase.from('attendance_sessions')
           .select('id, date, jam_ke, start_time, catatan, class_id, subject_id, classes(name), subjects(name)')
           .eq('teacher_id', profile.id)
           .order('date',   { ascending: false })
           .order('jam_ke', { ascending: true })
           .limit(100),
+
         classIds.length
           ? supabase.from('classes').select('id, name').in('id', classIds).order('name')
+          : Promise.resolve({ data: [] }),
+
+        subjectIds.length
+          ? supabase.from('subjects').select('id, name').in('id', subjectIds).order('name')
           : Promise.resolve({ data: [] }),
       ]);
 
       if (sessRes.error) throw sessRes.error;
+
       setSessions(sessRes.data || []);
       setTeacherClasses(classRes.data || []);
-      setTeacherSubjects(subjects);
+      setTeacherSubjects(subjRes.data || []);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profile?.id]);
+  }, [profile?.id, profile?.school_id]);
 
   useEffect(() => { load(); }, [load]);
 
