@@ -34,6 +34,7 @@ const TeacherAnnouncements  = lazy(() => import('./pages/teacher/TeacherAnnounce
 const SchoolAnnouncements   = lazy(() => import('./pages/school/SchoolAnnouncements'));
 const StudentAnnouncements  = lazy(() => import('./pages/student/StudentAnnouncements'));
 const AttendancePage        = lazy(() => import('./pages/teacher/AttendancePage'));
+const ReportCardPage        = lazy(() => import('./pages/teacher/ReportCardPage'));
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
@@ -205,6 +206,7 @@ const App = () => {
         <Route path="remedial"  element={<Lazy><RemedialPage /></Lazy>} />
         <Route path="announcements" element={<Lazy><TeacherAnnouncements /></Lazy>} />
         <Route path="attendance"    element={<Lazy><AttendancePage /></Lazy>} />
+        <Route path="report-card"   element={<Lazy><ReportCardPage /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 

@@ -4,106 +4,134 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Key, AlertCircle, Clock, ChevronLeft, ChevronRight,
-  CheckCircle2, Send, Shield, Eye, EyeOff, BookOpen,
+  CheckCircle2, Send, Shield, BookOpen, AlertTriangle,
+  XCircle, Pause, Play, Monitor,
 } from 'lucide-react';
 
-// ── Constants ─────────────────────────────────────────────────────
-const AUTOSAVE_INTERVAL_MS       = 30_000; // 30 detik
-const TIMER_WARNING_THRESHOLD    = 300;    // 5 menit
+// ─────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────
+const AUTOSAVE_INTERVAL_MS    = 30_000;
+const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
-// ── Helpers ───────────────────────────────────────────────────────
-const pad = (n) => String(n).padStart(2, '0');
-const formatTime = (secs) => `${pad(Math.floor(secs / 60))}:${pad(secs % 60)}`;
+const VIOLATION_CFG = {
+  tab_switch:   { label: 'Pindah Tab / Window',  deduction: 2, grace: 1 },
+  fullscreen:   { label: 'Keluar Fullscreen',     deduction: 1, grace: 2 },
+  copy_paste:   { label: 'Copy / Paste',          deduction: 3, grace: 0 },
+  devtools:     { label: 'Buka DevTools',         deduction: 5, grace: 0 },
+  split_screen: { label: 'Split Screen',          deduction: 3, grace: 0 },
+};
+const MAX_VIOLATION_SCORE = 15;
+const WARN_VIOLATION_SCORE = 8;
+const FS_EXIT_GRACE_MS = 2_000;
+const MAX_PAUSE = 2;
+const PAUSE_DUR = 300; // 5 menit
 
-// ── Token Entry Screen ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────
+const pad = (n) => String(n).padStart(2, '0');
+const formatTime = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+const checkIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+// ─────────────────────────────────────────────────────────────────
+// WAKE LOCK
+// ─────────────────────────────────────────────────────────────────
+function useWakeLock(active) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!active) {
+      ref.current?.release().catch(() => {}).finally(() => { ref.current = null; });
+      return;
+    }
+    const request = async () => {
+      try {
+        if ('wakeLock' in navigator) ref.current = await navigator.wakeLock.request('screen');
+      } catch { /* ignored */ }
+    };
+    request();
+    const onVis = () => { if (document.visibilityState === 'visible' && active && !ref.current) request(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      ref.current?.release().catch(() => {}).finally(() => { ref.current = null; });
+    };
+  }, [active]);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TOKEN ENTRY
+// ─────────────────────────────────────────────────────────────────
 const TokenEntry = ({ onEnter, loading, error }) => {
   const [token, setToken] = useState('');
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)', padding: '20px', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: '400px', animation: 'fadeUp .4s ease' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(8,145,178,.2)', border: '1px solid rgba(8,145,178,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <Key size={24} style={{ color: '#0891B2' }} />
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width:'100%', maxWidth:400, animation:'fadeUp .4s ease' }}>
+        <div style={{ textAlign:'center', marginBottom:32 }}>
+          <div style={{ width:56, height:56, borderRadius:16, background:'rgba(8,145,178,.2)', border:'1px solid rgba(8,145,178,.3)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+            <Key size={24} color="#0891B2" />
           </div>
-          <h1 style={{ fontFamily: 'Sora, sans-serif', fontSize: '24px', fontWeight: '700', color: '#F1F5F9', margin: '0 0 8px' }}>Masuk Ruang Ujian</h1>
-          <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>Masukkan token ujian yang diberikan oleh guru</p>
+          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:24, fontWeight:700, color:'#F1F5F9', margin:'0 0 8px' }}>Masuk Ruang Ujian</h1>
+          <p style={{ fontSize:14, color:'#64748B', margin:0 }}>Masukkan token ujian dari guru</p>
         </div>
-
-        <div style={{ background: 'rgba(255,255,255,.04)', borderRadius: '20px', border: '1px solid rgba(255,255,255,.08)', padding: '28px' }}>
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', fontWeight: '600', color: '#94A3B8', display: 'block', marginBottom: '8px', letterSpacing: '0.05em' }}>TOKEN UJIAN</label>
-            <input
-              type="text"
-              value={token}
-              onChange={e => setToken(e.target.value.toUpperCase().slice(0, 8))}
-              onKeyDown={e => e.key === 'Enter' && token.length >= 4 && onEnter(token)}
-              placeholder="Contoh: AB12CD"
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${error ? '#EF4444' : 'rgba(255,255,255,.12)'}`, background: 'rgba(255,255,255,.06)', color: '#F1F5F9', fontSize: '20px', fontFamily: 'Sora, sans-serif', fontWeight: '700', letterSpacing: '0.2em', outline: 'none', textAlign: 'center', boxSizing: 'border-box', transition: 'border-color .2s' }}
-              onFocus={e => e.target.style.borderColor = '#0891B2'}
-              onBlur={e => e.target.style.borderColor = error ? '#EF4444' : 'rgba(255,255,255,.12)'}
-              autoFocus />
-            {error && <div style={{ marginTop: '8px', fontSize: '13px', color: '#EF4444', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertCircle size={13} />{error}</div>}
+        <div style={{ background:'rgba(8,145,178,.08)', border:'1px solid rgba(8,145,178,.2)', borderRadius:12, padding:'14px 16px', marginBottom:20, fontSize:12, color:'#94A3B8', lineHeight:1.7 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8, color:'#0891B2', fontWeight:700, fontSize:13 }}>
+            <Shield size={14} /> Sistem Pengamanan Aktif
           </div>
-          <button
-            onClick={() => onEnter(token)}
-            disabled={token.length < 4 || loading}
-            style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', background: token.length >= 4 && !loading ? '#0891B2' : 'rgba(255,255,255,.08)', color: token.length >= 4 && !loading ? '#fff' : '#475569', fontSize: '14px', fontWeight: '700', cursor: token.length >= 4 && !loading ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", transition: 'all .2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            {loading
-              ? <><div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />Memverifikasi...</>
-              : <><Key size={15} />Masuk Ujian</>}
+          {[`Pindah tab +2 poin (grace 1×)`,`Keluar fullscreen +1 poin (grace 2×)`,`Copy/Paste +3 poin · DevTools +5 poin`,`Akumulasi ≥ ${MAX_VIOLATION_SCORE} poin → Submit Otomatis`].map(t => (
+            <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2' }}>·</span>{t}</div>
+          ))}
+        </div>
+        <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
+          <label style={{ fontSize:12, fontWeight:700, color:'#94A3B8', display:'block', marginBottom:8, letterSpacing:'.05em' }}>TOKEN UJIAN</label>
+          <input type="text" value={token} onChange={e => setToken(e.target.value.toUpperCase().slice(0,8))}
+            onKeyDown={e => e.key==='Enter' && token.length>=4 && onEnter(token)}
+            placeholder="Contoh: AB12CD" autoFocus
+            style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${error?'#EF4444':'rgba(255,255,255,.12)'}`, background:'rgba(255,255,255,.06)', color:'#F1F5F9', fontSize:20, fontFamily:'Sora,sans-serif', fontWeight:700, letterSpacing:'.2em', outline:'none', textAlign:'center', boxSizing:'border-box' }} />
+          {error && <div style={{ marginTop:8, fontSize:13, color:'#EF4444', display:'flex', alignItems:'center', gap:6 }}><AlertCircle size={13}/>{error}</div>}
+          <button onClick={() => onEnter(token)} disabled={token.length<4||loading}
+            style={{ width:'100%', padding:13, marginTop:16, borderRadius:12, border:'none', background:token.length>=4&&!loading?'#0891B2':'rgba(255,255,255,.08)', color:token.length>=4&&!loading?'#fff':'#475569', fontSize:14, fontWeight:700, cursor:token.length>=4&&!loading?'pointer':'not-allowed', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            {loading?<><div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Memverifikasi…</>:<><Key size={15}/>Masuk Ujian</>}
           </button>
         </div>
-
-        <p style={{ textAlign: 'center', fontSize: '12px', color: '#334155', marginTop: '20px' }}>
-          Pastikan koneksi internet stabil sebelum memulai ujian
-        </p>
       </div>
     </div>
   );
 };
 
-// ── Exam Confirmation Screen ──────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// EXAM CONFIRM
+// ─────────────────────────────────────────────────────────────────
 const ExamConfirm = ({ session, onStart, onBack }) => (
-  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)', padding: '20px', fontFamily: "'DM Sans', sans-serif" }}>
-    <div style={{ width: '100%', maxWidth: '500px', animation: 'fadeUp .4s ease' }}>
-      <div style={{ background: 'rgba(255,255,255,.04)', borderRadius: '20px', border: '1px solid rgba(255,255,255,.08)', padding: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(8,145,178,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <BookOpen size={20} style={{ color: '#0891B2' }} />
+  <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
+    <div style={{ width:'100%', maxWidth:500 }}>
+      <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:32 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(8,145,178,.2)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <BookOpen size={20} color="#0891B2" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '600' }}>{session.exam_type}</div>
-            <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', fontWeight: '700', color: '#F1F5F9', margin: 0 }}>{session.title}</h2>
+            <div style={{ fontSize:12, color:'#64748B', fontWeight:600 }}>{session.exam_type?.toUpperCase()}</div>
+            <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:700, color:'#F1F5F9', margin:0 }}>{session.title}</h2>
           </div>
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
-          {[
-            { label: 'Jumlah Soal',   value: `${session.total_questions} soal` },
-            { label: 'Durasi',         value: `${session.duration_minutes} menit` },
-            { label: 'KKM',            value: session.passing_score },
-            { label: 'Max Pelanggaran',value: `${session.max_violations}×` },
-          ].map(item => (
-            <div key={item.label} style={{ background: 'rgba(255,255,255,.04)', borderRadius: '10px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', marginBottom: '3px' }}>{item.label}</div>
-              <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#F1F5F9' }}>{item.value}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:20 }}>
+          {[['Jumlah Soal',`${session.total_questions} soal`],['Durasi',`${session.duration_minutes} menit`],['KKM',session.passing_score],['Batas Poin',`${MAX_VIOLATION_SCORE} poin pelanggaran`]].map(([k,v]) => (
+            <div key={k} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:12 }}>
+              <div style={{ fontSize:11, color:'#64748B', fontWeight:600, marginBottom:3 }}>{k}</div>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:15, fontWeight:700, color:'#F1F5F9' }}>{v}</div>
             </div>
           ))}
         </div>
-
-        <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '13px', color: '#FCA5A5', lineHeight: 1.6 }}>
-          ⚠ Jangan berpindah tab atau membuka aplikasi lain selama ujian. Setiap pelanggaran akan dicatat.
+        <div style={{ background:'rgba(220,38,38,.1)', border:'1px solid rgba(220,38,38,.2)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FCA5A5', lineHeight:1.7 }}>
+          <strong>⚠ Aturan ujian:</strong> Jangan pindah tab, buka DevTools, atau copy-paste. Setiap pelanggaran mengurangi skor. Akumulasi ≥ {MAX_VIOLATION_SCORE} poin → ujian dikumpulkan otomatis.
         </div>
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={onBack}
-            style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,.1)', background: 'transparent', color: '#94A3B8', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-            Kembali
-          </button>
-          <button onClick={onStart}
-            style={{ flex: 2, padding: '12px', borderRadius: '10px', border: 'none', background: '#0891B2', color: '#fff', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <CheckCircle2 size={16} /> Mulai Ujian Sekarang
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onBack} style={{ flex:1, padding:12, borderRadius:10, border:'1px solid rgba(255,255,255,.1)', background:'transparent', color:'#94A3B8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali</button>
+          <button onClick={onStart} style={{ flex:2, padding:12, borderRadius:10, border:'none', background:'#0891B2', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            <CheckCircle2 size={16}/> Mulai Ujian Sekarang
           </button>
         </div>
       </div>
@@ -111,507 +139,531 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
   </div>
 );
 
-// ── Question Navigator ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// VIOLATION MODAL
+// ─────────────────────────────────────────────────────────────────
+const ViolationModal = ({ message, violationScore, isHard, onClose }) => (
+  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
+    <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard?'#DC2626':'#F59E0B'}`, animation:'fadeUp .2s ease' }}>
+      <div style={{ padding:'20px 24px', background:isHard?'#DC2626':'#F59E0B', textAlign:'center' }}>
+        <AlertTriangle size={40} color="#fff" style={{ margin:'0 auto 8px', display:'block' }}/>
+        <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:800, color:'#fff', margin:0 }}>
+          {isHard?'PERINGATAN KERAS!':'PELANGGARAN TERDETEKSI'}
+        </h2>
+      </div>
+      <div style={{ padding:'20px 24px' }}>
+        <p style={{ fontSize:13, color:'#374151', background:'#F9FAFB', padding:'10px 14px', borderRadius:10, border:'1px solid #E5E7EB', marginBottom:16, fontStyle:'italic' }}>"{message}"</p>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+          <div style={{ textAlign:'center', padding:'10px 8px', background:isHard?'#FEF2F2':'#FFFBEB', borderRadius:10, border:`1px solid ${isHard?'#FECACA':'#FDE68A'}` }}>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:800, color:isHard?'#DC2626':'#D97706' }}>{violationScore}</div>
+            <div style={{ fontSize:10, fontWeight:700, color:isHard?'#DC2626':'#D97706', letterSpacing:'.05em' }}>POIN SEKARANG</div>
+          </div>
+          <div style={{ textAlign:'center', padding:'10px 8px', background:'#F8FAFC', borderRadius:10, border:'1px solid #E2E8F0' }}>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:800, color:'#374151' }}>{MAX_VIOLATION_SCORE}</div>
+            <div style={{ fontSize:10, fontWeight:700, color:'#64748B', letterSpacing:'.05em' }}>BATAS AUTO-SUBMIT</div>
+          </div>
+        </div>
+        {isHard
+          ? <div style={{ background:'#FEF2F2', borderLeft:'4px solid #DC2626', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#7F1D1D' }}>
+              <strong>⛔ Peringatan Keras:</strong> Satu pelanggaran besar lagi → <strong>Submit Otomatis</strong>.
+            </div>
+          : <div style={{ background:'#FFFBEB', borderLeft:'4px solid #F59E0B', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#78350F' }}>
+              <strong>⚠ Perhatian:</strong> Setiap pelanggaran mengurangi poin. Segera kembali ke mode normal.
+            </div>}
+      </div>
+      <div style={{ padding:'0 24px 20px' }}>
+        <button onClick={onClose} style={{ width:'100%', padding:11, borderRadius:10, border:'none', background:isHard?'#DC2626':'#F59E0B', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          Mengerti, Kembali ke Ujian
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────
+// PAUSE MODAL
+// ─────────────────────────────────────────────────────────────────
+const PauseModal = ({ timeLeft, count, onResume }) => (
+  <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.98)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+    <div style={{ background:'#fff', borderRadius:24, width:'100%', maxWidth:380, overflow:'hidden', boxShadow:'0 32px 64px rgba(0,0,0,.4)' }}>
+      <div style={{ background:'linear-gradient(135deg,#1E3A5F,#2563EB)', padding:'28px 24px', textAlign:'center' }}>
+        <Pause size={44} color="#fff" style={{ margin:'0 auto 12px', display:'block', opacity:.9 }}/>
+        <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:800, color:'#fff', margin:'0 0 4px', letterSpacing:'.04em' }}>WAKTU JEDA</h2>
+        <p style={{ fontSize:13, color:'rgba(255,255,255,.7)', margin:0 }}>Timer ujian berhenti sementara</p>
+      </div>
+      <div style={{ padding:24 }}>
+        <div style={{ textAlign:'center', background:'#EFF6FF', borderRadius:16, padding:16, marginBottom:16 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#3B82F6', letterSpacing:'.08em', marginBottom:6 }}>SISA WAKTU JEDA</div>
+          <div style={{ fontFamily:'Sora,sans-serif', fontSize:44, fontWeight:800, color:'#1E3A5F', lineHeight:1 }}>{formatTime(timeLeft)}</div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+          <div style={{ background:'#F8FAFC', borderRadius:10, padding:10, textAlign:'center' }}>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:'#0F172A' }}>5:00</div>
+            <div style={{ fontSize:10, color:'#94A3B8', fontWeight:700 }}>MAKS DURASI</div>
+          </div>
+          <div style={{ background:'#F8FAFC', borderRadius:10, padding:10, textAlign:'center' }}>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:'#0F172A' }}>{count}/{MAX_PAUSE}</div>
+            <div style={{ fontSize:10, color:'#94A3B8', fontWeight:700 }}>JEDA TERPAKAI</div>
+          </div>
+        </div>
+        <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 12px', marginBottom:16, fontSize:12, color:'#78350F' }}>
+          <strong>⚠ Catatan:</strong> Timer ujian tidak berjalan. Sistem keamanan tetap aktif — jangan pindah tab.
+        </div>
+        <button onClick={onResume} style={{ width:'100%', padding:14, borderRadius:12, border:'none', background:'#2563EB', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <Play size={16}/> Lanjutkan Ujian
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────
+// SECURITY MONITOR
+// ─────────────────────────────────────────────────────────────────
+const SecurityMonitor = ({ active, onViolation }) => {
+  const fsTimer     = useRef(null);
+  const checkIv     = useRef(null);
+  const ios         = checkIOS();
+
+  useEffect(() => {
+    if (!active) return;
+
+    const style = document.createElement('style');
+    style.textContent = `body{-webkit-user-select:none;-moz-user-select:none;user-select:none;}@media print{html,body{display:none!important;}}`;
+    document.head.appendChild(style);
+
+    const onVis    = () => { if (document.hidden) onViolation('tab_switch','Pindah tab atau window terdeteksi'); };
+    const onBlur   = () => onViolation('tab_switch','Fokus window hilang');
+    const onCopy   = e => { e.preventDefault(); onViolation('copy_paste','Mencoba menyalin teks (Ctrl+C)'); };
+    const onPaste  = e => { e.preventDefault(); onViolation('copy_paste','Mencoba menempelkan teks (Ctrl+V)'); };
+    const onCtx    = e => e.preventDefault();
+    const onKey    = e => {
+      if (e.key==='F12') { e.preventDefault(); onViolation('devtools','Shortcut DevTools (F12)'); return; }
+      if (e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase())) {
+        e.preventDefault(); onViolation('devtools',`Shortcut DevTools (Ctrl+Shift+${e.key})`);
+      }
+      if (e.ctrlKey && e.key.toUpperCase()==='U') e.preventDefault();
+    };
+    const onFS = () => {
+      if (ios) return;
+      if (!document.fullscreenElement) {
+        if (fsTimer.current) clearTimeout(fsTimer.current);
+        fsTimer.current = setTimeout(() => { if (!document.fullscreenElement) onViolation('fullscreen','Keluar dari mode fullscreen'); }, FS_EXIT_GRACE_MS);
+      } else { if (fsTimer.current) { clearTimeout(fsTimer.current); fsTimer.current=null; } }
+    };
+
+    checkIv.current = setInterval(() => {
+      const devW = window.outerWidth  - window.innerWidth  > 160;
+      const devH = !ios && (window.outerHeight - window.innerHeight > 160);
+      if (devW||devH) onViolation('devtools','DevTools atau console terbuka');
+      const tag = document.activeElement?.tagName;
+      const typing = tag==='INPUT'||tag==='TEXTAREA';
+      if (!typing && !ios) {
+        const availH = window.screen.availHeight||window.screen.height;
+        if (window.innerHeight < availH*0.78) onViolation('split_screen','Terdeteksi split screen (tinggi window kecil)');
+        if (window.innerWidth  < window.outerWidth*0.88) onViolation('split_screen','Terdeteksi floating window');
+      }
+    }, 800);
+
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('fullscreenchange', onFS);
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('paste', onPaste);
+    document.addEventListener('contextmenu', onCtx);
+    document.addEventListener('keydown', onKey);
+
+    return () => {
+      clearInterval(checkIv.current);
+      if (fsTimer.current) clearTimeout(fsTimer.current);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('fullscreenchange', onFS);
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('paste', onPaste);
+      document.removeEventListener('contextmenu', onCtx);
+      document.removeEventListener('keydown', onKey);
+      if (document.head.contains(style)) document.head.removeChild(style);
+    };
+  }, [active, onViolation, ios]);
+
+  return null;
+};
+
+// ─────────────────────────────────────────────────────────────────
+// QUESTION NAVIGATOR
+// ─────────────────────────────────────────────────────────────────
 const QuestionNav = ({ total, current, answers, questions, onGo }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-    {Array.from({ length: total }, (_, i) => {
+  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+    {Array.from({length:total},(_,i) => {
       const qid = questions?.[i]?.id;
-      const answered = qid && answers[qid] !== undefined && answers[qid] !== null && answers[qid] !== '';
-      const isCurrent = i === current;
+      const answered = qid && answers[qid]!==undefined && answers[qid]!==null && answers[qid]!=='';
+      const curr = i===current;
       return (
-        <button key={i} onClick={() => onGo(i)}
-          style={{ width: '32px', height: '32px', borderRadius: '8px', border: `1.5px solid ${isCurrent ? '#0891B2' : answered ? '#BAE6FD' : '#E2E8F0'}`, background: isCurrent ? '#0891B2' : answered ? '#EFF6FF' : '#F8FAFC', color: isCurrent ? '#fff' : answered ? '#0891B2' : '#94A3B8', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Sora, sans-serif', transition: 'all .15s' }}>
-          {i + 1}
+        <button key={i} onClick={()=>onGo(i)} style={{ width:32, height:32, borderRadius:8, border:`1.5px solid ${curr?'#0891B2':answered?'#BAE6FD':'#E2E8F0'}`, background:curr?'#0891B2':answered?'#EFF6FF':'#F8FAFC', color:curr?'#fff':answered?'#0891B2':'#94A3B8', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Sora,sans-serif' }}>
+          {i+1}
         </button>
       );
     })}
   </div>
 );
 
-// ── Exam Room Content ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// EXAM ROOM CONTENT
+// ─────────────────────────────────────────────────────────────────
 const ExamRoomContent = ({ session, questions, result, onSubmit, submitting }) => {
-  const totalSecs = session.duration_minutes * 60;
-  const [current,    setCurrent]    = useState(0);
-  const [answers,    setAnswers]    = useState({});
-  const [timeLeft,   setTimeLeft]   = useState(totalSecs);
-  const [showSubmit, setShowSubmit] = useState(false);
-  const violationsRef = useRef(result?.violation_count || 0);
+  const [current,        setCurrent]       = useState(0);
+  const [answers,        setAnswers]       = useState({});
+  const [timeLeft,       setTimeLeft]      = useState(session.duration_minutes*60);
+  const [showSubmit,     setShowSubmit]    = useState(false);
+  const [securityActive, setSecurityActive]= useState(true);
+  const [violationScore, setViolationScore]= useState(result.violation_score||0);
+  const [violationCounts,setViolationCounts]= useState(result.violation_counts||{});
+  const [pendingModal,   setPendingModal]  = useState(null);
+  const [forceSubmitted, setForceSubmitted]= useState(false);
+  const [isPaused,       setIsPaused]     = useState(false);
+  const [pauseCount,     setPauseCount]   = useState(0);
+  const [pauseTimeLeft,  setPauseTimeLeft]= useState(PAUSE_DUR);
 
-  // ── Restore dari localStorage saat load ───────────────────────
+  const handleSubmitRef = useRef(null);
+  const lastViolTime    = useRef({});
+  const pauseEnd        = useRef(null);
+
+  useWakeLock(securityActive && !isPaused);
+
+  // Restore localStorage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(EXAM_SAVE_KEY(result.id));
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setAnswers(parsed);
-      }
-    } catch {}
+    try { const s=localStorage.getItem(EXAM_SAVE_KEY(result.id)); if(s) setAnswers(JSON.parse(s)); } catch {}
   }, [result.id]);
 
-  // ── Auto-save ke localStorage setiap jawaban berubah ─────────
+  // Auto-save localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify(answers));
-    } catch {}
+    try { localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify(answers)); } catch {}
   }, [answers, result.id]);
 
-  // ── Periodic sync ke DB setiap 30 detik ──────────────────────
+  // Periodic DB sync
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (Object.keys(answers).length === 0) return;
-      const answersArray = questions.map((q) => ({
-        question_id: q.id,
-        answer: answers[q.id] ?? null,
-        type: q.type,
-      }));
-      try {
-        await supabase
-          .from('exam_results')
-          .update({ answers: answersArray, updated_at: new Date().toISOString() })
-          .eq('id', result.id);
-      } catch {
-        console.warn('[AutoSave] Gagal sync, jawaban masih tersimpan di localStorage');
-      }
+    const iv=setInterval(async()=>{
+      if(!Object.keys(answers).length) return;
+      const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
+      try { await supabase.from('exam_results').update({answers:arr,updated_at:new Date().toISOString()}).eq('id',result.id); } catch {}
     }, AUTOSAVE_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [answers, questions, result.id]);
+    return ()=>clearInterval(iv);
+  }, [answers,questions,result.id]);
 
-  // ── Timer countdown ───────────────────────────────────────────
-  // ── Timer countdown ───────────────────────────────────────────
+  // Timer
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) { clearInterval(timer); handleSubmitRef.current?.(true); return 0; }
-        return t - 1;
-      });
+    if(isPaused) return;
+    const iv=setInterval(()=>{
+      setTimeLeft(t=>{ if(t<=1){clearInterval(iv);handleSubmitRef.current?.(true);return 0;} return t-1; });
     }, 1000);
-    return () => clearInterval(timer);
-  }, []); // intentionally empty: timer hanya boleh start sekali saat mount
+    return ()=>clearInterval(iv);
+  }, [isPaused]);
 
-  // ── Detect tab switch / visibility change ─────────────────────
-  //    result.id & session.max_violations di-capture sebagai primitif
-  //    agar deps array stabil dan tidak trigger re-subscribe terus
+  // Pause countdown
   useEffect(() => {
-    const resultId      = result.id;
-    const maxViolations = session.max_violations;
+    if(!isPaused) return;
+    const iv=setInterval(()=>{
+      const rem=Math.max(0,Math.floor((pauseEnd.current-Date.now())/1000));
+      setPauseTimeLeft(rem);
+      if(rem<=0){clearInterval(iv);handleResume();}
+    }, 1000);
+    return ()=>clearInterval(iv);
+  }, [isPaused]); // eslint-disable-line
 
-    const handleVisibility = async () => {
-      if (document.hidden) {
-        try {
-          const { data } = await supabase.rpc('append_violation', {
-            p_result_id: resultId,
-            p_type: 'tab_switch',
-          });
-          const newCount = data?.violation_count ?? violationsRef.current + 1;
-          violationsRef.current = newCount;
+  // Submit
+  const handleSubmit = useCallback((auto=false)=>{
+    setSecurityActive(false);
+    const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
+    onSubmit(arr,violationScore,auto);
+  },[answers,questions,onSubmit,violationScore]);
 
-          if (newCount >= maxViolations) {
-            handleSubmitRef.current?.(true);
-          }
-        } catch (err) {
-          console.error('Gagal mencatat pelanggaran:', err);
-          violationsRef.current++;
-          if (violationsRef.current >= maxViolations) {
-            handleSubmitRef.current?.(true);
-          }
-        }
+  useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
+
+  // Violation handler
+  const handleViolation = useCallback(async(type,detail)=>{
+    if(!securityActive||isPaused||pendingModal||forceSubmitted) return;
+    const now=Date.now();
+    if((now-(lastViolTime.current[type]||0))<2000) return;
+    lastViolTime.current[type]=now;
+    const cfg=VIOLATION_CFG[type];
+    if(!cfg) return;
+    const prev=violationCounts[type]||0;
+    const cnt=prev+1;
+    const inGrace=cnt<=cfg.grace;
+    const deduct=inGrace?0:cfg.deduction;
+    const newCounts={...violationCounts,[type]:cnt};
+    const newScore=violationScore+deduct;
+    setViolationCounts(newCounts);
+    setViolationScore(newScore);
+    try {
+      const {data}=await supabase.rpc('append_violation',{p_result_id:result.id,p_type:type,p_detail:detail});
+      if(data&&!data.error){
+        setViolationScore(data.violation_score);
+        if(data.should_force_submit){setForceSubmitted(true);setSecurityActive(false);handleSubmitRef.current?.(true);return;}
       }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [result.id, session.max_violations]); // primitif — aman & exhaustive
+    } catch {}
+    if(inGrace) return;
+    if(newScore>=MAX_VIOLATION_SCORE){setForceSubmitted(true);setSecurityActive(false);handleSubmitRef.current?.(true);return;}
+    setPendingModal({message:detail,score:newScore,isHard:newScore>=WARN_VIOLATION_SCORE});
+  },[securityActive,isPaused,pendingModal,forceSubmitted,violationCounts,violationScore,result.id]);
 
-  // ── Submit — scoring dilakukan di server via RPC ──────────────
-  const handleSubmit = useCallback((autoSubmit = false) => {
-    const answersArray = questions.map((q) => ({
-      question_id: q.id,
-      answer: answers[q.id] ?? null,
-      type: q.type,
-    }));
-    onSubmit(answersArray, violationsRef.current, autoSubmit);
-  }, [answers, questions, onSubmit]);
+  // Pause/resume
+  const handlePause=useCallback(()=>{
+    if(pauseCount>=MAX_PAUSE) return;
+    setPauseCount(c=>c+1); setPauseTimeLeft(PAUSE_DUR);
+    pauseEnd.current=Date.now()+PAUSE_DUR*1000;
+    setIsPaused(true);
+    if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  },[pauseCount]);
+  const handleResume=useCallback(()=>{
+    setIsPaused(false);
+    if(!checkIOS()) document.documentElement.requestFullscreen().catch(()=>{});
+  },[]);
 
-  // Ref untuk handleSubmit — harus di-declare SETELAH handleSubmit
-  // agar tidak terjadi "cannot access before initialization"
-  const handleSubmitRef = useRef(null);
-  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
+  // Enter fullscreen on mount
+  useEffect(()=>{
+    if(!checkIOS()&&!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    return()=>{ if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{}); };
+  },[]);
 
-  const q = questions[current];
-
-  // Guard: soal tidak ditemukan (seharusnya tidak terjadi, tapi aman)
-  if (!q) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-        <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', color: '#0F172A', marginBottom: '8px' }}>Soal tidak dapat dimuat</h2>
-        <p style={{ fontSize: '14px', color: '#64748B' }}>Hubungi guru untuk memastikan bank soal sudah terisi.</p>
-      </div>
-    </div>
-  );
-
-  const answeredCount = questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== '').length;
-  const timerCritical = timeLeft < TIMER_WARNING_THRESHOLD;
-  const optLabels = ['A', 'B', 'C', 'D'];
+  const q=questions[current];
+  if(!q) return null;
+  const answered=questions.filter(q=>answers[q.id]!==undefined&&answers[q.id]!==null&&answers[q.id]!=='').length;
+  const crit=timeLeft<TIMER_WARNING_THRESHOLD;
+  const pct=Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100);
+  const sc=violationScore>=WARN_VIOLATION_SCORE?'#DC2626':violationScore>0?'#F59E0B':'#16A34A';
+  const opts=['A','B','C','D'];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Top Bar */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #F1F5F9', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 8px rgba(0,0,0,.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <BookOpen size={14} style={{ color: '#0891B2' }} />
-          </div>
-          <div>
-            <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{session.title}</div>
-            <div style={{ fontSize: '11px', color: '#94A3B8' }}>{answeredCount}/{questions.length} soal dijawab</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {violationsRef.current > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#DC2626', fontWeight: '600' }}>
-              <Shield size={13} />
-              {violationsRef.current}/{session.max_violations} pelanggaran
+    <div style={{ minHeight:'100vh', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }} onContextMenu={e=>e.preventDefault()}>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes spin{to{transform:rotate(360deg)}} .opt:hover{border-color:#BAE6FD!important;background:#F0F9FF!important;}`}</style>
+      <SecurityMonitor active={securityActive&&!isPaused} onViolation={handleViolation}/>
+      {isPaused&&<PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
+      {pendingModal&&!isPaused&&<ViolationModal message={pendingModal.message} violationScore={pendingModal.score} isHard={pendingModal.isHard} onClose={()=>{setPendingModal(null);if(!checkIOS()&&!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});}}/>}
+
+      {/* Top bar */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #F1F5F9', position:'sticky', top:0, zIndex:10, boxShadow:'0 1px 8px rgba(0,0,0,.04)' }}>
+        <div style={{ padding:'10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><BookOpen size={14} color="#0891B2"/></div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, color:'#0F172A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{session.title}</div>
+              <div style={{ fontSize:11, color:'#94A3B8' }}>{answered}/{questions.length} dijawab</div>
             </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 14px', borderRadius: '10px', background: timerCritical ? '#FEF2F2' : '#EFF6FF', border: `1px solid ${timerCritical ? '#FECACA' : '#BAE6FD'}` }}>
-            <Clock size={14} style={{ color: timerCritical ? '#DC2626' : '#0891B2' }} />
-            <span style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: timerCritical ? '#DC2626' : '#0891B2', animation: timerCritical ? 'pulse 1s infinite' : 'none' }}>
-              {formatTime(timeLeft)}
-            </span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            <button onClick={handlePause} disabled={pauseCount>=MAX_PAUSE}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background:pauseCount>=MAX_PAUSE?'#F8FAFC':'#fff', fontSize:12, fontWeight:600, color:pauseCount>=MAX_PAUSE?'#CBD5E1':'#475569', cursor:pauseCount>=MAX_PAUSE?'not-allowed':'pointer' }}>
+              <Pause size={12}/><span>{MAX_PAUSE-pauseCount}</span>
+            </button>
+            {violationScore>0&&<div style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 10px', borderRadius:8, background:violationScore>=WARN_VIOLATION_SCORE?'#FEF2F2':'#FFFBEB', border:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, fontSize:12, fontWeight:700, color:sc, animation:violationScore>=WARN_VIOLATION_SCORE?'pulse 1.5s infinite':'none' }}>
+              <Shield size={12}/>{violationScore}/{MAX_VIOLATION_SCORE}
+            </div>}
+            <div style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 14px', borderRadius:10, background:crit?'#FEF2F2':'#EFF6FF', border:`1px solid ${crit?'#FECACA':'#BAE6FD'}` }}>
+              <Clock size={14} color={crit?'#DC2626':'#0891B2'}/>
+              <span style={{ fontFamily:'Sora,sans-serif', fontSize:16, fontWeight:700, color:crit?'#DC2626':'#0891B2', animation:crit?'pulse 1s infinite':'none' }}>{formatTime(timeLeft)}</span>
+            </div>
           </div>
         </div>
+        {violationScore>0&&<div style={{ height:3, background:'#F1F5F9' }}><div style={{ height:'100%', background:sc, width:`${pct}%`, transition:'width .3s,background .3s' }}/></div>}
       </div>
 
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px', display: 'grid', gridTemplateColumns: '1fr 220px', gap: '20px', alignItems: 'start' }}>
-
-        {/* Question Card */}
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #F1F5F9', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}>
-          {/* Question header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-            <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora, sans-serif', fontWeight: '700', fontSize: '14px', color: '#0891B2', flexShrink: 0 }}>{current + 1}</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 9px', borderRadius: '999px', background: '#EFF6FF', color: '#0891B2' }}>
-                {q.type === 'multiple_choice' ? 'Pilihan Ganda' : q.type === 'essay' ? 'Essay' : 'Benar/Salah'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 9px', borderRadius: '999px', background: q.difficulty === 'easy' ? '#F0FDF4' : q.difficulty === 'hard' ? '#FEF2F2' : '#FFFBEB', color: q.difficulty === 'easy' ? '#16A34A' : q.difficulty === 'hard' ? '#DC2626' : '#D97706' }}>
-                {q.difficulty === 'easy' ? 'Mudah' : q.difficulty === 'hard' ? 'Sulit' : 'Sedang'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: '600', padding: '2px 9px', borderRadius: '999px', background: '#F8FAFC', color: '#94A3B8' }}>Bobot: {q.score_weight}</span>
+      {/* Content */}
+      <div style={{ maxWidth:900, margin:'0 auto', padding:'24px 20px', display:'grid', gridTemplateColumns:'1fr 220px', gap:20, alignItems:'start' }}>
+        {/* Question */}
+        <div style={{ background:'#fff', borderRadius:16, border:'1px solid #F1F5F9', padding:28, boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14, color:'#0891B2', flexShrink:0 }}>{current+1}</div>
+            <div style={{ display:'flex', gap:6 }}>
+              <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background:'#EFF6FF', color:'#0891B2' }}>{q.type==='multiple_choice'?'Pilihan Ganda':q.type==='essay'?'Essay':'Benar/Salah'}</span>
+              <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background:q.difficulty==='easy'?'#F0FDF4':q.difficulty==='hard'?'#FEF2F2':'#FFFBEB', color:q.difficulty==='easy'?'#16A34A':q.difficulty==='hard'?'#DC2626':'#D97706' }}>{q.difficulty==='easy'?'Mudah':q.difficulty==='hard'?'Sulit':'Sedang'}</span>
             </div>
           </div>
-
-          {/* Question text */}
-          <div style={{ fontSize: '15px', lineHeight: '1.7', color: '#0F172A', marginBottom: '24px', fontWeight: '400' }}>{q.question}</div>
-
-          {/* Answer area */}
-          {q.type === 'multiple_choice' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {q.options?.map((opt, i) => {
-                const label = optLabels[i];
-                const selected = answers[q.id] === label;
-                return (
-                  <button key={i} onClick={() => setAnswers(a => ({ ...a, [q.id]: label }))}
-                    style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 16px', borderRadius: '12px', border: `2px solid ${selected ? '#0891B2' : '#E2E8F0'}`, background: selected ? '#EFF6FF' : '#F8FAFC', cursor: 'pointer', textAlign: 'left', transition: 'all .15s', fontFamily: "'DM Sans', sans-serif" }}
-                    onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = '#BAE6FD'; }}
-                    onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = '#E2E8F0'; }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${selected ? '#0891B2' : '#E2E8F0'}`, background: selected ? '#0891B2' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora, sans-serif', fontWeight: '700', fontSize: '12px', color: selected ? '#fff' : '#94A3B8', flexShrink: 0, transition: 'all .15s' }}>{label}</div>
-                    <span style={{ fontSize: '14px', color: selected ? '#0C4A6E' : '#374151', fontWeight: selected ? '500' : '400' }}>{opt}</span>
-                  </button>
-                );
+          <div style={{ fontSize:15, lineHeight:1.75, color:'#0F172A', marginBottom:24 }}>{q.question}</div>
+          {q.type==='multiple_choice'&&(
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {q.options?.map((opt,i)=>{
+                const lbl=opts[i]; const sel=answers[q.id]===lbl;
+                return <button key={i} className="opt" onClick={()=>setAnswers(a=>({...a,[q.id]:lbl}))} style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 16px', borderRadius:12, border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#EFF6FF':'#F8FAFC', cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", transition:'all .12s' }}>
+                  <div style={{ width:28, height:28, borderRadius:'50%', border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#0891B2':'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:12, color:sel?'#fff':'#94A3B8', flexShrink:0 }}>{lbl}</div>
+                  <span style={{ fontSize:14, color:sel?'#0C4A6E':'#374151', fontWeight:sel?500:400 }}>{opt}</span>
+                </button>;
               })}
             </div>
           )}
-
-          {q.type === 'true_false' && (
-            <div style={{ display: 'flex', gap: '12px' }}>
-              {['Benar', 'Salah'].map(v => {
-                const selected = answers[q.id] === v;
-                return (
-                  <button key={v} onClick={() => setAnswers(a => ({ ...a, [q.id]: v }))}
-                    style={{ flex: 1, padding: '16px', borderRadius: '12px', border: `2px solid ${selected ? '#0891B2' : '#E2E8F0'}`, background: selected ? '#EFF6FF' : '#F8FAFC', cursor: 'pointer', fontFamily: 'Sora, sans-serif', fontWeight: '700', fontSize: '15px', color: selected ? '#0891B2' : '#94A3B8', transition: 'all .15s' }}>
-                    {v === 'Benar' ? '✓ Benar' : '✗ Salah'}
-                  </button>
-                );
-              })}
+          {q.type==='true_false'&&(
+            <div style={{ display:'flex', gap:12 }}>
+              {['Benar','Salah'].map(v=>{const sel=answers[q.id]===v; return <button key={v} onClick={()=>setAnswers(a=>({...a,[q.id]:v}))} style={{ flex:1, padding:16, borderRadius:12, border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#EFF6FF':'#F8FAFC', cursor:'pointer', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:15, color:sel?'#0891B2':'#94A3B8' }}>{v==='Benar'?'✓ Benar':'✗ Salah'}</button>;})}
             </div>
           )}
-
-          {q.type === 'essay' && (
-            <textarea
-              value={answers[q.id] || ''}
-              onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
-              placeholder="Tulis jawaban kamu di sini..."
-              rows={6}
-              style={{ width: '100%', padding: '13px 16px', borderRadius: '12px', border: '1.5px solid #E2E8F0', background: '#F8FAFC', fontSize: '14px', color: '#0F172A', fontFamily: "'DM Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.6 }}
-              onFocus={e => e.target.style.borderColor = '#0891B2'}
-              onBlur={e => e.target.style.borderColor = '#E2E8F0'} />
+          {q.type==='essay'&&(
+            <textarea value={answers[q.id]||''} onChange={e=>setAnswers(a=>({...a,[q.id]:e.target.value}))} placeholder="Tulis jawaban kamu di sini..." rows={6}
+              style={{ width:'100%', padding:'13px 16px', borderRadius:12, border:'1.5px solid #E2E8F0', background:'#F8FAFC', fontSize:14, color:'#0F172A', fontFamily:"'DM Sans',sans-serif", outline:'none', resize:'vertical', boxSizing:'border-box', lineHeight:1.6 }}
+              onFocus={e=>e.target.style.borderColor='#0891B2'} onBlur={e=>e.target.style.borderColor='#E2E8F0'}/>
           )}
-
-          {/* Navigation */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #F1F5F9' }}>
-            <button onClick={() => setCurrent(c => Math.max(0, c - 1))} disabled={current === 0}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '9px', border: '1.5px solid #E2E8F0', background: '#fff', fontSize: '13px', fontWeight: '600', color: '#374151', cursor: current === 0 ? 'not-allowed' : 'pointer', opacity: current === 0 ? 0.4 : 1, fontFamily: "'DM Sans', sans-serif" }}>
-              <ChevronLeft size={14} /> Sebelumnya
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:28, paddingTop:20, borderTop:'1px solid #F1F5F9' }}>
+            <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0} style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:current===0?'not-allowed':'pointer', opacity:current===0?0.4:1, fontFamily:"'DM Sans',sans-serif" }}>
+              <ChevronLeft size={14}/> Sebelumnya
             </button>
-            {current < questions.length - 1
-              ? <button onClick={() => setCurrent(c => Math.min(questions.length - 1, c + 1))}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '9px', border: 'none', background: '#0891B2', fontSize: '13px', fontWeight: '600', color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Berikutnya <ChevronRight size={14} />
-                </button>
-              : <button onClick={() => setShowSubmit(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#16A34A', fontSize: '13px', fontWeight: '700', color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  <Send size={14} /> Kumpulkan Jawaban
-                </button>
-            }
+            {current<questions.length-1
+              ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))} style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'none', background:'#0891B2', fontSize:13, fontWeight:600, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Berikutnya <ChevronRight size={14}/></button>
+              :<button onClick={()=>setShowSubmit(true)} style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 18px', borderRadius:9, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}><Send size={14}/> Kumpulkan</button>}
           </div>
         </div>
 
         {/* Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'sticky', top: '72px' }}>
-          <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #F1F5F9', padding: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#94A3B8', marginBottom: '10px', letterSpacing: '0.05em' }}>NAVIGASI SOAL</div>
-            <QuestionNav total={questions.length} current={current} answers={answers} questions={questions} onGo={setCurrent} />
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F8FAFC', display: 'flex', gap: '12px', fontSize: '11px', color: '#64748B' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#EFF6FF', border: '1px solid #BAE6FD', display: 'inline-block' }} /> Dijawab
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#F8FAFC', border: '1px solid #E2E8F0', display: 'inline-block' }} /> Belum
-              </span>
-            </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:14, position:'sticky', top:72 }}>
+          <div style={{ background:'#fff', borderRadius:14, border:'1px solid #F1F5F9', padding:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#94A3B8', marginBottom:10, letterSpacing:'.05em' }}>NAVIGASI SOAL</div>
+            <QuestionNav total={questions.length} current={current} answers={answers} questions={questions} onGo={setCurrent}/>
           </div>
-
-          <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #F1F5F9', padding: '16px' }}>
-            <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '6px' }}>Progres</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' }}>{answeredCount} / {questions.length} soal</div>
-            <div style={{ height: '6px', borderRadius: '99px', background: '#F1F5F9', overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: '99px', background: '#0891B2', width: `${(answeredCount / questions.length) * 100}%`, transition: 'width .3s' }} />
-            </div>
+          <div style={{ background:'#fff', borderRadius:14, border:'1px solid #F1F5F9', padding:16 }}>
+            <div style={{ fontSize:11, color:'#94A3B8', marginBottom:4 }}>Progres</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#0F172A', marginBottom:8 }}>{answered}/{questions.length} soal</div>
+            <div style={{ height:6, borderRadius:99, background:'#F1F5F9', overflow:'hidden' }}><div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered/questions.length)*100}%`, transition:'width .3s' }}/></div>
           </div>
-
-          <button onClick={() => setShowSubmit(true)}
-            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: '#16A34A', color: '#fff', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
-            <Send size={14} /> Kumpulkan Jawaban
+          {violationScore>0&&<div style={{ background:violationScore>=WARN_VIOLATION_SCORE?'#FEF2F2':'#FFFBEB', borderRadius:14, border:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, padding:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:sc, letterSpacing:'.05em', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}><Shield size={11}/>PELANGGARAN</div>
+            {Object.entries(violationCounts).map(([t,c])=>(
+              <div key={t} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748B', marginBottom:4 }}>
+                <span>{VIOLATION_CFG[t]?.label||t}</span><span style={{ fontWeight:700 }}>{c}×</span>
+              </div>
+            ))}
+            <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, color:sc }}>
+              <span>Total Poin</span><span>{violationScore}/{MAX_VIOLATION_SCORE}</span>
+            </div>
+          </div>}
+          <button onClick={()=>setShowSubmit(true)} style={{ width:'100%', padding:12, borderRadius:12, border:'none', background:'#16A34A', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            <Send size={14}/> Kumpulkan Jawaban
           </button>
         </div>
       </div>
 
-      {/* Submit Confirm Modal */}
-      {showSubmit && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.7)', backdropFilter: 'blur(6px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '400px', textAlign: 'center', animation: 'scaleIn .2s ease', fontFamily: "'DM Sans', sans-serif" }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <Send size={24} style={{ color: '#16A34A' }} />
-            </div>
-            <h3 style={{ fontFamily: 'Sora, sans-serif', fontSize: '18px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' }}>Kumpulkan Jawaban?</h3>
-            <p style={{ fontSize: '14px', color: '#64748B', lineHeight: 1.6, marginBottom: '8px' }}>
-              Kamu sudah menjawab <strong>{answeredCount}</strong> dari <strong>{questions.length}</strong> soal.
-            </p>
-            {answeredCount < questions.length && (
-              <p style={{ fontSize: '13px', color: '#D97706', background: '#FFFBEB', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px' }}>
-                ⚠ {questions.length - answeredCount} soal belum dijawab
-              </p>
-            )}
-            <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '24px' }}>Setelah dikumpulkan, tidak bisa diubah lagi.</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowSubmit(false)} disabled={submitting}
-                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1.5px solid #E2E8F0', background: '#fff', fontSize: '13px', fontWeight: '600', color: '#374151', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Kembali
-              </button>
-              <button onClick={() => handleSubmit(false)} disabled={submitting}
-                style={{ flex: 2, padding: '11px', borderRadius: '10px', border: 'none', background: '#16A34A', color: '#fff', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
-                {submitting ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />Mengumpulkan...</> : <><CheckCircle2 size={14} />Ya, Kumpulkan</>}
-              </button>
-            </div>
+      {/* Submit modal */}
+      {showSubmit&&<div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.7)', backdropFilter:'blur(6px)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+        <div style={{ background:'#fff', borderRadius:20, padding:32, width:'100%', maxWidth:400, textAlign:'center', animation:'fadeUp .2s ease', fontFamily:"'DM Sans',sans-serif" }}>
+          <div style={{ width:56, height:56, borderRadius:16, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}><Send size={24} color="#16A34A"/></div>
+          <h3 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:700, color:'#0F172A', marginBottom:8 }}>Kumpulkan Jawaban?</h3>
+          <p style={{ fontSize:14, color:'#64748B', lineHeight:1.6, marginBottom:8 }}>Sudah menjawab <strong>{answered}</strong> dari <strong>{questions.length}</strong> soal.</p>
+          {answered<questions.length&&<p style={{ fontSize:13, color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>⚠ {questions.length-answered} soal belum dijawab</p>}
+          {violationScore>0&&<p style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>🛡 {violationScore} poin pelanggaran tercatat</p>}
+          <p style={{ fontSize:12, color:'#94A3B8', marginBottom:24 }}>Setelah dikumpulkan, tidak bisa diubah lagi.</p>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={()=>setShowSubmit(false)} disabled={submitting} style={{ flex:1, padding:11, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali</button>
+            <button onClick={()=>{setShowSubmit(false);handleSubmit(false);}} disabled={submitting} style={{ flex:2, padding:11, borderRadius:10, border:'none', background:'#16A34A', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+              {submitting?<><div style={{ width:14, height:14, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Mengumpulkan…</>:<><CheckCircle2 size={14}/>Ya, Kumpulkan</>}
+            </button>
           </div>
         </div>
-      )}
+      </div>}
     </div>
   );
 };
 
-// ── Result Screen ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// RESULT SCREEN
+// ─────────────────────────────────────────────────────────────────
 const ResultScreen = ({ result, session, onBack }) => {
-  const score = result.score !== null ? Math.round(result.score) : null;
+  const score=result.score!==null?Math.round(result.score):null;
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0F172A 100%)', padding: '20px', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ width: '100%', maxWidth: '460px', textAlign: 'center', animation: 'fadeUp .5s ease' }}>
-        <div style={{ marginBottom: '28px' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: result.passed ? 'rgba(22,163,74,.2)' : result.passed === false ? 'rgba(220,38,38,.2)' : 'rgba(8,145,178,.2)', border: `2px solid ${result.passed ? 'rgba(22,163,74,.4)' : result.passed === false ? 'rgba(220,38,38,.4)' : 'rgba(8,145,178,.4)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-            {result.passed === true
-              ? <CheckCircle2 size={40} style={{ color: '#16A34A' }} />
-              : result.passed === false
-              ? <span style={{ fontSize: '36px' }}>📋</span>
-              : <BookOpen size={40} style={{ color: '#0891B2' }} />}
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ width:'100%', maxWidth:460, textAlign:'center' }}>
+        {result.force_submitted&&<div style={{ background:'rgba(220,38,38,.2)', border:'1px solid rgba(220,38,38,.4)', borderRadius:12, padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:10 }}>
+          <XCircle size={20} color="#F87171"/><div style={{ textAlign:'left' }}>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, color:'#F87171' }}>Submit Otomatis</div>
+            <div style={{ fontSize:12, color:'#94A3B8' }}>{result.force_submit_reason||'Poin pelanggaran melebihi batas'}</div>
           </div>
-          <h1 style={{ fontFamily: 'Sora, sans-serif', fontSize: '26px', fontWeight: '700', color: '#F1F5F9', margin: '0 0 8px' }}>
-            {result.passed === true ? 'Selamat! Kamu Lulus 🎉' : result.passed === false ? 'Ujian Selesai' : 'Jawaban Dikumpulkan'}
-          </h1>
-          <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>{session.title}</p>
+        </div>}
+        <div style={{ marginBottom:28 }}>
+          <div style={{ width:80, height:80, borderRadius:24, background:result.passed?'rgba(22,163,74,.2)':'rgba(220,38,38,.1)', border:`2px solid ${result.passed?'rgba(22,163,74,.4)':'rgba(220,38,38,.2)'}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+            {result.passed?<CheckCircle2 size={40} color="#16A34A"/>:<BookOpen size={40} color="#0891B2"/>}
+          </div>
+          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:700, color:'#F1F5F9', margin:'0 0 8px' }}>{result.passed===true?'Selamat! Kamu Lulus 🎉':result.passed===false?'Ujian Selesai':'Jawaban Dikumpulkan'}</h1>
+          <p style={{ fontSize:14, color:'#64748B', margin:0 }}>{session.title}</p>
         </div>
-
-        <div style={{ background: 'rgba(255,255,255,.05)', borderRadius: '20px', border: '1px solid rgba(255,255,255,.08)', padding: '28px', marginBottom: '20px' }}>
-          {score !== null ? (
-            <>
-              <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '64px', fontWeight: '700', color: result.passed ? '#4ADE80' : result.passed === false ? '#F87171' : '#38BDF8', lineHeight: 1, marginBottom: '6px' }}>{score}</div>
-              <div style={{ fontSize: '14px', color: '#64748B', marginBottom: '20px' }}>dari 100 · KKM {session.passing_score}</div>
-            </>
-          ) : (
-            <div style={{ fontSize: '16px', color: '#94A3B8', marginBottom: '20px', padding: '16px 0' }}>Jawaban essay akan dinilai oleh guru</div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {[
-              { label: 'Benar',     value: result.total_correct    ?? '—', color: '#4ADE80' },
-              { label: 'Salah',     value: result.total_wrong      ?? '—', color: '#F87171' },
-              { label: 'Kosong',    value: result.total_unanswered ?? '—', color: '#94A3B8' },
-              { label: 'Pelanggaran', value: result.violation_count ?? 0,  color: '#FBBF24' },
-            ].map(s => (
-              <div key={s.label} style={{ background: 'rgba(255,255,255,.04)', borderRadius: '10px', padding: '12px' }}>
-                <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '20px', fontWeight: '700', color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>{s.label}</div>
+        <div style={{ background:'rgba(255,255,255,.05)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28, marginBottom:20 }}>
+          {score!==null?<><div style={{ fontFamily:'Sora,sans-serif', fontSize:64, fontWeight:700, color:result.passed?'#4ADE80':'#F87171', lineHeight:1, marginBottom:6 }}>{score}</div><div style={{ fontSize:14, color:'#64748B', marginBottom:20 }}>dari 100 · KKM {session.passing_score}</div></>:<div style={{ fontSize:16, color:'#94A3B8', marginBottom:20, padding:'16px 0' }}>Jawaban essay akan dinilai guru</div>}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            {[{label:'Benar',value:result.total_correct??'—',color:'#4ADE80'},{label:'Salah',value:result.total_wrong??'—',color:'#F87171'},{label:'Kosong',value:result.total_unanswered??'—',color:'#94A3B8'},{label:'Poin Viol.',value:result.violation_score??0,color:(result.violation_score||0)>0?'#FBBF24':'#94A3B8'}].map(s=>(
+              <div key={s.label} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:12 }}>
+                <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:s.color }}>{s.value}</div>
+                <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{s.label}</div>
               </div>
             ))}
           </div>
+          {(result.violation_score||0)>0&&<div style={{ marginTop:16, paddingTop:16, borderTop:'1px solid rgba(255,255,255,.06)', display:'flex', alignItems:'center', gap:8, background:'rgba(251,191,36,.06)', borderRadius:10, padding:'12px 14px' }}>
+            <Monitor size={14} color="#FBBF24"/><span style={{ fontSize:12, color:'#94A3B8' }}>Poin pelanggaran terlihat oleh guru/pengawas.</span>
+          </div>}
         </div>
-
-        <button onClick={onBack}
-          style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#0891B2', color: '#fff', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-          Kembali ke Dashboard
-        </button>
+        <button onClick={onBack} style={{ width:'100%', padding:14, borderRadius:12, border:'none', background:'#0891B2', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali ke Dashboard</button>
       </div>
     </div>
   );
 };
 
-// ── Main ExamRoom Component ───────────────────────────────────────
-const ExamRoom = () => {
-  const { profile } = useAuth();
-  const navigate    = useNavigate();
+// ─────────────────────────────────────────────────────────────────
+// MAIN ExamRoom
+// ─────────────────────────────────────────────────────────────────
+export default function ExamRoom() {
+  const { profile }=useAuth();
+  const navigate=useNavigate();
+  const [screen,setScreen]=useState('token');
+  const [session,setSession]=useState(null);
+  const [questions,setQuestions]=useState([]);
+  const [result,setResult]=useState(null);
+  const [tokenError,setTokenError]=useState('');
+  const [tokenLoading,setTokenLoading]=useState(false);
+  const [submitting,setSubmitting]=useState(false);
 
-  const [screen,       setScreen]      = useState('token'); // token | confirm | exam | result
-  const [token,        setToken]       = useState('');
-  const [session,      setSession]     = useState(null);
-  const [questions,    setQuestions]   = useState([]);
-  const [result,       setResult]      = useState(null);
-  const [tokenError,   setTokenError]  = useState('');
-  const [tokenLoading, setTokenLoading]= useState(false);
-  const [submitting,   setSubmitting]  = useState(false);
-
-  // Verify token and load session
-  const handleEnterToken = async (inputToken) => {
-    setTokenLoading(true); setTokenError('');
+  const handleEnterToken=async(input)=>{
+    setTokenLoading(true);setTokenError('');
     try {
-
-      const { data: sessions, error } = await supabase.from('exam_sessions')
-        .select('*')
-        .eq('token', inputToken.trim().toUpperCase())
-        .eq('class_id', profile.class_id)
-        .single();
-
-
-      if (error || !sessions) { setTokenError('Token tidak valid atau bukan untuk kelasmu.'); return; }
-
-      const now   = new Date();
-      const start = new Date(sessions.start_time);
-      const end   = new Date(sessions.end_time);
-
-
-      if (now < start) { setTokenError(`Ujian belum dimulai. Mulai: ${start.toLocaleString('id-ID')}`); return; }
-      if (now > end)   { setTokenError('Ujian sudah berakhir.'); return; }
-
-      // Check if student already submitted
-      const { data: existing } = await supabase.from('exam_results')
-        .select('*').eq('exam_session_id', sessions.id).eq('student_id', profile.id).maybeSingle();
-
-
-      if (existing?.status === 'submitted' || existing?.status === 'graded') {
-        setSession(sessions); setResult(existing); setScreen('result'); return;
-      }
-
-      // Load questions
-      const { data: qs, error: qError } = await supabase.from('questions')
-        .select('id, bank_id, type, question, options, image_url, difficulty, tags, score_weight')
-        .eq('bank_id', sessions.question_bank_id);
-
-
-      let questionsToShow = qs || [];
-      if (sessions.shuffle_questions) {
-        questionsToShow = [...questionsToShow].sort(() => Math.random() - 0.5);
-      }
-
-      if (!questionsToShow.length) {
-        setTokenError('Bank soal kosong atau belum ada soal. Hubungi guru.');
-        return;
-      }
-
-      setSession(sessions);
-      setQuestions(questionsToShow);
-
-      // Create or resume result record
-      if (!existing) {
-        const { data: newResult } = await supabase.from('exam_results').insert([{
-          exam_session_id: sessions.id,
-          student_id: profile.id,
-          answers: [],
-          status: 'in_progress',
-          violation_count: 0,
-          violations: [],
-          started_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }]).select().single();
-        setResult(newResult);
-      } else {
-        setResult(existing);
-      }
-
+      const {data:sess,error}=await supabase.from('exam_sessions').select('*').eq('token',input.trim().toUpperCase()).eq('class_id',profile.class_id).single();
+      if(error||!sess){setTokenError('Token tidak valid atau bukan untuk kelasmu.');return;}
+      const now=new Date(),start=new Date(sess.start_time),end=new Date(sess.end_time);
+      if(now<start){setTokenError(`Ujian belum dimulai. Mulai: ${start.toLocaleString('id-ID')}`);return;}
+      if(now>end){setTokenError('Ujian sudah berakhir.');return;}
+      const {data:existing}=await supabase.from('exam_results').select('*').eq('exam_session_id',sess.id).eq('student_id',profile.id).maybeSingle();
+      if(existing?.status==='submitted'||existing?.status==='graded'){setSession(sess);setResult(existing);setScreen('result');return;}
+      const {data:qs,error:qErr}=await supabase.from('questions').select('id,bank_id,type,question,options,image_url,difficulty,tags,score_weight').eq('bank_id',sess.question_bank_id);
+      if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
+      let qShow=qs;
+      if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
+      setSession(sess);setQuestions(qShow);
+      if(!existing){
+        const {data:nr}=await supabase.from('exam_results').insert([{exam_session_id:sess.id,student_id:profile.id,answers:[],status:'in_progress',violation_count:0,violation_score:0,violation_counts:{},violations:[],started_at:new Date().toISOString(),created_at:new Date().toISOString(),updated_at:new Date().toISOString()}]).select().single();
+        setResult(nr);
+      } else {setResult(existing);}
       setScreen('confirm');
-    } catch (err) { setTokenError(err.message || 'Terjadi kesalahan. Coba lagi.'); }
-    finally { setTokenLoading(false); }
+    } catch(err){setTokenError(err.message||'Terjadi kesalahan.');}
+    finally{setTokenLoading(false);}
   };
 
-  // Submit — scoring dilakukan server-side via RPC (bukan di browser)
-  const handleSubmit = async (answersArray, violations, autoSubmit) => {
+  const handleSubmit=async(arr,vScore,auto)=>{
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc('calculate_and_submit_exam', {
-        p_result_id: result.id,
-        p_answers:   answersArray,
-      });
-
-      if (error) throw error;
-
-      // Bersihkan localStorage setelah submit berhasil
-      try { localStorage.removeItem(`zidu_exam_answers_${result.id}`); } catch {}
-
-      setResult(prev => ({ ...prev, ...data }));
-      setScreen('result');
-    } catch (err) {
-      console.error('Submit error:', err);
-    } finally {
-      setSubmitting(false);
-    }
+      const {data,error}=await supabase.rpc('calculate_and_submit_exam',{p_result_id:result.id,p_answers:arr});
+      if(error) throw error;
+      try{localStorage.removeItem(EXAM_SAVE_KEY(result.id));}catch{}
+      setResult(p=>({...p,...data}));setScreen('result');
+    } catch(err){console.error(err);}
+    finally{setSubmitting(false);}
   };
 
-  if (screen === 'token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError} />;
-  if (screen === 'confirm') return <ExamConfirm session={session} onStart={() => setScreen('exam')} onBack={() => setScreen('token')} />;
-  if (screen === 'exam') {
-    // Guard: tunggu sampai result & questions benar-benar ready
-    if (!result || !result.id || !questions.length) {
-      return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', fontFamily: "'DM Sans', sans-serif" }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: '#0891B2', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
-            <p style={{ color: '#64748B', fontSize: '14px' }}>Memuat soal ujian...</p>
-          </div>
+  if(screen==='token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError}/>;
+  if(screen==='confirm') return <ExamConfirm session={session} onStart={()=>setScreen('exam')} onBack={()=>setScreen('token')}/>;
+  if(screen==='exam'){
+    if(!result?.id||!questions.length) return(
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ width:40, height:40, borderRadius:'50%', border:'3px solid #E2E8F0', borderTopColor:'#0891B2', animation:'spin .8s linear infinite', margin:'0 auto 16px' }}/>
+          <p style={{ color:'#64748B', fontSize:14 }}>Memuat soal ujian…</p>
         </div>
-      );
-    }
-    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} />;
+      </div>
+    );
+    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting}/>;
   }
-  if (screen === 'result')  return <ResultScreen result={result} session={session} onBack={() => navigate('/student')} />;
-
+  if(screen==='result') return <ResultScreen result={result} session={session} onBack={()=>navigate('/student')}/>;
   return null;
-};
-
-export default ExamRoom;
+}

@@ -21,6 +21,7 @@ import {
   Megaphone,
   RotateCcw,
   ClipboardList,
+  FileText,
 } from 'lucide-react';
 
 const DashboardLayout = () => {
@@ -82,6 +83,7 @@ const DashboardLayout = () => {
           { label: 'Remedial', icon: RotateCcw, path: '/teacher/remedial' },
           { label: 'Pengumuman', icon: Megaphone, path: '/teacher/announcements' },
           { label: 'Absensi',    icon: ClipboardList, path: '/teacher/attendance' },
+          { label: 'Laporan Nilai', icon: FileText, path: '/teacher/report-card' },
           { label: 'Kelas Saya', icon: Layers, path: '/teacher/classes' },
           { label: 'Profil Saya', icon: UserCircle, path: '/teacher/profile' },
         ];
