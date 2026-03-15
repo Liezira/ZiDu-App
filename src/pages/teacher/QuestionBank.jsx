@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   BookOpen, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
+  Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
+  Image as ImageIcon,
   AlertCircle, CheckCircle2, ChevronDown, MoreVertical, Eye,
   FileText, List, ToggleLeft, ChevronRight, ChevronLeft,
   ArrowLeft, Copy, Filter, Upload, Download,
@@ -505,16 +507,80 @@ const BankModal = ({ open, bank, subjects, schoolId, teacherId, onClose, onSaved
   );
 };
 
+const applyFormat = (text, selStart, selEnd, format) => {
+  const selected = text.substring(selStart, selEnd);
+  if (!selected) return { text, cursor: selEnd };
+  const MAP = {
+    bold:        ['**', '**'],
+    italic:      ['_', '_'],
+    underline:   ['<u>', '</u>'],
+    strike:      ['~~', '~~'],
+    superscript: ['^(', ')'],
+    subscript:   ['_(', ')'],
+  };
+  const [open, close] = MAP[format] || ['', ''];
+  if (!open) return { text, cursor: selEnd };
+  const newText = text.substring(0, selStart) + open + selected + close + text.substring(selEnd);
+  return { text: newText, cursor: selEnd + open.length + close.length };
+};
+
+const RichToolbar = ({ textareaRef, value, onChange }) => {
+  const handle = (fmt) => {
+    const el = textareaRef?.current;
+    if (!el) return;
+    const { selectionStart: s, selectionEnd: e } = el;
+    const result = applyFormat(value, s, e, fmt);
+    onChange(result.text);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(result.cursor, result.cursor);
+    });
+  };
+  const tools = [
+    { icon: Bold,          fmt: 'bold',        title: 'Tebal (**teks**)' },
+    { icon: Italic,        fmt: 'italic',       title: 'Miring (_teks_)' },
+    { icon: Underline,     fmt: 'underline',    title: 'Garis bawah (<u>)' },
+    { icon: Strikethrough, fmt: 'strike',       title: 'Coret (~~teks~~)' },
+    { icon: Superscript,   fmt: 'superscript',  title: 'Superscript ^(x)' },
+    { icon: Subscript,     fmt: 'subscript',    title: 'Subscript _(x)' },
+  ];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderBottom: 'none', borderRadius: '9px 9px 0 0', padding: '5px 8px', flexWrap: 'wrap' }}>
+      {tools.map(({ icon: Icon, fmt, title }) => (
+        <button key={fmt} type="button" title={title}
+          onMouseDown={e => { e.preventDefault(); handle(fmt); }}
+          style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', transition: 'background .12s' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#EEF2FF'}
+          onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+          <Icon size={13} />
+        </button>
+      ))}
+      <div style={{ width: '1px', height: '16px', background: '#E2E8F0', margin: '0 4px' }} />
+      <span style={{ fontSize: '10px', color: '#CBD5E1', fontStyle: 'italic' }}>LaTeX: $x^2$</span>
+    </div>
+  );
+};
+
 // ── Question Editor ───────────────────────────────────────────────
 const OPTS_DEFAULT = ['', '', '', ''];
 
 const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
   const isEdit = !!question?.id;
-  const EMPTY = { type: 'multiple_choice', question: '', options: [...OPTS_DEFAULT], correct_answer: '', difficulty: 'medium', score_weight: 1 };
+  const EMPTY = {
+    type: 'multiple_choice', question: '', options: [...OPTS_DEFAULT],
+    option_images: ['', '', '', ''],
+    use_image_options: false,
+    question_image: '',
+    correct_answer: '', difficulty: 'medium', score_weight: 1,
+  };
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
+  const [uploadingIdx, setUploadingIdx] = useState(null);
+  const [uploadingQ, setUploadingQ] = useState(false);
+  const questionRef = useRef(null);
+  const optRefs = useRef([]);
 
   useEffect(() => {
     if (open) {
@@ -523,12 +589,15 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
           type: question.type || 'multiple_choice',
           question: question.question || '',
           options: question.options ? [...question.options, ...OPTS_DEFAULT].slice(0, 4) : [...OPTS_DEFAULT],
+          option_images: question.option_images ? [...question.option_images, '', '', ''].slice(0, 4) : ['', '', '', ''],
+          use_image_options: !!(question.use_image_options),
+          question_image: question.question_image || '',
           correct_answer: question.correct_answer || '',
           difficulty: question.difficulty || 'medium',
           score_weight: question.score_weight || 1,
         });
       } else {
-        setForm({ ...EMPTY, options: [...OPTS_DEFAULT] });
+        setForm({ ...EMPTY, options: [...OPTS_DEFAULT], option_images: ['', '', '', ''] });
       }
       setErrors({}); setSaveErr('');
     }
@@ -536,13 +605,28 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const setOpt = (i, v) => setForm(f => { const o = [...f.options]; o[i] = v; return { ...f, options: o }; });
+  const setOptImg = (i, v) => setForm(f => { const o = [...f.option_images]; o[i] = v; return { ...f, option_images: o }; });
+
+  const handleImageFile = (file, onDone, setLoading) => {
+    if (!file) return;
+    if (file.size > 1.5 * 1024 * 1024) { alert('File terlalu besar! Maks 1.5MB.'); return; }
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => { onDone(reader.result); setLoading(false); };
+    reader.readAsDataURL(file);
+  };
 
   const validate = () => {
     const e = {};
     if (!form.question.trim()) e.question = 'Teks soal wajib diisi';
     if (form.type === 'multiple_choice') {
-      const filled = form.options.filter(o => o.trim());
-      if (filled.length < 2) e.options = 'Minimal 2 pilihan jawaban harus diisi';
+      if (form.use_image_options) {
+        const filled = form.option_images.filter(img => img);
+        if (filled.length < 2) e.options = 'Minimal 2 gambar pilihan harus diupload';
+      } else {
+        const filled = form.options.filter(o => o.trim());
+        if (filled.length < 2) e.options = 'Minimal 2 pilihan jawaban harus diisi';
+      }
       if (!form.correct_answer) e.correct_answer = 'Pilih jawaban yang benar';
     }
     if (form.type === 'true_false' && !form.correct_answer) e.correct_answer = 'Pilih jawaban yang benar';
@@ -558,20 +642,25 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
       const payload = {
         type: form.type,
         question: form.question.trim(),
-        options: form.type === 'multiple_choice' ? form.options.filter(o => o.trim()) : null,
+        question_image: form.question_image || null,
+        options: form.type === 'multiple_choice'
+          ? (form.use_image_options
+              ? ['A', 'B', 'C', 'D'].slice(0, form.option_images.filter(i => i).length)
+              : form.options.filter(o => o.trim()))
+          : null,
+        option_images: form.type === 'multiple_choice' && form.use_image_options ? form.option_images : null,
+        use_image_options: form.type === 'multiple_choice' ? form.use_image_options : false,
         correct_answer: form.correct_answer,
         difficulty: form.difficulty,
         score_weight: parseFloat(form.score_weight) || 1,
         updated_at: new Date().toISOString(),
       };
-
       if (isEdit) {
         const { error } = await supabase.from('questions').update(payload).eq('id', question.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('questions').insert([{ ...payload, bank_id: bankId, created_at: new Date().toISOString() }]);
         if (error) throw error;
-        // Sync total_questions dari COUNT aktual (bukan increment agar tidak drift)
         const { count } = await supabase.from('questions').select('*', { count: 'exact', head: true }).eq('bank_id', bankId);
         await supabase.from('question_banks').update({ total_questions: count ?? 0 }).eq('id', bankId);
       }
@@ -586,10 +675,10 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', backdropFilter: 'blur(6px)', zIndex: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '600px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,.25)', animation: 'scaleIn .2s ease' }}>
+      <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '640px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,.25)', animation: 'scaleIn .2s ease' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
             {isEdit ? 'Edit Soal' : 'Tambah Soal Baru'}
           </h2>
@@ -597,45 +686,157 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ padding: '18px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Type + Difficulty + Weight */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <SelectField label="Tipe Soal" value={form.type} onChange={e => { set('type', e.target.value); set('correct_answer', ''); }}
+            <SelectField label="Tipe Soal" value={form.type} onChange={e => { set('type', e.target.value); set('correct_answer', ''); set('use_image_options', false); }}
               options={Object.entries(TYPE_META).map(([v, m]) => ({ value: v, label: m.label }))} />
             <SelectField label="Tingkat Kesulitan" value={form.difficulty} onChange={e => set('difficulty', e.target.value)}
               options={DIFFICULTIES.map(d => ({ value: d, label: DIFF_META[d].label }))} />
             <Input label="Bobot Nilai" type="number" min="0.5" max="10" step="0.5" value={form.score_weight} onChange={e => set('score_weight', e.target.value)} hint="Default: 1" />
           </div>
 
-          {/* Question text */}
-          <Textarea label="Teks Soal" required placeholder="Tulis pertanyaan di sini..." value={form.question} onChange={e => set('question', e.target.value)} error={errors.question} rows={4} />
+          {/* Teks soal + rich toolbar */}
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '5px', display: 'block' }}>
+              Teks Soal <span style={{ color: '#EF4444' }}>*</span>
+              <span style={{ fontWeight: '400', color: '#94A3B8', marginLeft: '6px', fontSize: '11px' }}>pilih teks lalu klik tombol format</span>
+            </label>
+            <RichToolbar textareaRef={questionRef} value={form.question} onChange={v => set('question', v)} />
+            <textarea ref={questionRef} value={form.question} onChange={e => set('question', e.target.value)}
+              placeholder="Tulis pertanyaan di sini... (LaTeX: $x^2 + y^2$, bold: **teks**, superscript: ^(2))"
+              rows={3}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '0 0 9px 9px', border: `1.5px solid ${errors.question ? '#FCA5A5' : '#E2E8F0'}`, background: '#F8FAFC', fontSize: '13px', color: '#0F172A', outline: 'none', resize: 'vertical', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', minHeight: '70px', transition: 'border-color .15s' }}
+              onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.boxShadow = '0 0 0 3px rgba(79,70,229,.1)'; e.target.style.background = '#fff'; }}
+              onBlur={e => { e.target.style.borderColor = errors.question ? '#FCA5A5' : '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }} />
+            {errors.question && <span style={{ fontSize: '11px', color: '#EF4444' }}>{errors.question}</span>}
+          </div>
 
-          {/* Multiple Choice options */}
+          {/* Gambar soal utama */}
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px', display: 'block' }}>
+              Gambar Soal <span style={{ color: '#94A3B8', fontWeight: '400' }}>(opsional)</span>
+            </label>
+            {form.question_image ? (
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={form.question_image} alt="soal" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #E2E8F0', objectFit: 'contain' }} />
+                <button onClick={() => set('question_image', '')}
+                  style={{ position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px', borderRadius: '50%', background: '#EF4444', border: 'none', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={11} />
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', borderRadius: '8px', border: '1.5px dashed #C7D2FE', background: '#FAFAFF', cursor: uploadingQ ? 'not-allowed' : 'pointer', fontSize: '12px', color: '#6366F1', fontWeight: '600', transition: 'background .15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#EEF2FF'}
+                onMouseLeave={e => e.currentTarget.style.background = '#FAFAFF'}>
+                {uploadingQ
+                  ? <div style={{ width: '12px', height: '12px', border: '2px solid #c7d2fe', borderTopColor: '#6366F1', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                  : <ImageIcon size={13} />}
+                {uploadingQ ? 'Memproses...' : 'Upload Gambar Soal'}
+                <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingQ}
+                  onChange={e => handleImageFile(e.target.files[0], v => set('question_image', v), setUploadingQ)} />
+              </label>
+            )}
+          </div>
+
+          {/* Multiple Choice */}
           {form.type === 'multiple_choice' && (
             <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
-                Pilihan Jawaban <span style={{ color: '#EF4444' }}>*</span>
-                <span style={{ fontWeight: '400', color: '#94A3B8', marginLeft: '6px' }}>— klik radio untuk set jawaban benar</span>
+              {/* Header row + toggle gambar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                  Pilihan Jawaban <span style={{ color: '#EF4444' }}>*</span>
+                  <span style={{ fontWeight: '400', color: '#94A3B8', marginLeft: '6px', fontSize: '11px' }}>klik huruf untuk set jawaban benar</span>
+                </div>
+                <button type="button" onClick={() => { set('use_image_options', !form.use_image_options); set('correct_answer', ''); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 11px', borderRadius: '8px', border: `1.5px solid ${form.use_image_options ? '#6366F1' : '#E2E8F0'}`, background: form.use_image_options ? '#EEF2FF' : '#F8FAFC', fontSize: '11px', fontWeight: '700', color: form.use_image_options ? '#4F46E5' : '#94A3B8', cursor: 'pointer', transition: 'all .15s' }}>
+                  <ImageIcon size={12} />
+                  {form.use_image_options ? 'Mode Gambar ✓' : 'Pakai Gambar'}
+                </button>
               </div>
+
               {errors.options && <div style={{ fontSize: '11px', color: '#EF4444', marginBottom: '8px' }}>{errors.options}</div>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {form.options.map((opt, i) => {
-                  const isCorrect = form.correct_answer === optLabels[i];
-                  return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button type="button" onClick={() => set('correct_answer', optLabels[i])}
-                        style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#4F46E5' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all .15s' }}>
-                        <span style={{ fontFamily: 'Sora, sans-serif', fontSize: '11px', fontWeight: '700', color: isCorrect ? '#fff' : '#94A3B8' }}>{optLabels[i]}</span>
-                      </button>
-                      <input value={opt} onChange={e => setOpt(i, e.target.value)} placeholder={`Pilihan ${optLabels[i]}`}
-                        style={{ flex: 1, padding: '8px 12px', borderRadius: '9px', border: `1.5px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#EEF2FF' : '#F8FAFC', fontSize: '13px', color: '#0F172A', outline: 'none', fontFamily: "'DM Sans', sans-serif", transition: 'all .15s' }}
-                        onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
-                        onBlur={e => { e.target.style.borderColor = isCorrect ? '#4F46E5' : '#E2E8F0'; e.target.style.background = isCorrect ? '#EEF2FF' : '#F8FAFC'; }} />
-                    </div>
-                  );
-                })}
-              </div>
+
+              {/* MODE TEKS */}
+              {!form.use_image_options && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {form.options.map((opt, i) => {
+                    const isCorrect = form.correct_answer === optLabels[i];
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                        <button type="button" onClick={() => set('correct_answer', optLabels[i])}
+                          style={{ width: '30px', height: '30px', borderRadius: '50%', border: `2px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#4F46E5' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all .15s', marginBottom: '2px' }}>
+                          <span style={{ fontFamily: 'Sora, sans-serif', fontSize: '11px', fontWeight: '700', color: isCorrect ? '#fff' : '#94A3B8' }}>{optLabels[i]}</span>
+                        </button>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <RichToolbar
+                            textareaRef={{ current: optRefs.current[i] }}
+                            value={opt}
+                            onChange={v => setOpt(i, v)}
+                          />
+                          <input
+                            ref={el => optRefs.current[i] = el}
+                            value={opt}
+                            onChange={e => setOpt(i, e.target.value)}
+                            placeholder={`Pilihan ${optLabels[i]}`}
+                            style={{ padding: '8px 12px', borderRadius: '0 0 8px 8px', border: `1.5px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#EEF2FF' : '#F8FAFC', fontSize: '13px', color: '#0F172A', outline: 'none', fontFamily: "'DM Sans', sans-serif", transition: 'all .15s', width: '100%', boxSizing: 'border-box' }}
+                            onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
+                            onBlur={e => { e.target.style.borderColor = isCorrect ? '#4F46E5' : '#E2E8F0'; e.target.style.background = isCorrect ? '#EEF2FF' : '#F8FAFC'; }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* MODE GAMBAR — 2x2 grid */}
+              {form.use_image_options && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {optLabels.map((label, i) => {
+                    const isCorrect = form.correct_answer === label;
+                    const img = form.option_images[i];
+                    return (
+                      <div key={i} style={{ borderRadius: '12px', border: `2px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#EEF2FF' : '#F8FAFC', overflow: 'hidden', transition: 'all .15s' }}>
+                        {/* Label bar */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: `1px solid ${isCorrect ? '#C7D2FE' : '#F1F5F9'}` }}>
+                          <button type="button" onClick={() => set('correct_answer', label)}
+                            style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${isCorrect ? '#4F46E5' : '#E2E8F0'}`, background: isCorrect ? '#4F46E5' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}>
+                            <span style={{ fontFamily: 'Sora, sans-serif', fontSize: '11px', fontWeight: '700', color: isCorrect ? '#fff' : '#94A3B8' }}>{label}</span>
+                          </button>
+                          {img && (
+                            <button onClick={() => setOptImg(i, '')}
+                              style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#FEE2E2', border: 'none', cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <X size={10} />
+                            </button>
+                          )}
+                        </div>
+                        {/* Image upload zone */}
+                        <div style={{ minHeight: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                          {img ? (
+                            <img src={img} alt={`opsi ${label}`} style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain', borderRadius: '6px' }} />
+                          ) : (
+                            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: uploadingIdx === i ? 'not-allowed' : 'pointer' }}>
+                              {uploadingIdx === i
+                                ? <div style={{ width: '16px', height: '16px', border: '2px solid #e2e8f0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                                : <ImageIcon size={20} style={{ color: '#C7D2FE' }} />}
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#CBD5E1' }}>
+                                {uploadingIdx === i ? 'Memproses...' : 'Upload gambar'}
+                              </span>
+                              <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingIdx !== null}
+                                onChange={e => {
+                                  setUploadingIdx(i);
+                                  handleImageFile(e.target.files[0], v => setOptImg(i, v), () => setUploadingIdx(null));
+                                }} />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {errors.correct_answer && <div style={{ fontSize: '11px', color: '#EF4444', marginTop: '6px' }}>{errors.correct_answer}</div>}
             </div>
           )}
@@ -656,9 +857,20 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
             </div>
           )}
 
-          {/* Essay rubric */}
+          {/* Essay */}
           {form.type === 'essay' && (
-            <Textarea label="Kunci Jawaban / Rubrik Penilaian" required placeholder="Tulis kunci jawaban atau rubrik penilaian untuk soal essay ini..." value={form.correct_answer} onChange={e => set('correct_answer', e.target.value)} error={errors.correct_answer} rows={4} />
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '5px', display: 'block' }}>
+                Kunci Jawaban / Rubrik <span style={{ color: '#EF4444' }}>*</span>
+              </label>
+              <RichToolbar textareaRef={questionRef} value={form.correct_answer} onChange={v => set('correct_answer', v)} />
+              <textarea ref={questionRef} value={form.correct_answer} onChange={e => set('correct_answer', e.target.value)}
+                placeholder="Tulis kunci jawaban atau rubrik penilaian..." rows={4}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '0 0 9px 9px', border: `1.5px solid ${errors.correct_answer ? '#FCA5A5' : '#E2E8F0'}`, background: '#F8FAFC', fontSize: '13px', color: '#0F172A', outline: 'none', resize: 'vertical', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', minHeight: '80px', transition: 'border-color .15s' }}
+                onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
+                onBlur={e => { e.target.style.borderColor = errors.correct_answer ? '#FCA5A5' : '#E2E8F0'; e.target.style.background = '#F8FAFC'; }} />
+              {errors.correct_answer && <span style={{ fontSize: '11px', color: '#EF4444' }}>{errors.correct_answer}</span>}
+            </div>
           )}
 
           {saveErr && <div style={{ padding: '11px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '9px', color: '#DC2626', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={14} />{saveErr}</div>}
