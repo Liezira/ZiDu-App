@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
+import JoinPage from './pages/auth/JoinPage';
 
 // ── Lazy imports ──────────────────────────────────────────────────
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
@@ -150,6 +151,8 @@ const App = () => {
       <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Signup via invite link — tidak perlu AuthRoute, boleh diakses siapapun */}
+      <Route path="/join" element={<JoinPage />} />
 
       {/* ── ROOT → redirect ke dashboard sesuai role ── */}
       <Route path="/" element={<Lazy><LandingPage /></Lazy>} />

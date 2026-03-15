@@ -6,8 +6,9 @@ import { getSchoolConfig, SCHOOL_TYPES, GRADE_META, JURUSAN_META } from '../../l
 import {
   School, Plus, Search, RefreshCw, Edit2, Trash2, X, Save,
   AlertCircle, CheckCircle2, Users, ChevronDown, MoreVertical,
-  Eye, GraduationCap, UserCheck, BookOpen, Layers, Upload,
+  Eye, GraduationCap, UserCheck, BookOpen, Layers, Upload, Link2,
 } from 'lucide-react';
+import InviteManager, { InviteManagerModal } from '../../components/InviteManager';
 
 // ── Constants ─────────────────────────────────────────────────────
 const CURRENT_YEAR = `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
@@ -460,39 +461,75 @@ const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
   );
 };
 
-// ── Action Dropdown ───────────────────────────────────────────────
-const ActionMenu = ({ cls, onView, onEdit, onAssign, onImport, onDelete }) => {
+// ── Action Dropdown ─────────────────────────────────────────────
+// Portal wrapper — mount InviteManagerModal sebagai fixed overlay
+const InviteManagerPortal = ({ profile, classId, className, onClose }) => (
+  <InviteManagerModal
+    profile={profile}
+    classId={classId}
+    className={className}
+    defaultRole="student"
+    onClose={onClose}
+  />
+);
+
+const ActionMenu = ({ cls, profile, onView, onEdit, onAssign, onImport, onDelete }) => {
   const [open, setOpen] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+
+  const menuItems = [
+    { icon: Eye,    label: 'Detail',       action: () => { onView(cls);   setOpen(false); }, color: '#374151' },
+    { icon: Edit2,  label: 'Edit',         action: () => { onEdit(cls);   setOpen(false); }, color: '#374151' },
+    { icon: Users,  label: 'Assign Siswa', action: () => { onAssign(cls); setOpen(false); }, color: '#0891B2' },
+    { icon: Upload, label: 'Import CSV',   action: () => { onImport(cls); setOpen(false); }, color: '#7C3AED' },
+    { icon: Trash2, label: 'Hapus',        action: () => { onDelete(cls); setOpen(false); }, color: '#DC2626' },
+  ];
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {/* Tombol Link Daftar */}
+      <button
+        onClick={e => { e.stopPropagation(); setShowInvite(true); }}
+        title="Bagikan link daftar ke siswa"
+        style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 9px', borderRadius: '7px', border: '1.5px solid #C7D2FE', background: '#EEF2FF', color: '#4F46E5', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all .15s', whiteSpace: 'nowrap' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#E0E7FF'}
+        onMouseLeave={e => e.currentTarget.style.background = '#EEF2FF'}>
+        <Link2 size={11} /> Link Daftar
+      </button>
+
+      {/* 3-dot dropdown */}
       <button onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
         style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94A3B8' }}
         onMouseEnter={e => e.currentTarget.style.background = '#EEF2FF'}
         onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}>
         <MoreVertical size={13} />
       </button>
+
       {open && <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
         <div style={{ position: 'absolute', right: 0, top: '34px', background: '#fff', borderRadius: '12px', border: '1px solid #F1F5F9', boxShadow: '0 8px 30px rgba(0,0,0,.12)', zIndex: 51, minWidth: '160px', padding: '4px' }}>
-          {[{ icon: Eye,      label: 'Detail',         action: () => { onView(cls);    setOpen(false); }, color: '#374151' },
-            { icon: Edit2,    label: 'Edit',           action: () => { onEdit(cls);    setOpen(false); }, color: '#374151' },
-            { icon: Users,    label: 'Assign Siswa',   action: () => { onAssign(cls);  setOpen(false); }, color: '#0891B2' },
-            { icon: Upload,   label: 'Import CSV',     action: () => { onImport(cls);  setOpen(false); }, color: '#7C3AED' },
-            { icon: Trash2,   label: 'Hapus',          action: () => { onDelete(cls);  setOpen(false); }, color: '#DC2626' }]
-            .map(item => (
-              <button key={item.label} onClick={item.action}
-                style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: item.color, borderRadius: '8px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500', textAlign: 'left' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                <item.icon size={13} />{item.label}
-              </button>
-            ))}
+          {menuItems.map(item => (
+            <button key={item.label} onClick={item.action}
+              style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: item.color, borderRadius: '8px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+              <item.icon size={13} />{item.label}
+            </button>
+          ))}
         </div>
       </>}
+
+      {showInvite && profile && (
+        <InviteManagerPortal
+          profile={profile}
+          classId={cls.id}
+          className={cls.name}
+          onClose={() => setShowInvite(false)}
+        />
+      )}
     </div>
   );
 };
-
 // ── Main Page ─────────────────────────────────────────────────────
 const ClassManagement = () => {
   const { profile } = useAuth();
@@ -730,6 +767,7 @@ const ClassManagement = () => {
                       <td style={{ padding: '13px 16px', fontSize: '12px', color: '#64748B' }}>{c.academic_year || '—'}</td>
                       <td style={{ padding: '13px 16px' }} onClick={e => e.stopPropagation()}>
                         <ActionMenu cls={c}
+                          profile={profile}
                           onView={setDetailClass}
                           onEdit={c => { setEditClass(c); setModalOpen(true); }}
                           onAssign={setAssignClass}
