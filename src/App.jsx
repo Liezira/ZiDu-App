@@ -7,7 +7,6 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
 // ── Static imports ────────────────────────────────────────────────
 import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
 import JoinPage from './pages/auth/JoinPage';
 
@@ -149,7 +148,6 @@ const App = () => {
     <Routes>
       {/* ── AUTH ── */}
       <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-      <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />
       {/* Signup via invite link — tidak perlu AuthRoute, boleh diakses siapapun */}
       <Route path="/join" element={<JoinPage />} />

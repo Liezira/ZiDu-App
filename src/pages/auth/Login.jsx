@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   Mail, Lock, LogIn, AlertCircle, Eye, EyeOff,
@@ -298,28 +297,9 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
-            <span style={{ fontSize: '11px', color: '#2D3748', fontWeight: '600', letterSpacing: '0.06em' }}>atau</span>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
-          </div>
 
-          {/* Register CTA */}
-          <div style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '14px', padding: '14px 16px', textAlign: 'center',
-          }}>
-            <p style={{ fontSize: '13px', color: '#475569' }}>
-              Sekolah belum terdaftar?{' '}
-              <Link to="/register" style={{ fontWeight: '700', color: '#818CF8', textDecoration: 'none' }}
-                onMouseEnter={e => e.target.style.color = '#A5B4FC'}
-                onMouseLeave={e => e.target.style.color = '#818CF8'}>
-                Daftar gratis →
-              </Link>
-            </p>
-          </div>
+
+
         </div>
 
         {/* Footer */}

@@ -16,7 +16,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   createInviteLink, getInvitesBySchool, getInvitesByClass,
   deactivateInvite, buildInviteUrl, isExpired, isQuotaFull,
-} from '../../services/inviteService';
+} from '../services/inviteService';
 import {
   Link2, Copy, Check, Plus, X, RefreshCw,
   Clock, Users, GraduationCap, BookOpen,
