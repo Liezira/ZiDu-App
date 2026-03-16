@@ -492,7 +492,7 @@ const DashboardLayout = () => {
             background: '#FFFFFF',
             borderBottom: `1px solid ${C.border}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 20px',
+            padding: isMobile ? '0 12px' : '0 20px',
             position: 'sticky', top: 0, zIndex: 30,
             flexShrink: 0,
           }}>
@@ -516,6 +516,8 @@ const DashboardLayout = () => {
                 <div style={{
                   fontSize: '14px', fontWeight: '600', color: '#0F172A',
                   fontFamily: "'Sora', sans-serif", lineHeight: 1.2,
+                  maxWidth: isMobile ? '140px' : 'none',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {schoolName}
                 </div>
@@ -525,7 +527,7 @@ const DashboardLayout = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '6px' }}>
               <NotificationBell
                 notifications={notifications}
                 unreadCount={unreadCount}
@@ -535,7 +537,7 @@ const DashboardLayout = () => {
                 onDelete={deleteNotif}
                 C={{ ...C, brand: meta.accent, brandBg: meta.bg, brandText: meta.color }}
               />
-              <div style={{ width: '1px', height: '22px', background: C.border, margin: '0 2px' }} />
+              {!isMobile && <div style={{ width: '1px', height: '22px', background: C.border, margin: '0 2px' }} />}
               <div
                 onClick={() => {
                   const base = role === 'super_admin' ? 'admin' : role === 'school_admin' ? 'school' : role;
@@ -550,12 +552,15 @@ const DashboardLayout = () => {
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 title="Profil saya"
               >
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#0F172A', lineHeight: 1.2 }}>
-                    {displayName}
+                {/* Sembunyikan nama & role di mobile agar topbar tidak sesak */}
+                {!isMobile && (
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#0F172A', lineHeight: 1.2 }}>
+                      {displayName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94A3B8' }}>{meta.label}</div>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>{meta.label}</div>
-                </div>
+                )}
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="avatar" style={{
                       width: '32px', height: '32px', borderRadius: '50%',
