@@ -56,7 +56,7 @@ const Sel = ({ value, onChange, options }) => (
 );
 
 // ── CreateForm ────────────────────────────────────────────────────
-const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, maxStudents, onCreated }) => {
+const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, maxStudents, lockRole, onCreated }) => {
   const [role, setRole]       = useState(defaultRole || 'student');
   // Default kuota = sisa kapasitas kelas (jika ada), fallback 100
   const defaultMax = remainingSlots > 0 ? String(remainingSlots) : '100';
@@ -87,8 +87,8 @@ const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Role */}
-      <div>
+      {/* Role — sembunyikan jika lockRole (hanya satu tipe tersedia) */}
+      {!lockRole && <div>
         <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Tipe Undangan</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {roles.map(({ id, label: lbl, desc, Icon, m }) => {
@@ -107,7 +107,7 @@ const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, 
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Label */}
       <div>
@@ -283,7 +283,7 @@ const InviteRow = ({ inv, onDeactivate }) => {
 };
 
 // ── InviteManagerModal ────────────────────────────────────────────
-const InviteManagerModal = ({ profile, classId, className, defaultRole, remainingSlots = 0, maxStudents = 0, onClose }) => {
+const InviteManagerModal = ({ profile, classId, className, defaultRole, remainingSlots = 0, maxStudents = 0, lockRole = false, onClose }) => {
   const [tab, setTab]         = useState('create');
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -360,7 +360,7 @@ const InviteManagerModal = ({ profile, classId, className, defaultRole, remainin
 
             {tab === 'create' && (
               <CreateForm profile={profile} classId={classId} className={className} defaultRole={defaultRole}
-                remainingSlots={remainingSlots} maxStudents={maxStudents}
+                remainingSlots={remainingSlots} maxStudents={maxStudents} lockRole={lockRole}
                 onCreated={info => { setNewLink(info); setTab('result'); }} />
             )}
 

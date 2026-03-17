@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Users, GraduationCap, Search, RefreshCw, Plus, Edit2, Trash2,
   X, Save, AlertCircle, CheckCircle2, MoreVertical, Eye,
-  Upload, Download, ChevronDown, BookOpen, School,
+  Upload, Download, ChevronDown, BookOpen, School, Link2,
 } from 'lucide-react';
+import { InviteManagerModal } from '../../components/InviteManager';
 
 // ── Helpers ───────────────────────────────────────────────────────
 const fmt     = (n) => (n ?? 0).toLocaleString('id-ID');
@@ -618,6 +620,7 @@ const StaffManagement = () => {
   const [detailPerson, setDetailPerson] = useState(null);
   const [csvOpen,    setCsvOpen]    = useState(false);
   const [csvPreselectedClass, setCsvPreselectedClass] = useState(null);
+  const [showTeacherInvite, setShowTeacherInvite] = useState(false);
 
   const [confirm,    setConfirm]    = useState({ open: false });
   const [actLoading, setActLoading] = useState(false);
@@ -676,8 +679,23 @@ const StaffManagement = () => {
 
   const isGuru = tab === 'guru';
 
+  // Teacher Invite Portal
+  const TeacherInvitePortal = showTeacherInvite && profile
+    ? ReactDOM.createPortal(
+        <InviteManagerModal
+          profile={profile}
+          classId={null}
+          className={null}
+          defaultRole="teacher"
+          onClose={() => setShowTeacherInvite(false)}
+        />,
+        document.body
+      )
+    : null;
+
   return (
     <>
+      {TeacherInvitePortal}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes fadeUp       { from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);} }
@@ -705,6 +723,15 @@ const StaffManagement = () => {
           <div style={{ display: 'flex', gap: '9px', flexWrap: 'wrap' }}>
             <Btn variant="secondary" icon={RefreshCw} loading={refreshing} onClick={() => { setRefreshing(true); fetchData(); }}>Refresh</Btn>
             {!isGuru && <Btn variant="secondary" icon={Upload} onClick={() => setCsvOpen(true)}>Import CSV</Btn>}
+            {isGuru && (
+              <button
+                onClick={() => setShowTeacherInvite(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: '1.5px solid #C7D2FE', background: '#EEF2FF', color: '#4F46E5', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .15s', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#E0E7FF'}
+                onMouseLeave={e => e.currentTarget.style.background = '#EEF2FF'}>
+                <Link2 size={14} /> Link Daftar Guru
+              </button>
+            )}
             <Btn icon={Plus} onClick={() => { setEditPerson(null); setModalOpen(true); }}>Tambah {isGuru ? 'Guru' : 'Siswa'}</Btn>
           </div>
         </div>

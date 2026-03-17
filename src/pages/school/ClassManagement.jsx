@@ -472,6 +472,7 @@ const InviteManagerPortal = ({ profile, classId, className, remainingSlots, maxS
       classId={classId}
       className={className}
       defaultRole="student"
+      lockRole={true}
       remainingSlots={remainingSlots}
       maxStudents={maxStudents}
       onClose={onClose}
