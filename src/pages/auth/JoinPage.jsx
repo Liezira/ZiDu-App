@@ -5,10 +5,9 @@ import { getInviteByToken, useInviteLink } from '../../services/inviteService';
 import {
   Mail, Lock, Eye, EyeOff, User, AlertCircle,
   CheckCircle2, GraduationCap, BookOpen, School,
-  Clock, Users, ChevronRight, ChevronLeft,
+  Clock, ChevronRight, ChevronLeft, Sparkles,
 } from 'lucide-react';
 
-// ─── Helpers ──────────────────────────────────────────────────────
 const getStrength = (p) => {
   let s = 0;
   if (p.length >= 8) s++;
@@ -30,128 +29,41 @@ const mapAuthError = (msg) => {
 };
 
 const ROLE_META = {
-  student: { label: 'Siswa', icon: GraduationCap, color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
-  teacher: { label: 'Guru',  icon: BookOpen,       color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
+  student: { label: 'Siswa',  icon: GraduationCap, accent: '#F59E0B', soft: '#FFFBEB', border: '#FDE68A', glow: 'rgba(245,158,11,.18)' },
+  teacher: { label: 'Guru',   icon: BookOpen,       accent: '#10B981', soft: '#ECFDF5', border: '#A7F3D0', glow: 'rgba(16,185,129,.18)' },
 };
 
-const strengthColors = ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'];
-const strengthLabels = ['Sangat Lemah', 'Lemah', 'Cukup', 'Kuat'];
+const strengthColors = ['#EF4444','#F59E0B','#3B82F6','#10B981'];
+const strengthLabels = ['Sangat Lemah','Lemah','Cukup','Kuat'];
 
-// ─── Field atom ───────────────────────────────────────────────────
-const Field = ({ label, required, error, hint, icon: Icon, right, ...props }) => {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      {label && (
-        <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
-          {label}{required && <span style={{ color: '#EF4444', marginLeft: '2px' }}>*</span>}
-        </label>
-      )}
-      <div style={{ position: 'relative' }}>
-        {Icon && <Icon size={15} style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: focused ? '#4F46E5' : '#CBD5E1', transition: 'color .15s' }} />}
-        <input {...props}
-          onFocus={e => { setFocused(true); props.onFocus?.(e); }}
-          onBlur={e => { setFocused(false); props.onBlur?.(e); }}
-          style={{
-            width: '100%', padding: Icon ? '11px 40px 11px 40px' : '11px 14px',
-            paddingRight: right ? '44px' : '14px',
-            borderRadius: '10px', fontSize: '13.5px',
-            border: `1.5px solid ${error ? '#FCA5A5' : focused ? '#4F46E5' : '#E2E8F0'}`,
-            background: focused ? '#FAFBFF' : '#F8FAFC',
-            color: '#0F172A', outline: 'none',
-            boxShadow: focused ? '0 0 0 3px rgba(79,70,229,.1)' : 'none',
-            transition: 'all .18s', boxSizing: 'border-box',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }} />
-        {right}
-      </div>
-      {error && <span style={{ fontSize: '11px', color: '#EF4444' }}>{error}</span>}
-      {hint && !error && <span style={{ fontSize: '11px', color: '#94A3B8' }}>{hint}</span>}
-    </div>
-  );
-};
-
-// ─── Shell ────────────────────────────────────────────────────────
-const Shell = ({ children }) => (
-  <>
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      @keyframes fadeIn { from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);} }
-      @keyframes spin   { to{transform:rotate(360deg);} }
-      .join-card { animation: fadeIn .4s cubic-bezier(0.16,1,0.3,1) both; }
-      input::placeholder { color: rgba(148,163,184,0.5); }
-    `}</style>
-    <div style={{
-      minHeight: '100vh', background: '#0D0F1A',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '24px 20px', fontFamily: "'Plus Jakarta Sans', sans-serif",
-    }}>
-      {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-        <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: '#5B6CF6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Sora', sans-serif", fontWeight: '800', fontSize: '15px', color: '#fff' }}>Z</div>
-        <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: '800', fontSize: '17px', color: '#E2E8F0', letterSpacing: '-0.3px' }}>ZiDu</span>
-      </div>
-      {children}
-      <p style={{ marginTop: '20px', fontSize: '12px', color: '#1E2535' }}>© 2026 ZiDu · RuangSimulasi</p>
-    </div>
-  </>
-);
-
-// ─── Step indicator (for teacher flow) ───────────────────────────
-const StepBar = ({ step }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, width: '100%', maxWidth: 420 }}>
-    {[1, 2].map((s, i) => (
-      <React.Fragment key={s}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 700,
-            background: step >= s ? '#5B6CF6' : 'rgba(255,255,255,.08)',
-            color: step >= s ? '#fff' : '#475569',
-            transition: 'all .3s',
-          }}>{step > s ? <CheckCircle2 size={14}/> : s}</div>
-          <span style={{ fontSize: 12, color: step >= s ? '#E2E8F0' : '#475569', fontWeight: step === s ? 600 : 400 }}>
-            {s === 1 ? 'Informasi Akun' : 'Setup Mengajar'}
-          </span>
-        </div>
-        {i < 1 && <div style={{ flex: 1, height: 2, borderRadius: 99, background: step > 1 ? '#5B6CF6' : 'rgba(255,255,255,.08)', transition: 'background .3s' }} />}
-      </React.Fragment>
-    ))}
-  </div>
-);
-
-// ─── Main ────────────────────────────────────────────────────────
 const JoinPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('invite') ?? '';
 
-  const [invite, setInvite]           = useState(null);
+  const [invite, setInvite]               = useState(null);
   const [loadingInvite, setLoadingInvite] = useState(true);
-  const [inviteError, setInviteError] = useState('');
+  const [inviteError, setInviteError]     = useState('');
 
-  // Step 1 — akun dasar
-  const [step, setStep]           = useState(1);
-  const [name, setName]           = useState('');
-  const [nis, setNis]             = useState('');
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [showPass, setShowPass]   = useState(false);
-  const [errors, setErrors]       = useState({});
+  const [step, setStep]             = useState(1);
+  const [name, setName]             = useState('');
+  const [nis, setNis]               = useState('');
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [showPass, setShowPass]     = useState(false);
+  const [focused, setFocused]       = useState('');
+  const [errors, setErrors]         = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone]           = useState(false);
+  const [done, setDone]             = useState(false);
 
-  // Step 2 — teacher setup
-  const [subjects, setSubjects]       = useState([]);   // available subjects
-  const [classes, setClasses]         = useState([]);   // available classes
-  const [selSubjects, setSelSubjects] = useState([]);   // selected subject IDs
-  const [selClasses, setSelClasses]   = useState([]);   // selected class IDs (wali kelas none, just teaching)
+  const [subjects, setSubjects]         = useState([]);
+  const [classes, setClasses]           = useState([]);
+  const [selSubjects, setSelSubjects]   = useState([]);
+  const [selClasses, setSelClasses]     = useState([]);
   const [step2Loading, setStep2Loading] = useState(false);
-  const [step2Err, setStep2Err]       = useState('');
-  const [newUserId, setNewUserId]     = useState(null); // UID setelah step 1
+  const [step2Err, setStep2Err]         = useState('');
+  const [newUserId, setNewUserId]       = useState(null);
 
-  // Load invite
   useEffect(() => {
     if (!token) { setInviteError('Link undangan tidak valid atau tidak lengkap.'); setLoadingInvite(false); return; }
     getInviteByToken(token).then(inv => {
@@ -161,21 +73,18 @@ const JoinPage = () => {
     });
   }, [token]);
 
-  // When step 2 for teacher — load subjects & classes
   useEffect(() => {
     if (step !== 2 || !invite?.school_id) return;
     setStep2Loading(true);
     Promise.all([
-      supabase.from('subjects').select('id, name, code').eq('school_id', invite.school_id).order('name'),
-      supabase.from('classes').select('id, name, grade_level').eq('school_id', invite.school_id).order('name'),
-    ]).then(([subjRes, clsRes]) => {
-      setSubjects(subjRes.data || []);
-      setClasses(clsRes.data || []);
-    }).finally(() => setStep2Loading(false));
+      supabase.from('subjects').select('id,name,code').eq('school_id', invite.school_id).order('name'),
+      supabase.from('classes').select('id,name,grade_level').eq('school_id', invite.school_id).order('name'),
+    ]).then(([s, cl]) => { setSubjects(s.data || []); setClasses(cl.data || []); })
+      .finally(() => setStep2Loading(false));
   }, [step, invite?.school_id]);
 
-  const toggleSubject = (id) => setSelSubjects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  const toggleClass   = (id) => setSelClasses(prev  => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSubject = id => setSelSubjects(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleClass   = id => setSelClasses(p  => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const validateStep1 = () => {
     const e = {};
@@ -183,17 +92,15 @@ const JoinPage = () => {
     if (invite?.target_role === 'student' && !nis.trim()) e.nis = 'NIS wajib diisi';
     if (!email.includes('@')) e.email    = 'Format email tidak valid';
     if (password.length < 8)  e.password = 'Password minimal 8 karakter';
-    if (getStrength(password) < 2) e.password = 'Password terlalu lemah. Tambah huruf besar atau angka.';
+    if (getStrength(password) < 2) e.password = 'Password terlalu lemah';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleStep1 = async (e) => {
+  const handleStep1 = async e => {
     e.preventDefault();
-    if (!invite) return;
-    if (!validateStep1()) return;
+    if (!invite || !validateStep1()) return;
     setSubmitting(true);
-
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(), password,
@@ -202,284 +109,443 @@ const JoinPage = () => {
       if (authError) throw authError;
       const uid = authData.user?.id;
       if (!uid) throw new Error('Gagal mendapatkan user ID.');
-
-      // Upsert profile basic info
-      const profilePayload = {
+      await supabase.from('profiles').upsert([{
         id: uid, name: name.trim(), email: email.trim().toLowerCase(),
         role: invite.target_role, school_id: invite.school_id,
         class_id: invite.class_id ?? null,
         nis: invite.target_role === 'student' ? nis.trim() : null,
         status: 'active',
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      };
-      const { error: profileError } = await supabase.from('profiles').upsert([profilePayload]);
-      if (profileError) throw profileError;
-
+      }]);
       await useInviteLink(token, uid);
-
-      // Teacher → go to step 2 for subject/class setup
-      if (invite.target_role === 'teacher') {
-        setNewUserId(uid);
-        setStep(2);
-      } else {
-        setDone(true);
-        setTimeout(() => navigate('/login'), 3000);
-      }
+      if (invite.target_role === 'teacher') { setNewUserId(uid); setStep(2); }
+      else { setDone(true); setTimeout(() => navigate('/login'), 3000); }
     } catch (err) {
-      setErrors(prev => ({ ...prev, _form: mapAuthError(err.message || '') }));
-    } finally {
-      setSubmitting(false);
-    }
+      setErrors(p => ({ ...p, _form: mapAuthError(err.message || '') }));
+    } finally { setSubmitting(false); }
   };
 
   const handleStep2 = async () => {
     if (selSubjects.length === 0) { setStep2Err('Pilih minimal 1 mata pelajaran yang kamu ajar.'); return; }
     setSubmitting(true); setStep2Err('');
     try {
-      const { error } = await supabase.from('profiles').update({
-        subject_ids: selSubjects,
-        updated_at: new Date().toISOString(),
-      }).eq('id', newUserId);
-      if (error) throw error;
+      await supabase.from('profiles').update({ subject_ids: selSubjects, updated_at: new Date().toISOString() }).eq('id', newUserId);
       setDone(true);
       setTimeout(() => navigate('/login'), 3000);
-    } catch (err) {
-      setStep2Err(err.message || 'Gagal menyimpan. Coba lagi.');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setStep2Err(err.message || 'Gagal menyimpan.'); }
+    finally { setSubmitting(false); }
   };
 
-  // ── Loading ──
-  if (loadingInvite) return (
-    <Shell>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-        <div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,.2)', borderTopColor: '#818CF8', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-        <span style={{ fontSize: '13px', color: '#475569' }}>Memverifikasi link undangan...</span>
-      </div>
-    </Shell>
-  );
-
-  // ── Invalid ──
-  if (inviteError) return (
-    <Shell>
-      <div className="join-card" style={{ width: '100%', maxWidth: '400px', background: '#161823', borderRadius: '20px', border: '1px solid rgba(255,255,255,.07)', padding: '40px 32px', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,.5)' }}>
-        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'rgba(239,68,68,.12)', border: '2px solid rgba(239,68,68,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-          <AlertCircle size={22} color="#F87171" />
-        </div>
-        <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: '18px', fontWeight: '800', color: '#F1F5F9', marginBottom: '10px' }}>Link Tidak Valid</h2>
-        <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: 1.65, marginBottom: '24px' }}>{inviteError}</p>
-        <Link to="/login" style={{ display: 'inline-block', padding: '10px 24px', borderRadius: '10px', background: '#5B6CF6', color: '#fff', fontSize: '13px', fontWeight: '700', textDecoration: 'none' }}>Ke Halaman Login</Link>
-      </div>
-    </Shell>
-  );
-
-  // ── Done ──
-  if (done) return (
-    <Shell>
-      <div className="join-card" style={{ width: '100%', maxWidth: '400px', background: '#161823', borderRadius: '20px', border: '1px solid rgba(255,255,255,.07)', padding: '40px 32px', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,.5)' }}>
-        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'rgba(16,185,129,.1)', border: '2px solid rgba(16,185,129,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-          <CheckCircle2 size={24} color="#10B981" />
-        </div>
-        <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: '18px', fontWeight: '800', color: '#F1F5F9', marginBottom: '10px' }}>Akun Berhasil Dibuat!</h2>
-        <p style={{ fontSize: '13px', color: '#475569', lineHeight: 1.65 }}>
-          {invite?.class_name ? <>Kamu berhasil bergabung ke <strong style={{ color: '#818CF8' }}>{invite.class_name}</strong>.<br/></> : ''}
-          Mengarahkan ke halaman login...
-        </p>
-      </div>
-    </Shell>
-  );
-
-  const meta = ROLE_META[invite.target_role] || ROLE_META.student;
+  // ── Computed ──────────────────────────────────────────────────
+  const isTeacher = invite?.target_role === 'teacher';
+  const meta = ROLE_META[invite?.target_role || 'student'];
   const RoleIcon = meta.icon;
   const strength = getStrength(password);
-  const isTeacher = invite.target_role === 'teacher';
+
+  const INPUT = name => ({
+    width: '100%', padding: '13px 16px 13px 44px',
+    borderRadius: '12px', fontSize: '14px',
+    border: `1.5px solid ${errors[name] ? '#FECACA' : focused === name ? '#6366F1' : 'rgba(255,255,255,.1)'}`,
+    background: focused === name ? 'rgba(99,102,241,.06)' : 'rgba(255,255,255,.04)',
+    color: '#F1F5F9', outline: 'none',
+    boxShadow: focused === name ? '0 0 0 4px rgba(99,102,241,.12)' : 'none',
+    transition: 'all .2s', boxSizing: 'border-box',
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+  });
+
+  const ICON_STYLE = name => ({
+    position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)',
+    pointerEvents: 'none', transition: 'color .2s',
+    color: focused === name ? '#818CF8' : 'rgba(148,163,184,.5)',
+  });
+
+  // ── CSS ───────────────────────────────────────────────────────
+  const CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #070B14; }
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);} }
+    @keyframes spin     { to{transform:rotate(360deg);} }
+    @keyframes pulse    { 0%,100%{opacity:.6;}50%{opacity:1;} }
+    @keyframes shimmer  { 0%{background-position:-600px 0;}100%{background-position:600px 0;} }
+    .join-in            { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+    .join-in-d1         { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) .07s both; }
+    .join-in-d2         { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) .14s both; }
+    input::placeholder  { color: rgba(100,116,139,.6); }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+  `;
+
+  // ── Loading ───────────────────────────────────────────────────
+  if (loadingInvite) return (
+    <>
+      <style>{CSS}</style>
+      <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        <div style={{ width: 16, height: 16, border: '2px solid rgba(99,102,241,.3)', borderTopColor: '#818CF8', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+        <span style={{ fontSize: 14, color: '#475569' }}>Memverifikasi link...</span>
+      </div>
+    </>
+  );
+
+  // ── Invalid ───────────────────────────────────────────────────
+  if (inviteError) return (
+    <>
+      <style>{CSS}</style>
+      <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        <div className="join-in" style={{ width: '100%', maxWidth: 400, background: '#0F1420', borderRadius: 24, border: '1px solid rgba(239,68,68,.2)', padding: '48px 36px', textAlign: 'center', boxShadow: '0 0 60px rgba(239,68,68,.06)' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(239,68,68,.1)', border: '1.5px solid rgba(239,68,68,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <AlertCircle size={24} color="#F87171" />
+          </div>
+          <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: 20, fontWeight: 800, color: '#F1F5F9', marginBottom: 8 }}>Link Tidak Valid</h2>
+          <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, marginBottom: 28 }}>{inviteError}</p>
+          <Link to="/login" style={{ display: 'inline-block', padding: '11px 28px', borderRadius: 12, background: 'linear-gradient(135deg,#4F46E5,#6366F1)', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>Ke Halaman Login</Link>
+        </div>
+      </div>
+    </>
+  );
+
+  // ── Done ──────────────────────────────────────────────────────
+  if (done) return (
+    <>
+      <style>{CSS}</style>
+      <div style={{ minHeight: '100vh', background: '#070B14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        <div className="join-in" style={{ width: '100%', maxWidth: 400, background: '#0F1420', borderRadius: 24, border: '1px solid rgba(16,185,129,.2)', padding: '48px 36px', textAlign: 'center', boxShadow: '0 0 60px rgba(16,185,129,.08)' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(16,185,129,.1)', border: '1.5px solid rgba(16,185,129,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <CheckCircle2 size={28} color="#10B981" />
+          </div>
+          <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: 22, fontWeight: 800, color: '#F1F5F9', marginBottom: 10 }}>Selamat Datang! 🎉</h2>
+          <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7 }}>
+            Akun kamu sudah aktif.{invite?.class_name ? <> Kamu bergabung ke <strong style={{ color: '#818CF8' }}>{invite.class_name}</strong>.</> : null}
+            <br/>Mengarahkan ke halaman login...
+          </p>
+          <div style={{ marginTop: 24, height: 3, borderRadius: 99, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: 'linear-gradient(90deg,#10B981,#34D399)', borderRadius: 99, animation: 'shimmer 1.5s ease infinite', backgroundSize: '600px 100%' }} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <Shell>
-      {/* Step bar — only for teacher */}
-      {isTeacher && <StepBar step={step} />}
+    <>
+      <style>{CSS}</style>
 
-      {/* Invite info chip */}
-      {step === 1 && (
-        <div className="join-card" style={{ width: '100%', maxWidth: '420px', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: '14px', padding: '14px 18px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <RoleIcon size={18} color={meta.color} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#E2E8F0' }}>Diundang sebagai</span>
-              <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '999px', background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}>{meta.label}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              {invite.class_name && (
-                <span style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}><School size={11}/>{invite.class_name}</span>
-              )}
-              <span style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Clock size={11}/>Berlaku hingga {new Date(invite.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
-            </div>
-          </div>
+      {/* Background — mesh gradient */}
+      <div style={{
+        minHeight: '100vh', background: '#070B14', position: 'relative', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: '32px 20px',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}>
+        {/* Decorative orbs */}
+        <div style={{ position: 'fixed', top: '-15%', left: '-10%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'fixed', bottom: '-20%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: `radial-gradient(circle, ${meta.glow} 0%, transparent 70%)`, pointerEvents: 'none', transition: 'background 1s' }} />
+
+        {/* Logo */}
+        <div className="join-in" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#4F46E5,#6366F1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(99,102,241,.4)', fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, color: '#fff' }}>Z</div>
+          <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: '#E2E8F0', letterSpacing: '-0.4px' }}>ZiDu</span>
         </div>
-      )}
 
-      {/* ── STEP 1: Akun dasar ── */}
-      {step === 1 && (
-        <div className="join-card" style={{ width: '100%', maxWidth: '420px', background: '#161823', borderRadius: '20px', border: '1px solid rgba(255,255,255,.07)', boxShadow: '0 24px 64px rgba(0,0,0,.5)', padding: '32px 28px' }}>
-          <h1 style={{ fontFamily: "'Sora', sans-serif", fontSize: '20px', fontWeight: '800', color: '#F1F5F9', marginBottom: '5px' }}>Buat Akun</h1>
-          <p style={{ fontSize: '13px', color: '#475569', marginBottom: '24px' }}>Isi data di bawah untuk bergabung</p>
-
-          <form onSubmit={handleStep1} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <Field label="Nama Lengkap" required icon={User} type="text" placeholder="Nama lengkap kamu"
-              value={name} onChange={e => setName(e.target.value)} error={errors.name} />
-
-            {!isTeacher && (
-              <Field label="NIS (Nomor Induk Siswa)" required icon={GraduationCap} type="text" placeholder="Contoh: 2024001"
-                value={nis} onChange={e => setNis(e.target.value)} error={errors.nis} hint="NIS sesuai data sekolah" />
-            )}
-
-            <Field label="Alamat Email" required icon={Mail} type="email" placeholder="email@kamu.com"
-              value={email} onChange={e => setEmail(e.target.value)} error={errors.email} />
-
-            {/* Password */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>Password <span style={{ color: '#EF4444' }}>*</span></label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#CBD5E1' }} />
-                <input type={showPass ? 'text' : 'password'} placeholder="Min. 8 karakter" value={password} onChange={e => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '11px 44px 11px 42px', borderRadius: '10px', fontSize: '13.5px', border: `1.5px solid ${errors.password ? '#FCA5A5' : '#E2E8F0'}`, background: '#F8FAFC', color: '#0F172A', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'all .18s' }}
-                  onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.boxShadow = '0 0 0 3px rgba(79,70,229,.1)'; e.target.style.background = '#fff'; }}
-                  onBlur={e => { e.target.style.borderColor = errors.password ? '#FCA5A5' : '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }} />
-                <button type="button" onClick={() => setShowPass(s => !s)}
-                  style={{ position: 'absolute', right: '13px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', alignItems: 'center' }}>
-                  {showPass ? <EyeOff size={15}/> : <Eye size={15}/>}
-                </button>
-              </div>
-              {password && (
-                <div>
-                  <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
-                    {[0,1,2,3].map(i => <div key={i} style={{ flex: 1, height: '3px', borderRadius: '99px', background: i < strength ? strengthColors[strength-1] : 'rgba(255,255,255,.08)', transition: 'background .3s' }} />)}
+        {/* Step bar — teacher only */}
+        {isTeacher && (
+          <div className="join-in-d1" style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24, width: '100%', maxWidth: 480 }}>
+            {[
+              { n: 1, label: 'Informasi Akun' },
+              { n: 2, label: 'Setup Mengajar' },
+            ].map((s, i) => (
+              <React.Fragment key={s.n}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    background: step > s.n ? 'linear-gradient(135deg,#4F46E5,#6366F1)' : step === s.n ? 'linear-gradient(135deg,#4F46E5,#6366F1)' : 'rgba(255,255,255,.06)',
+                    color: step >= s.n ? '#fff' : '#475569',
+                    boxShadow: step >= s.n ? '0 0 14px rgba(99,102,241,.4)' : 'none',
+                    transition: 'all .4s',
+                  }}>
+                    {step > s.n ? <CheckCircle2 size={14}/> : s.n}
                   </div>
-                  <span style={{ fontSize: '11px', color: strength > 0 ? strengthColors[strength-1] : '#94A3B8' }}>{strength > 0 ? strengthLabels[strength-1] : ''}</span>
+                  <span style={{ fontSize: 13, fontWeight: step === s.n ? 600 : 400, color: step >= s.n ? '#C7D2FE' : '#334155', whiteSpace: 'nowrap', transition: 'color .3s' }}>
+                    {s.label}
+                  </span>
                 </div>
-              )}
-              {errors.password && <span style={{ fontSize: '11px', color: '#EF4444' }}>{errors.password}</span>}
-            </div>
+                {i < 1 && (
+                  <div style={{ flex: 1, height: 2, borderRadius: 99, background: step > 1 ? 'linear-gradient(90deg,#4F46E5,#6366F1)' : 'rgba(255,255,255,.06)', margin: '0 8px', transition: 'background .5s' }} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
 
-            {errors._form && (
-              <div style={{ padding: '11px 14px', borderRadius: '10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', color: '#F87171', display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px' }}>
-                <AlertCircle size={15} style={{ flexShrink: 0 }}/><span>{errors._form}</span>
+        {/* ── Invite chip ── */}
+        {step === 1 && (
+          <div className="join-in-d1" style={{
+            width: '100%', maxWidth: 480, marginBottom: 12,
+            background: 'rgba(255,255,255,.03)',
+            border: `1px solid ${meta.border}22`,
+            borderRadius: 16, padding: '14px 18px',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{ width: 42, height: 42, borderRadius: 11, background: meta.soft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 0 20px ${meta.glow}` }}>
+              <RoleIcon size={18} color={meta.accent} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#CBD5E1' }}>Diundang sebagai</span>
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 999, background: meta.soft, color: meta.accent, border: `1px solid ${meta.border}`, letterSpacing: '0.02em' }}>
+                  {meta.label}
+                </span>
               </div>
-            )}
-
-            <button type="submit" disabled={submitting}
-              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: '#5B6CF6', color: '#fff', fontSize: '14px', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px', opacity: submitting ? 0.8 : 1, transition: 'all .18s' }}
-              onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = '#4F46E5'; }}
-              onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = '#5B6CF6'; }}>
-              {submitting
-                ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} /> Membuat akun...</>
-                : isTeacher ? <>Lanjut: Setup Mengajar <ChevronRight size={15}/></> : 'Daftar Sekarang'
-              }
-            </button>
-          </form>
-
-          <p style={{ textAlign: 'center', fontSize: '12.5px', color: '#475569', marginTop: '18px' }}>
-            Sudah punya akun?{' '}
-            <Link to="/login" style={{ color: '#818CF8', fontWeight: '700', textDecoration: 'none' }}>Masuk di sini</Link>
-          </p>
-        </div>
-      )}
-
-      {/* ── STEP 2: Teacher setup (mapel + kelas) ── */}
-      {step === 2 && isTeacher && (
-        <div className="join-card" style={{ width: '100%', maxWidth: '480px', background: '#161823', borderRadius: '20px', border: '1px solid rgba(255,255,255,.07)', boxShadow: '0 24px 64px rgba(0,0,0,.5)', padding: '32px 28px' }}>
-          <h1 style={{ fontFamily: "'Sora', sans-serif", fontSize: '20px', fontWeight: '800', color: '#F1F5F9', marginBottom: '5px' }}>Setup Mengajar</h1>
-          <p style={{ fontSize: '13px', color: '#475569', marginBottom: '24px' }}>
-            Pilih mapel yang kamu ajar. Admin sekolah bisa mengubah ini nanti.
-          </p>
-
-          {step2Loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-              <div style={{ width: '20px', height: '20px', border: '2px solid rgba(255,255,255,.2)', borderTopColor: '#818CF8', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {invite.class_name && (
+                  <span style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <School size={11} color="#475569"/>{invite.class_name}
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={11} color="#334155"/>
+                  Berlaku hingga {new Date(invite.expires_at).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}
+                </span>
+              </div>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Mata Pelajaran */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '10px' }}>
-                  Mata Pelajaran yang Diajar <span style={{ color: '#EF4444' }}>*</span>
-                </label>
-                {subjects.length === 0 ? (
-                  <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', fontSize: '13px', color: '#475569', textAlign: 'center' }}>
-                    Belum ada mata pelajaran yang didaftarkan di sekolah ini.
+          </div>
+        )}
+
+        {/* ══ STEP 1 ══ */}
+        {step === 1 && (
+          <div className="join-in-d2" style={{ width: '100%', maxWidth: 480, background: '#0F1420', borderRadius: 24, border: '1px solid rgba(255,255,255,.07)', boxShadow: '0 32px 80px rgba(0,0,0,.5)', overflow: 'hidden' }}>
+
+            {/* Card header accent */}
+            <div style={{ height: 3, background: 'linear-gradient(90deg,#4F46E5,#818CF8,#4F46E5)', backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite' }} />
+
+            <div style={{ padding: '32px 32px 36px' }}>
+              <div style={{ marginBottom: 28 }}>
+                <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: 22, fontWeight: 800, color: '#F1F5F9', marginBottom: 6, letterSpacing: '-0.3px' }}>
+                  Buat Akun {meta.label}
+                </h1>
+                <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.5 }}>
+                  {isTeacher ? 'Lengkapi data dan setup jadwal mengajar kamu' : 'Isi data untuk bergabung ke kelas'}
+                </p>
+              </div>
+
+              <form onSubmit={handleStep1} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                {/* Nama */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Nama Lengkap <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={15} style={ICON_STYLE('name')} />
+                    <input type="text" placeholder="Nama lengkap kamu" value={name} onChange={e => setName(e.target.value)}
+                      onFocus={() => setFocused('name')} onBlur={() => setFocused('')}
+                      style={INPUT('name')} />
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {subjects.map(s => {
-                      const active = selSubjects.includes(s.id);
-                      return (
-                        <button key={s.id} type="button" onClick={() => toggleSubject(s.id)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: '9px', border: `2px solid ${active ? '#5B6CF6' : 'rgba(255,255,255,.1)'}`, background: active ? 'rgba(91,108,246,.15)' : 'rgba(255,255,255,.04)', color: active ? '#A5B4FC' : '#64748B', fontSize: '13px', fontWeight: active ? 700 : 500, cursor: 'pointer', transition: 'all .15s', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                          <BookOpen size={13} color={active ? '#818CF8' : '#475569'} />
-                          {s.name}{s.code && <span style={{ fontSize: '11px', opacity: .6 }}>({s.code})</span>}
-                        </button>
-                      );
-                    })}
+                  {errors.name && <p style={{ fontSize: 11.5, color: '#F87171', marginTop: 5 }}>{errors.name}</p>}
+                </div>
+
+                {/* NIS — siswa saja */}
+                {!isTeacher && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>NIS <span style={{ color: '#EF4444' }}>*</span></label>
+                    <div style={{ position: 'relative' }}>
+                      <GraduationCap size={15} style={ICON_STYLE('nis')} />
+                      <input type="text" placeholder="Nomor Induk Siswa" value={nis} onChange={e => setNis(e.target.value)}
+                        onFocus={() => setFocused('nis')} onBlur={() => setFocused('')}
+                        style={INPUT('nis')} />
+                    </div>
+                    {errors.nis && <p style={{ fontSize: 11.5, color: '#F87171', marginTop: 5 }}>{errors.nis}</p>}
                   </div>
                 )}
-                {selSubjects.length > 0 && (
-                  <p style={{ fontSize: '12px', color: '#10B981', marginTop: 8 }}>✓ {selSubjects.length} mapel dipilih</p>
-                )}
-              </div>
 
-              {/* Kelas yang diajar (opsional) */}
-              {classes.length > 0 && (
+                {/* Email */}
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>
-                    Kelas yang Diajar <span style={{ color: '#475569', fontWeight: 400, textTransform: 'none', fontSize: '11px', letterSpacing: 0 }}>(opsional, bisa diatur admin)</span>
-                  </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-                    {classes.map(cls => {
-                      const active = selClasses.includes(cls.id);
-                      return (
-                        <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)}
-                          style={{ padding: '6px 12px', borderRadius: '8px', border: `2px solid ${active ? '#10B981' : 'rgba(255,255,255,.1)'}`, background: active ? 'rgba(16,185,129,.12)' : 'rgba(255,255,255,.04)', color: active ? '#34D399' : '#64748B', fontSize: '12px', fontWeight: active ? 700 : 500, cursor: 'pointer', transition: 'all .15s', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                          Kelas {cls.grade_level} – {cls.name}
-                        </button>
-                      );
-                    })}
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Email <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={15} style={ICON_STYLE('email')} />
+                    <input type="email" placeholder="email@kamu.com" value={email} onChange={e => setEmail(e.target.value)}
+                      onFocus={() => setFocused('email')} onBlur={() => setFocused('')}
+                      style={INPUT('email')} />
                   </div>
+                  {errors.email && <p style={{ fontSize: 11.5, color: '#F87171', marginTop: 5 }}>{errors.email}</p>}
                 </div>
-              )}
 
-              {step2Err && (
-                <div style={{ padding: '11px 14px', borderRadius: '10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', color: '#F87171', display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px' }}>
-                  <AlertCircle size={15} style={{ flexShrink: 0 }}/><span>{step2Err}</span>
+                {/* Password */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Password <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={15} style={ICON_STYLE('password')} />
+                    <input type={showPass ? 'text' : 'password'} placeholder="Min. 8 karakter" value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      onFocus={() => setFocused('password')} onBlur={() => setFocused('')}
+                      style={{ ...INPUT('password'), paddingRight: 48 }} />
+                    <button type="button" onClick={() => setShowPass(s => !s)}
+                      style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#475569', display: 'flex', padding: 4 }}>
+                      {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
+                    </button>
+                  </div>
+                  {/* Strength */}
+                  {password.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ display: 'flex', gap: 4, marginBottom: 5 }}>
+                        {[0,1,2,3].map(i => (
+                          <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, transition: 'background .3s', background: i < strength ? strengthColors[strength-1] : 'rgba(255,255,255,.07)' }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11.5, color: strength > 0 ? strengthColors[strength-1] : '#475569', fontWeight: 500 }}>
+                        {strength > 0 ? strengthLabels[strength-1] : ''}
+                      </span>
+                    </div>
+                  )}
+                  {errors.password && <p style={{ fontSize: 11.5, color: '#F87171', marginTop: 5 }}>{errors.password}</p>}
                 </div>
-              )}
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button onClick={() => setStep(1)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: '10px', border: '1.5px solid rgba(255,255,255,.1)', background: 'none', color: '#64748B', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'border-color .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.2)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'}>
-                  <ChevronLeft size={14}/> Kembali
-                </button>
-                <button onClick={handleStep2} disabled={submitting}
-                  style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#5B6CF6', color: '#fff', fontSize: '14px', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: submitting ? 0.8 : 1, transition: 'all .18s' }}
-                  onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = '#4F46E5'; }}
-                  onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = '#5B6CF6'; }}>
+                {/* Form error */}
+                {errors._form && (
+                  <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: '#FCA5A5', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5 }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0, color: '#F87171' }}/>{errors._form}
+                  </div>
+                )}
+
+                {/* CTA */}
+                <button type="submit" disabled={submitting}
+                  style={{ width: '100%', padding: '14px', marginTop: 4, borderRadius: 14, border: 'none', background: submitting ? 'rgba(99,102,241,.5)' : 'linear-gradient(135deg,#4F46E5,#6366F1)', color: '#fff', fontSize: 14.5, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, transition: 'all .2s', boxShadow: submitting ? 'none' : '0 0 24px rgba(99,102,241,.35)' }}
+                  onMouseEnter={e => { if (!submitting) e.currentTarget.style.boxShadow = '0 0 36px rgba(99,102,241,.5)'; }}
+                  onMouseLeave={e => { if (!submitting) e.currentTarget.style.boxShadow = '0 0 24px rgba(99,102,241,.35)'; }}>
                   {submitting
-                    ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} /> Menyimpan...</>
-                    : <><CheckCircle2 size={15}/> Selesai & Masuk</>
+                    ? <><div style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }}/> Membuat akun...</>
+                    : isTeacher
+                      ? <>Lanjut: Setup Mengajar <ChevronRight size={16}/></>
+                      : <><Sparkles size={15}/> Daftar Sekarang</>
                   }
                 </button>
-              </div>
+              </form>
+
+              <p style={{ textAlign: 'center', fontSize: 13, color: '#334155', marginTop: 22 }}>
+                Sudah punya akun?{' '}
+                <Link to="/login" style={{ color: '#818CF8', fontWeight: 700, textDecoration: 'none' }}
+                  onMouseEnter={e => e.target.style.color = '#A5B4FC'}
+                  onMouseLeave={e => e.target.style.color = '#818CF8'}>Masuk di sini</Link>
+              </p>
             </div>
-          )}
-        </div>
-      )}
-    </Shell>
+          </div>
+        )}
+
+        {/* ══ STEP 2: Teacher setup ══ */}
+        {step === 2 && isTeacher && (
+          <div className="join-in-d2" style={{ width: '100%', maxWidth: 520, background: '#0F1420', borderRadius: 24, border: '1px solid rgba(255,255,255,.07)', boxShadow: '0 32px 80px rgba(0,0,0,.5)', overflow: 'hidden' }}>
+            <div style={{ height: 3, background: `linear-gradient(90deg,${meta.accent},#34D399)` }} />
+
+            <div style={{ padding: '32px 32px 36px' }}>
+              <div style={{ marginBottom: 26 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: meta.soft, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 18px ${meta.glow}` }}>
+                    <BookOpen size={17} color={meta.accent} />
+                  </div>
+                  <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: 20, fontWeight: 800, color: '#F1F5F9', letterSpacing: '-0.3px' }}>Setup Mengajar</h1>
+                </div>
+                <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.55, marginLeft: 48 }}>
+                  Pilih mapel yang kamu ajar. Admin bisa mengubah ini kapan saja.
+                </p>
+              </div>
+
+              {step2Loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                  <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,.1)', borderTopColor: '#818CF8', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+                  {/* Mata Pelajaran */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        Mata Pelajaran <span style={{ color: '#EF4444' }}>*</span>
+                      </label>
+                      {selSubjects.length > 0 && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: meta.accent, background: meta.soft, padding: '3px 10px', borderRadius: 999 }}>
+                          ✓ {selSubjects.length} dipilih
+                        </span>
+                      )}
+                    </div>
+                    {subjects.length === 0 ? (
+                      <div style={{ padding: 20, borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px dashed rgba(255,255,255,.1)', fontSize: 13.5, color: '#475569', textAlign: 'center' }}>
+                        Belum ada mata pelajaran. Admin akan menambahkannya nanti.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {subjects.map(s => {
+                          const active = selSubjects.includes(s.id);
+                          return (
+                            <button key={s.id} type="button" onClick={() => toggleSubject(s.id)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, border: `2px solid ${active ? '#6366F1' : 'rgba(255,255,255,.08)'}`, background: active ? 'rgba(99,102,241,.14)' : 'rgba(255,255,255,.03)', color: active ? '#C7D2FE' : '#64748B', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', transition: 'all .18s', fontFamily: "'Plus Jakarta Sans',sans-serif", boxShadow: active ? '0 0 14px rgba(99,102,241,.2)' : 'none' }}>
+                              <BookOpen size={12} color={active ? '#818CF8' : '#475569'}/>
+                              {s.name}
+                              {s.code && <span style={{ fontSize: 11, opacity: .5 }}>({s.code})</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kelas */}
+                  {classes.length > 0 && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          Kelas yang Diajar
+                          <span style={{ color: '#334155', fontWeight: 400, textTransform: 'none', fontSize: 11, letterSpacing: 0, marginLeft: 6 }}>(opsional)</span>
+                        </label>
+                        {selClasses.length > 0 && (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: meta.accent, background: meta.soft, padding: '3px 10px', borderRadius: 999 }}>
+                            ✓ {selClasses.length} kelas
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                        {classes.map(cls => {
+                          const active = selClasses.includes(cls.id);
+                          return (
+                            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)}
+                              style={{ padding: '8px 14px', borderRadius: 9, border: `2px solid ${active ? meta.accent : 'rgba(255,255,255,.08)'}`, background: active ? `${meta.soft}22` : 'rgba(255,255,255,.03)', color: active ? meta.accent : '#64748B', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', transition: 'all .18s', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                              {cls.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {step2Err && (
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: '#FCA5A5', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5 }}>
+                      <AlertCircle size={15} style={{ flexShrink: 0, color: '#F87171' }}/>{step2Err}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                    <button type="button" onClick={() => setStep(1)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '12px 20px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,.1)', background: 'none', color: '#64748B', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = '#94A3B8'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = '#64748B'; }}>
+                      <ChevronLeft size={15}/> Kembali
+                    </button>
+                    <button type="button" onClick={handleStep2} disabled={submitting}
+                      style={{ flex: 1, padding: '13px', borderRadius: 14, border: 'none', background: submitting ? `rgba(16,185,129,.4)` : `linear-gradient(135deg,${meta.accent},#34D399)`, color: '#fff', fontSize: 14.5, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, transition: 'all .2s', boxShadow: submitting ? 'none' : `0 0 24px ${meta.glow}` }}>
+                      {submitting
+                        ? <><div style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }}/> Menyimpan...</>
+                        : <><CheckCircle2 size={15}/> Selesai & Masuk</>
+                      }
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <p style={{ marginTop: 24, fontSize: 12, color: '#1E293B' }}>© 2026 ZiDu · RuangSimulasi</p>
+      </div>
+    </>
   );
 };
 
