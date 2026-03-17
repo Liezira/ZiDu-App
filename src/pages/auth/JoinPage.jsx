@@ -209,9 +209,11 @@ const JoinPage = () => {
     if (allSelected === 0) { setStep2Err('Pilih atau tambah minimal 1 mata pelajaran yang kamu ajar.'); return; }
     setSubmitting(true); setStep2Err('');
     try {
-      // Insert custom subjects ke DB sekolah dulu
       let finalSubjectIds = [...selSubjects];
+      let customNames = [];
+
       if (customSubjects.length > 0) {
+        // Coba insert ke tabel subjects — butuh policy teacher_insert di Supabase
         const inserts = customSubjects.map(s => ({
           school_id: invite.school_id,
           name: s.name,
@@ -223,11 +225,20 @@ const JoinPage = () => {
           .from('subjects')
           .insert(inserts)
           .select('id');
-        if (subjErr) throw subjErr;
-        finalSubjectIds = [...finalSubjectIds, ...(newSubjs || []).map(s => s.id)];
+
+        if (subjErr) {
+          // Fallback: simpan nama custom di profile saja
+          // (admin sekolah nanti bisa approve & pindah ke tabel subjects)
+          customNames = customSubjects.map(s => s.name);
+        } else {
+          finalSubjectIds = [...finalSubjectIds, ...(newSubjs || []).map(s => s.id)];
+        }
       }
+
       await supabase.from('profiles').update({
         subject_ids: finalSubjectIds,
+        // custom_subject_names: nama mapel yang belum bisa diinsert (butuh approval admin)
+        ...(customNames.length > 0 ? { custom_subject_names: customNames } : {}),
         updated_at: new Date().toISOString(),
       }).eq('id', newUserId);
       setDone(true);
