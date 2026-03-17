@@ -218,10 +218,12 @@ const JoinPage = () => {
 
       if (customSubjects.length > 0) {
         // Coba insert ke tabel subjects — butuh policy teacher_insert di Supabase
+        // subjects.code is NOT NULL — derive short code from name
+        const makeCode = name => name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8) || 'MAPEL';
         const inserts = customSubjects.map(s => ({
           school_id: invite.school_id,
           name: s.name,
-          code: null,
+          code: makeCode(s.name),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }));
