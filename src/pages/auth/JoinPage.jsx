@@ -17,15 +17,18 @@ const getStrength = (p) => {
   return s;
 };
 
-const mapAuthError = (msg) => {
-  if (msg.includes('already registered') || msg.includes('already in use'))
-    return 'Email ini sudah terdaftar. Gunakan email lain atau login.';
+const mapAuthError = (msg, status) => {
+  if (status === 429 || msg.includes('429') || msg.includes('Too Many Requests') || msg.includes('rate limit') || msg.includes('over_email_send_rate_limit'))
+    return 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.';
+  if (msg.includes('already registered') || msg.includes('already in use') || msg.includes('User already registered'))
+    return 'Email ini sudah terdaftar. Silakan login atau gunakan email lain.';
   if (msg.includes('invalid-email') || msg.includes('invalid email'))
     return 'Format email tidak valid.';
   if (msg.includes('weak-password') || msg.includes('password'))
     return 'Password terlalu lemah. Gunakan minimal 8 karakter.';
-  if (msg.includes('network')) return 'Koneksi bermasalah. Coba lagi.';
-  return 'Terjadi kesalahan. Coba lagi.';
+  if (msg.includes('network') || msg.includes('fetch'))
+    return 'Koneksi bermasalah. Periksa internet kamu lalu coba lagi.';
+  return 'Terjadi kesalahan. Coba lagi dalam beberapa menit.';
 };
 
 const ROLE_META = {
@@ -200,7 +203,8 @@ const JoinPage = () => {
       if (invite.target_role === 'teacher') { setNewUserId(uid); setStep(2); }
       else { setDone(true); setTimeout(() => navigate('/login'), 3000); }
     } catch (err) {
-      setErrors(p => ({ ...p, _form: mapAuthError(err.message || '') }));
+      const status = err?.status || err?.code || 0;
+      setErrors(p => ({ ...p, _form: mapAuthError(err.message || '', status) }));
     } finally { setSubmitting(false); }
   };
 
@@ -512,8 +516,16 @@ const JoinPage = () => {
 
                 {/* Form error */}
                 {errors._form && (
-                  <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: '#FCA5A5', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5 }}>
-                    <AlertCircle size={15} style={{ flexShrink: 0, color: '#F87171' }}/>{errors._form}
+                  <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: '#FCA5A5', display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13.5, lineHeight: 1.55 }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0, color: '#F87171', marginTop: 1 }}/>
+                    <div>
+                      {errors._form}
+                      {errors._form.includes('Terlalu banyak') && (
+                        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
+                          💡 Ini batas keamanan dari Supabase. Coba lagi dalam 1–2 menit.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
