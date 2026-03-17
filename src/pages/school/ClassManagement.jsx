@@ -465,19 +465,21 @@ const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
 // ── Action Dropdown ─────────────────────────────────────────────
 // Portal wrapper — pakai ReactDOM.createPortal agar tidak terpotong
 // oleh overflow:hidden / transform di parent table
-const InviteManagerPortal = ({ profile, classId, className, onClose }) =>
+const InviteManagerPortal = ({ profile, classId, className, remainingSlots, maxStudents, onClose }) =>
   ReactDOM.createPortal(
     <InviteManagerModal
       profile={profile}
       classId={classId}
       className={className}
       defaultRole="student"
+      remainingSlots={remainingSlots}
+      maxStudents={maxStudents}
       onClose={onClose}
     />,
     document.body
   );
 
-const ActionMenu = ({ cls, profile, onView, onEdit, onAssign, onImport, onDelete }) => {
+const ActionMenu = ({ cls, profile, remainingSlots = 0, onView, onEdit, onAssign, onImport, onDelete }) => {
   const [open, setOpen] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
 
@@ -528,6 +530,8 @@ const ActionMenu = ({ cls, profile, onView, onEdit, onAssign, onImport, onDelete
           profile={profile}
           classId={cls.id}
           className={cls.name}
+          remainingSlots={remainingSlots}
+          maxStudents={cls.max_students || 0}
           onClose={() => setShowInvite(false)}
         />
       )}
@@ -772,6 +776,7 @@ const ClassManagement = () => {
                       <td style={{ padding: '13px 16px' }} onClick={e => e.stopPropagation()}>
                         <ActionMenu cls={c}
                           profile={profile}
+                          remainingSlots={Math.max(0, (c.max_students || 0) - studentCount)}
                           onView={setDetailClass}
                           onEdit={c => { setEditClass(c); setModalOpen(true); }}
                           onAssign={setAssignClass}

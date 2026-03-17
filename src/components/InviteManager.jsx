@@ -56,9 +56,11 @@ const Sel = ({ value, onChange, options }) => (
 );
 
 // ── CreateForm ────────────────────────────────────────────────────
-const CreateForm = ({ profile, classId, className, defaultRole, onCreated }) => {
+const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, maxStudents, onCreated }) => {
   const [role, setRole]       = useState(defaultRole || 'student');
-  const [maxUses, setMaxUses] = useState('100');
+  // Default kuota = sisa kapasitas kelas (jika ada), fallback 100
+  const defaultMax = remainingSlots > 0 ? String(remainingSlots) : '100';
+  const [maxUses, setMaxUses] = useState(defaultMax);
   const [days, setDays]       = useState('7');
   const [label, setLabel]     = useState(className ? `Link ${className}` : '');
   const [loading, setLoading] = useState(false);
@@ -119,13 +121,37 @@ const CreateForm = ({ profile, classId, className, defaultRole, onCreated }) => 
       </div>
 
       {/* Kuota + masa berlaku */}
+      {/* Kapasitas kelas */}
+      {maxStudents > 0 && (
+        <div style={{ padding: '10px 13px', borderRadius: 9, background: remainingSlots > 0 ? '#F0FDF4' : '#FEF2F2', border: `1px solid ${remainingSlots > 0 ? '#A7F3D0' : '#FECACA'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Users size={14} style={{ color: remainingSlots > 0 ? '#059669' : '#DC2626', flexShrink: 0 }} />
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: remainingSlots > 0 ? '#065F46' : '#991B1B' }}>
+                {remainingSlots > 0 ? `${remainingSlots} kursi tersisa` : 'Kelas penuh'}
+              </span>
+              <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 6 }}>dari {maxStudents} maks.</span>
+            </div>
+          </div>
+          {remainingSlots > 0 && (
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#D1FAE5', color: '#059669' }}>
+              Kuota otomatis = {remainingSlots}
+            </span>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Kuota</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Kuota Undangan</p>
           <Sel value={maxUses} onChange={setMaxUses} options={[
-            { v: '10', l: '10 orang' }, { v: '20', l: '20 orang' }, { v: '50', l: '50 orang' },
-            { v: '100', l: '100 orang' }, { v: '200', l: '200 orang' }, { v: '0', l: 'Tak terbatas' },
-          ]} />
+            { v: '5',   l: '5 orang'  }, { v: '10',  l: '10 orang' }, { v: '20',  l: '20 orang' },
+            { v: '30',  l: '30 orang' }, { v: '50',  l: '50 orang' }, { v: '100', l: '100 orang' },
+            { v: '200', l: '200 orang'}, { v: '0',   l: 'Tak terbatas' },
+            ...(remainingSlots > 0 && ![5,10,20,30,50,100,200].includes(remainingSlots)
+              ? [{ v: String(remainingSlots), l: `${remainingSlots} orang (sisa kelas)` }]
+              : []),
+          ].sort((a, b) => (Number(a.v) || 9999) - (Number(b.v) || 9999))} />
         </div>
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Masa Berlaku</p>
@@ -257,7 +283,7 @@ const InviteRow = ({ inv, onDeactivate }) => {
 };
 
 // ── InviteManagerModal ────────────────────────────────────────────
-const InviteManagerModal = ({ profile, classId, className, defaultRole, onClose }) => {
+const InviteManagerModal = ({ profile, classId, className, defaultRole, remainingSlots = 0, maxStudents = 0, onClose }) => {
   const [tab, setTab]         = useState('create');
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -334,6 +360,7 @@ const InviteManagerModal = ({ profile, classId, className, defaultRole, onClose 
 
             {tab === 'create' && (
               <CreateForm profile={profile} classId={classId} className={className} defaultRole={defaultRole}
+                remainingSlots={remainingSlots} maxStudents={maxStudents}
                 onCreated={info => { setNewLink(info); setTab('result'); }} />
             )}
 
