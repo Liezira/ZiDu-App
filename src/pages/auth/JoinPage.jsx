@@ -36,6 +36,78 @@ const ROLE_META = {
 const strengthColors = ['#EF4444','#F59E0B','#3B82F6','#10B981'];
 const strengthLabels = ['Sangat Lemah','Lemah','Cukup','Kuat'];
 
+// ── AddSubjectInput component ─────────────────────────────────────
+const AddSubjectInput = ({ customSubjects, onAdd, onRemove }) => {
+  const [val, setVal]   = useState('');
+  const [focused, setFocused] = useState(false);
+
+  const submit = () => {
+    if (!val.trim()) return;
+    onAdd(val.trim());
+    setVal('');
+  };
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {/* Input row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: customSubjects.length > 0 ? 10 : 0 }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <BookOpen size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: focused ? '#818CF8' : 'rgba(148,163,184,.4)', transition: 'color .15s' }} />
+          <input
+            type="text"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Ketik nama mapel, lalu Enter..."
+            style={{
+              width: '100%', padding: '10px 14px 10px 40px', borderRadius: 10, fontSize: 13.5,
+              border: `1.5px solid ${focused ? '#6366F1' : 'rgba(255,255,255,.1)'}`,
+              background: focused ? 'rgba(99,102,241,.06)' : 'rgba(255,255,255,.04)',
+              color: '#F1F5F9', outline: 'none', boxSizing: 'border-box',
+              boxShadow: focused ? '0 0 0 4px rgba(99,102,241,.1)' : 'none',
+              transition: 'all .2s', fontFamily: "'Plus Jakarta Sans',sans-serif",
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!val.trim()}
+          style={{
+            padding: '10px 16px', borderRadius: 10, border: 'none',
+            background: val.trim() ? 'linear-gradient(135deg,#4F46E5,#6366F1)' : 'rgba(255,255,255,.06)',
+            color: val.trim() ? '#fff' : '#475569',
+            fontSize: 13, fontWeight: 700, cursor: val.trim() ? 'pointer' : 'not-allowed',
+            fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'all .2s',
+            whiteSpace: 'nowrap', flexShrink: 0,
+            boxShadow: val.trim() ? '0 0 14px rgba(99,102,241,.3)' : 'none',
+          }}>
+          + Tambah
+        </button>
+      </div>
+
+      {/* Custom pills */}
+      {customSubjects.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {customSubjects.map(s => (
+            <div key={s.id}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, border: '2px solid #6366F1', background: 'rgba(99,102,241,.14)', color: '#C7D2FE', fontSize: 13, fontWeight: 700, boxShadow: '0 0 12px rgba(99,102,241,.2)' }}>
+              <BookOpen size={11} color="#818CF8" />
+              {s.name}
+              <button type="button" onClick={() => onRemove(s.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#818CF8', display: 'flex', alignItems: 'center', padding: 0, marginLeft: 2 }}>
+                <span style={{ fontSize: 14, lineHeight: 1 }}>×</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const JoinPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -60,6 +132,7 @@ const JoinPage = () => {
   const [classes, setClasses]           = useState([]);
   const [selSubjects, setSelSubjects]   = useState([]);
   const [selClasses, setSelClasses]     = useState([]);
+  const [customSubjects, setCustomSubjects] = useState([]); // mapel yang diketik manual
   const [step2Loading, setStep2Loading] = useState(false);
   const [step2Err, setStep2Err]         = useState('');
   const [newUserId, setNewUserId]       = useState(null);
@@ -83,8 +156,14 @@ const JoinPage = () => {
       .finally(() => setStep2Loading(false));
   }, [step, invite?.school_id]);
 
-  const toggleSubject = id => setSelSubjects(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleClass   = id => setSelClasses(p  => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleSubject      = id => setSelSubjects(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleClass        = id => setSelClasses(p  => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const addCustomSubject   = name => {
+    const trimmed = name.trim();
+    if (!trimmed || customSubjects.find(s => s.name.toLowerCase() === trimmed.toLowerCase())) return;
+    setCustomSubjects(p => [...p, { id: `custom_${Date.now()}`, name: trimmed, isCustom: true }]);
+  };
+  const removeCustomSubject = id => setCustomSubjects(p => p.filter(s => s.id !== id));
 
   const validateStep1 = () => {
     const e = {};
@@ -126,10 +205,31 @@ const JoinPage = () => {
   };
 
   const handleStep2 = async () => {
-    if (selSubjects.length === 0) { setStep2Err('Pilih minimal 1 mata pelajaran yang kamu ajar.'); return; }
+    const allSelected = selSubjects.length + customSubjects.length;
+    if (allSelected === 0) { setStep2Err('Pilih atau tambah minimal 1 mata pelajaran yang kamu ajar.'); return; }
     setSubmitting(true); setStep2Err('');
     try {
-      await supabase.from('profiles').update({ subject_ids: selSubjects, updated_at: new Date().toISOString() }).eq('id', newUserId);
+      // Insert custom subjects ke DB sekolah dulu
+      let finalSubjectIds = [...selSubjects];
+      if (customSubjects.length > 0) {
+        const inserts = customSubjects.map(s => ({
+          school_id: invite.school_id,
+          name: s.name,
+          code: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+        const { data: newSubjs, error: subjErr } = await supabase
+          .from('subjects')
+          .insert(inserts)
+          .select('id');
+        if (subjErr) throw subjErr;
+        finalSubjectIds = [...finalSubjectIds, ...(newSubjs || []).map(s => s.id)];
+      }
+      await supabase.from('profiles').update({
+        subject_ids: finalSubjectIds,
+        updated_at: new Date().toISOString(),
+      }).eq('id', newUserId);
       setDone(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) { setStep2Err(err.message || 'Gagal menyimpan.'); }
@@ -461,18 +561,21 @@ const JoinPage = () => {
                       <label style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                         Mata Pelajaran <span style={{ color: '#EF4444' }}>*</span>
                       </label>
-                      {selSubjects.length > 0 && (
+                      {(selSubjects.length + customSubjects.length) > 0 && (
                         <span style={{ fontSize: 12, fontWeight: 700, color: meta.accent, background: meta.soft, padding: '3px 10px', borderRadius: 999 }}>
-                          ✓ {selSubjects.length} dipilih
+                          ✓ {selSubjects.length + customSubjects.length} dipilih
                         </span>
                       )}
                     </div>
-                    {subjects.length === 0 ? (
-                      <div style={{ padding: 20, borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px dashed rgba(255,255,255,.1)', fontSize: 13.5, color: '#475569', textAlign: 'center' }}>
-                        Belum ada mata pelajaran. Admin akan menambahkannya nanti.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {/* Input tambah mapel mandiri — muncul saat kosong ATAU sebagai opsi tambah */}
+                    <AddSubjectInput
+                      customSubjects={customSubjects}
+                      onAdd={addCustomSubject}
+                      onRemove={removeCustomSubject}
+                    />
+
+                    {subjects.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                         {subjects.map(s => {
                           const active = selSubjects.includes(s.id);
                           return (
@@ -485,6 +588,14 @@ const JoinPage = () => {
                           );
                         })}
                       </div>
+                    )}
+                    {/* Separator + add custom label when existing subjects shown */}
+                    {subjects.length > 0 && (
+                      <p style={{ fontSize: 12, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)', display: 'inline-block' }}/>
+                        <span>Mapelmu tidak ada? Tambah di bawah</span>
+                        <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)', display: 'inline-block' }}/>
+                      </p>
                     )}
                   </div>
 
