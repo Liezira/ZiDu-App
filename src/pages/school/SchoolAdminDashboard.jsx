@@ -57,7 +57,7 @@ const SchoolAdminDashboard = () => {
       const [schoolRes, profilesRes, classesRes, subjectsRes, sessionsRes] = await Promise.all([
         supabase.from('schools').select('id, name, subscription_status, subscription_end_date, subscription_tier, max_students, max_teachers').eq('id', sid).single(),
         supabase.from('profiles').select('id, name, email, role, created_at').eq('school_id', sid),
-        supabase.from('classes').select('id, name, grade_level, academic_year, homeroom_teacher_id').eq('school_id', sid).order('grade_level'),
+        supabase.from('classes').select('id, name, grade_level, jurusan, academic_year, wali_kelas_id, max_students').eq('school_id', sid).order('grade_level'),
         supabase.from('subjects').select('id, name, code').eq('school_id', sid).order('name'),
         supabase.from('exam_sessions').select('id, title, exam_type, start_time, end_time, total_questions').eq('school_id', sid).order('start_time', { ascending: false }).limit(6),
       ]);
@@ -163,8 +163,8 @@ const SchoolAdminDashboard = () => {
                 <RowItem key={c.id} last={i === Math.min(arr.length, 6) - 1 && data.classes.length <= 6}
                   left={<div style={{ width: '34px', height: '34px', borderRadius: '9px', background: T.purpleLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.fontDisplay, fontWeight: '700', fontSize: '13px', color: T.purple, flexShrink: 0 }}>{c.grade_level || '?'}</div>}
                   title={c.name}
-                  sub={c.academic_year ? `TA ${c.academic_year}` : undefined}
-                  right={<span style={{ fontSize: '11px', color: T.textMuted, fontFamily: T.fontBody }}>Maks {c.max_students}</span>}
+                  sub={[c.jurusan && c.jurusan !== 'Umum' ? c.jurusan : null, c.academic_year ? `TA ${c.academic_year}` : null].filter(Boolean).join(' · ') || undefined}
+                  right={<span style={{ fontSize: '11px', color: T.textMuted, fontFamily: T.fontBody }}>{c.max_students ? `Maks ${c.max_students}` : ''}</span>}
                 />
               ))}
               {data.classes.length > 6 && (
