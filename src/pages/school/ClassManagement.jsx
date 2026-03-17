@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -462,16 +463,19 @@ const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
 };
 
 // ── Action Dropdown ─────────────────────────────────────────────
-// Portal wrapper — mount InviteManagerModal sebagai fixed overlay
-const InviteManagerPortal = ({ profile, classId, className, onClose }) => (
-  <InviteManagerModal
-    profile={profile}
-    classId={classId}
-    className={className}
-    defaultRole="student"
-    onClose={onClose}
-  />
-);
+// Portal wrapper — pakai ReactDOM.createPortal agar tidak terpotong
+// oleh overflow:hidden / transform di parent table
+const InviteManagerPortal = ({ profile, classId, className, onClose }) =>
+  ReactDOM.createPortal(
+    <InviteManagerModal
+      profile={profile}
+      classId={classId}
+      className={className}
+      defaultRole="student"
+      onClose={onClose}
+    />,
+    document.body
+  );
 
 const ActionMenu = ({ cls, profile, onView, onEdit, onAssign, onImport, onDelete }) => {
   const [open, setOpen] = useState(false);
