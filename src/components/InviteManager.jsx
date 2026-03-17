@@ -121,16 +121,20 @@ const CreateForm = ({ profile, classId, className, defaultRole, remainingSlots, 
       </div>
 
       {/* Kuota + masa berlaku */}
-      {/* Kapasitas kelas */}
+      {/* Kapasitas slot (kelas / guru) */}
       {maxStudents > 0 && (
         <div style={{ padding: '10px 13px', borderRadius: 9, background: remainingSlots > 0 ? '#F0FDF4' : '#FEF2F2', border: `1px solid ${remainingSlots > 0 ? '#A7F3D0' : '#FECACA'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Users size={14} style={{ color: remainingSlots > 0 ? '#059669' : '#DC2626', flexShrink: 0 }} />
             <div>
               <span style={{ fontSize: 12, fontWeight: 700, color: remainingSlots > 0 ? '#065F46' : '#991B1B' }}>
-                {remainingSlots > 0 ? `${remainingSlots} kursi tersisa` : 'Kelas penuh'}
+                {remainingSlots > 0
+                  ? `${remainingSlots} slot tersisa`
+                  : role === 'teacher' ? 'Kuota guru penuh' : 'Kelas penuh'}
               </span>
-              <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 6 }}>dari {maxStudents} maks.</span>
+              <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 6 }}>
+                dari {maxStudents} maks. {role === 'teacher' ? 'guru' : 'siswa'}
+              </span>
             </div>
           </div>
           {remainingSlots > 0 && (

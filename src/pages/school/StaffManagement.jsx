@@ -680,6 +680,9 @@ const StaffManagement = () => {
   const isGuru = tab === 'guru';
 
   // Teacher Invite Portal
+  const maxTeachers       = profile?.schools?.max_teachers || 0;
+  const remainingTeachers = Math.max(0, maxTeachers - teachers.length);
+
   const TeacherInvitePortal = showTeacherInvite && profile
     ? ReactDOM.createPortal(
         <InviteManagerModal
@@ -687,6 +690,9 @@ const StaffManagement = () => {
           classId={null}
           className={null}
           defaultRole="teacher"
+          lockRole={true}
+          remainingSlots={remainingTeachers}
+          maxStudents={maxTeachers}
           onClose={() => setShowTeacherInvite(false)}
         />,
         document.body
