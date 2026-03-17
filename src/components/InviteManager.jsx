@@ -1,16 +1,5 @@
 /**
- * InviteManager.jsx
- * Komponen lengkap untuk generate, lihat, dan nonaktifkan invite links.
- * Bisa dipanggil dari ClassManagement, StaffManagement, atau halaman guru.
- *
- * Usage:
- *   <InviteManager
- *     profile={profile}          // profile guru/admin dari AuthContext
- *     classId="uuid"             // opsional — jika dari dalam kelas
- *     className="X IPA 1"        // opsional
- *     defaultRole="student"      // 'student' | 'teacher'
- *     trigger={<button>...</button>}  // opsional — custom trigger
- *   />
+ * InviteManager.jsx — Link undangan untuk siswa & guru
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,111 +7,100 @@ import {
   deactivateInvite, buildInviteUrl, isExpired, isQuotaFull,
 } from '../services/inviteService';
 import {
-  Link2, Copy, Check, Plus, X, RefreshCw,
-  Clock, Users, GraduationCap, BookOpen,
-  AlertCircle, CheckCircle2, Trash2, ChevronDown,
-  ExternalLink, School,
+  Link2, Copy, Check, X, RefreshCw, Clock, Users,
+  GraduationCap, BookOpen, AlertCircle, CheckCircle2,
+  ExternalLink, School, ChevronDown,
 } from 'lucide-react';
 
-// ─── Atoms ────────────────────────────────────────────────────────
-const Btn = ({ children, variant = 'primary', icon: Icon, loading, sm, ...props }) => {
-  const S = {
-    primary:   ['#4F46E5','#fff','#4F46E5','#4338CA'],
-    secondary: ['#fff','#374151','#E2E8F0','#F1F5F9'],
-    danger:    ['#DC2626','#fff','#DC2626','#B91C1C'],
-    ghost:     ['transparent','#64748B','transparent','#F1F5F9'],
-  };
-  const [bg, color, border, hbg] = S[variant] || S.primary;
-  return (
-    <button {...props} disabled={loading || props.disabled}
-      style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding: sm ? '6px 12px':'9px 16px', borderRadius:'9px', fontSize: sm ? '12px':'13px', fontWeight:'600', cursor: loading||props.disabled ? 'not-allowed':'pointer', opacity: loading||props.disabled ? 0.6:1, background:bg, color, border:`1.5px solid ${border}`, fontFamily:"'Plus Jakarta Sans',sans-serif", transition:'all .15s', whiteSpace:'nowrap', ...props.style }}
-      onMouseEnter={e=>{ if(!loading&&!props.disabled) e.currentTarget.style.background=hbg; }}
-      onMouseLeave={e=>{ e.currentTarget.style.background=bg; }}>
-      {loading ? <div style={{ width:'13px',height:'13px',border:'2px solid rgba(255,255,255,.3)',borderTopColor:color,borderRadius:'50%',animation:'spin .7s linear infinite' }} /> : Icon && <Icon size={sm?12:14}/>}
-      {children}
-    </button>
-  );
+const T = {
+  brand: '#4F46E5', brandBg: '#EEF2FF', brandBdr: '#C7D2FE',
+  success: '#059669', sucBg: '#ECFDF5', sucBdr: '#A7F3D0',
+  danger: '#DC2626', dangBg: '#FEF2F2', dangBdr: '#FECACA',
+  student: { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  teacher: { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
 };
+
+const fmtDate = (d) => new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function statusOf(inv) {
+  if (!inv.is_active)   return { label: 'Nonaktif',   dot: '#94A3B8' };
+  if (isExpired(inv))   return { label: 'Kadaluarsa', dot: '#D97706' };
+  if (isQuotaFull(inv)) return { label: 'Penuh',      dot: '#7C3AED' };
+  return                       { label: 'Aktif',      dot: '#059669' };
+}
+
+const Spin = () => (
+  <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite', flexShrink: 0 }} />
+);
 
 const CopyBtn = ({ text }) => {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
-    <button onClick={copy}
-      style={{ display:'inline-flex', alignItems:'center', gap:'5px', padding:'5px 10px', borderRadius:'7px', border:`1.5px solid ${copied ? '#A7F3D0':'#E2E8F0'}`, background: copied ? '#F0FDF4':'#F8FAFC', color: copied ? '#059669':'#4F46E5', fontSize:'12px', fontWeight:'700', cursor:'pointer', transition:'all .15s', whiteSpace:'nowrap', fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      {copied ? <><Check size={11}/> Tersalin!</> : <><Copy size={11}/> Salin Link</>}
+    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 8, border: `1.5px solid ${copied ? T.sucBdr : T.brandBdr}`, background: copied ? T.sucBg : T.brandBg, color: copied ? T.success : T.brand, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', whiteSpace: 'nowrap', fontFamily: "'Plus Jakarta Sans',sans-serif", flexShrink: 0 }}>
+      {copied ? <><Check size={11} /> Tersalin!</> : <><Copy size={11} /> Salin Link</>}
     </button>
   );
 };
 
-const RoleBadge = ({ role }) => {
-  const M = {
-    student: { label:'Siswa',   bg:'#FFFBEB', color:'#D97706', border:'#FDE68A', Icon: GraduationCap },
-    teacher: { label:'Guru',    bg:'#ECFDF5', color:'#059669', border:'#A7F3D0', Icon: BookOpen },
-  };
-  const m = M[role] || M.student;
-  return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'2px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'700', background:m.bg, color:m.color, border:`1px solid ${m.border}` }}>
-      <m.Icon size={10}/>{m.label}
-    </span>
-  );
-};
+const Sel = ({ value, onChange, options }) => (
+  <div style={{ position: 'relative' }}>
+    <select value={value} onChange={e => onChange(e.target.value)}
+      style={{ appearance: 'none', width: '100%', padding: '9px 28px 9px 12px', borderRadius: 9, border: '1.5px solid #E2E8F0', background: '#F8FAFC', fontSize: 13, color: '#0F172A', outline: 'none', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'border-color .15s' }}
+      onFocus={e => e.target.style.borderColor = T.brand}
+      onBlur={e => e.target.style.borderColor = '#E2E8F0'}>
+      {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+    </select>
+    <ChevronDown size={13} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+  </div>
+);
 
-function statusOf(inv) {
-  if (!inv.is_active) return { label:'Nonaktif', color:'#DC2626', bg:'#FEF2F2' };
-  if (isExpired(inv))  return { label:'Kadaluarsa', color:'#D97706', bg:'#FFFBEB' };
-  if (isQuotaFull(inv)) return { label:'Kuota Penuh', color:'#7C3AED', bg:'#F5F3FF' };
-  return { label:'Aktif', color:'#059669', bg:'#F0FDF4' };
-}
-
-// ─── Create Invite Form ───────────────────────────────────────────
+// ── CreateForm ────────────────────────────────────────────────────
 const CreateForm = ({ profile, classId, className, defaultRole, onCreated }) => {
   const [role, setRole]       = useState(defaultRole || 'student');
-  const [maxUses, setMaxUses] = useState(100);
+  const [maxUses, setMaxUses] = useState('100');
+  const [days, setDays]       = useState('7');
   const [label, setLabel]     = useState(className ? `Link ${className}` : '');
-  const [days, setDays]       = useState(7);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
 
-  const handleCreate = async () => {
+  const handle = async () => {
     setLoading(true); setError('');
     try {
       const token = await createInviteLink({
-        schoolId:   profile.school_id,
-        createdBy:  profile.id,
-        targetRole: role,
-        classId:    classId || null,
-        className:  className || null,
-        label:      label.trim() || null,
-        maxUses,
+        schoolId: profile.school_id, createdBy: profile.id,
+        targetRole: role, classId: classId || null,
+        className: className || null, label: label.trim() || null,
+        maxUses: Number(maxUses),
       });
-      onCreated({ token, role, label, classId, className });
-    } catch (err) {
-      setError(err.message || 'Gagal membuat link.');
-    } finally {
-      setLoading(false);
-    }
+      onCreated({ token, role, label });
+    } catch (err) { setError(err.message || 'Gagal membuat link.'); }
+    finally { setLoading(false); }
   };
 
+  const roles = [
+    { id: 'student', label: 'Siswa', desc: 'Daftar ke kelas', Icon: GraduationCap, m: T.student },
+    { id: 'teacher', label: 'Guru',  desc: 'Akun guru baru',  Icon: BookOpen,      m: T.teacher },
+  ];
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Role */}
       <div>
-        <label style={{ fontSize:'12px', fontWeight:'600', color:'#374151', marginBottom:'7px', display:'block' }}>Tipe Undangan</label>
-        <div style={{ display:'flex', gap:'8px' }}>
-          {['student','teacher'].map(r => {
-            const M = { student:{ label:'Siswa', Icon:GraduationCap }, teacher:{ label:'Guru', Icon:BookOpen } };
-            const m = M[r];
-            const active = role === r;
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Tipe Undangan</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {roles.map(({ id, label: lbl, desc, Icon, m }) => {
+            const active = role === id;
             return (
-              <button key={r} type="button" onClick={() => setRole(r)}
-                style={{ flex:1, display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', borderRadius:'10px', border:`2px solid ${active ? '#4F46E5':'#E2E8F0'}`, background: active ? '#EEF2FF':'#F8FAFC', cursor:'pointer', transition:'all .15s' }}>
-                <m.Icon size={15} style={{ color: active ? '#4F46E5':'#94A3B8' }} />
-                <span style={{ fontSize:'13px', fontWeight:'600', color: active ? '#4F46E5':'#64748B' }}>{m.label}</span>
+              <button key={id} type="button" onClick={() => setRole(id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 11, border: `2px solid ${active ? m.color : '#E2E8F0'}`, background: active ? m.bg : '#fff', cursor: 'pointer', transition: 'all .15s', textAlign: 'left' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: active ? m.color : '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+                  <Icon size={15} color={active ? '#fff' : '#94A3B8'} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: active ? m.color : '#374151', lineHeight: 1.2 }}>{lbl}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{desc}</div>
+                </div>
               </button>
             );
           })}
@@ -131,99 +109,146 @@ const CreateForm = ({ profile, classId, className, defaultRole, onCreated }) => 
 
       {/* Label */}
       <div>
-        <label style={{ fontSize:'12px', fontWeight:'600', color:'#374151', marginBottom:'5px', display:'block' }}>
-          Label Link <span style={{ color:'#94A3B8', fontWeight:'400' }}>(opsional)</span>
-        </label>
-        <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Contoh: Link Kelas X IPA 1 - 2026"
-          style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', fontSize:'13px', border:'1.5px solid #E2E8F0', background:'#F8FAFC', color:'#0F172A', outline:'none', boxSizing:'border-box', fontFamily:"'Plus Jakarta Sans',sans-serif", transition:'border-color .15s' }}
-          onFocus={e=>{ e.target.style.borderColor='#4F46E5'; e.target.style.boxShadow='0 0 0 3px rgba(79,70,229,.1)'; }}
-          onBlur={e=>{ e.target.style.borderColor='#E2E8F0'; e.target.style.boxShadow='none'; }} />
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>
+          Label <span style={{ color: '#CBD5E1', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(opsional)</span>
+        </p>
+        <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Contoh: Link MIPA Test 1"
+          style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: '1.5px solid #E2E8F0', background: '#F8FAFC', fontSize: 13, color: '#0F172A', outline: 'none', boxSizing: 'border-box', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'border-color .15s' }}
+          onFocus={e => { e.target.style.borderColor = T.brand; e.target.style.background = '#FAFBFF'; }}
+          onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.background = '#F8FAFC'; }} />
       </div>
 
-      {/* Max uses + Expiry */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+      {/* Kuota + masa berlaku */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <label style={{ fontSize:'12px', fontWeight:'600', color:'#374151', marginBottom:'5px', display:'block' }}>Kuota Siswa</label>
-          <select value={maxUses} onChange={e => setMaxUses(Number(e.target.value))}
-            style={{ width:'100%', padding:'9px 28px 9px 10px', borderRadius:'9px', fontSize:'13px', border:'1.5px solid #E2E8F0', background:'#F8FAFC', color:'#0F172A', outline:'none', appearance:'none', cursor:'pointer', fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            {[10,20,30,50,100,200,0].map(v => <option key={v} value={v}>{v === 0 ? 'Tak terbatas' : `${v} siswa`}</option>)}
-          </select>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Kuota</p>
+          <Sel value={maxUses} onChange={setMaxUses} options={[
+            { v: '10', l: '10 orang' }, { v: '20', l: '20 orang' }, { v: '50', l: '50 orang' },
+            { v: '100', l: '100 orang' }, { v: '200', l: '200 orang' }, { v: '0', l: 'Tak terbatas' },
+          ]} />
         </div>
         <div>
-          <label style={{ fontSize:'12px', fontWeight:'600', color:'#374151', marginBottom:'5px', display:'block' }}>Masa Berlaku</label>
-          <select value={days} onChange={e => setDays(Number(e.target.value))}
-            style={{ width:'100%', padding:'9px 28px 9px 10px', borderRadius:'9px', fontSize:'13px', border:'1.5px solid #E2E8F0', background:'#F8FAFC', color:'#0F172A', outline:'none', appearance:'none', cursor:'pointer', fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            {[1,3,7,14,30].map(d => <option key={d} value={d}>{d === 1 ? '1 hari' : `${d} hari`}</option>)}
-          </select>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Masa Berlaku</p>
+          <Sel value={days} onChange={setDays} options={[
+            { v: '1', l: '1 hari' }, { v: '3', l: '3 hari' }, { v: '7', l: '7 hari' },
+            { v: '14', l: '14 hari' }, { v: '30', l: '30 hari' },
+          ]} />
         </div>
       </div>
 
       {error && (
-        <div style={{ padding:'10px 12px', borderRadius:'9px', background:'#FEF2F2', border:'1px solid #FECACA', color:'#DC2626', fontSize:'13px', display:'flex', alignItems:'center', gap:'8px' }}>
-          <AlertCircle size={14}/>{error}
+        <div style={{ padding: '10px 13px', borderRadius: 9, background: T.dangBg, border: `1px solid ${T.dangBdr}`, color: T.danger, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertCircle size={14} style={{ flexShrink: 0 }} />{error}
         </div>
       )}
 
-      <Btn icon={Plus} loading={loading} onClick={handleCreate}>Buat Link Undangan</Btn>
+      <button onClick={handle} disabled={loading}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 13, borderRadius: 11, border: 'none', background: T.brand, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'background .15s', opacity: loading ? 0.8 : 1 }}
+        onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#4338CA'; }}
+        onMouseLeave={e => { if (!loading) e.currentTarget.style.background = T.brand; }}>
+        {loading ? <><Spin /> Membuat link...</> : <><Link2 size={15} /> Buat Link Undangan</>}
+      </button>
     </div>
   );
 };
 
-// ─── Invite Row ───────────────────────────────────────────────────
+// ── Result ────────────────────────────────────────────────────────
+const ResultScreen = ({ newLink, onBack, onHistory }) => {
+  const url = buildInviteUrl(newLink.token);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+      <div style={{ width: 54, height: 54, borderRadius: '50%', background: T.sucBg, border: `2px solid ${T.sucBdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+        <CheckCircle2 size={26} color={T.success} />
+      </div>
+      <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: 17, fontWeight: 800, color: '#0F172A', margin: '0 0 6px' }}>Link Siap Dibagikan!</h3>
+      <p style={{ fontSize: 13, color: '#64748B', lineHeight: 1.6, margin: '0 0 20px', maxWidth: 340 }}>
+        Bagikan ke {newLink.role === 'student' ? 'siswa' : 'guru'} via WhatsApp atau grup kelas. Link berlaku <strong>7 hari</strong>.
+      </p>
+
+      <div style={{ width: '100%', background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', marginBottom: 12, textAlign: 'left' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Link Undangan</span>
+          <CopyBtn text={url} />
+        </div>
+        <p style={{ fontSize: 12, color: '#374151', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.55, margin: 0 }}>{url}</p>
+      </div>
+
+      <div style={{ width: '100%', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '11px 14px', marginBottom: 20, textAlign: 'left' }}>
+        <p style={{ fontSize: 12, color: '#92400E', fontWeight: 700, margin: '0 0 3px' }}>💡 Cara pakai</p>
+        <p style={{ fontSize: 12, color: '#B45309', lineHeight: 1.6, margin: 0 }}>
+          Tempel link ini ke grup WhatsApp kelas. Siswa klik → isi nama, NIS, email, password → langsung bergabung!
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+        <button onClick={onBack}
+          style={{ flex: 1, padding: 10, borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'background .15s' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          Buat Link Lain
+        </button>
+        <button onClick={onHistory}
+          style={{ flex: 1, padding: 10, borderRadius: 10, border: 'none', background: T.brand, fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          onMouseEnter={e => e.currentTarget.style.background = '#4338CA'}
+          onMouseLeave={e => e.currentTarget.style.background = T.brand}>
+          <Clock size={13} /> Riwayat Link
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── InviteRow ─────────────────────────────────────────────────────
 const InviteRow = ({ inv, onDeactivate }) => {
   const st = statusOf(inv);
   const url = buildInviteUrl(inv.token);
-  const [deactivating, setDeactivating] = useState(false);
+  const m = T[inv.target_role] || T.student;
+  const Icon = inv.target_role === 'teacher' ? BookOpen : GraduationCap;
+  const canUse = inv.is_active && !isExpired(inv) && !isQuotaFull(inv);
+  const [busy, setBusy] = useState(false);
 
-  const handleDeactivate = async () => {
-    if (!window.confirm('Nonaktifkan link ini? Siswa yang belum daftar tidak bisa pakai link ini lagi.')) return;
-    setDeactivating(true);
+  const deact = async () => {
+    if (!window.confirm('Nonaktifkan link ini?')) return;
+    setBusy(true);
     try { await deactivateInvite(inv.id); onDeactivate(inv.id); }
-    catch { alert('Gagal menonaktifkan link.'); }
-    finally { setDeactivating(false); }
+    catch { alert('Gagal.'); }
+    finally { setBusy(false); }
   };
 
   return (
-    <div style={{ padding:'14px 16px', border:'1px solid #F1F5F9', borderRadius:'12px', background:'#fff', display:'flex', flexDirection:'column', gap:'10px' }}>
-      {/* Top row */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px' }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
-            <span style={{ fontSize:'13px', fontWeight:'600', color:'#0F172A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'200px' }}>
-              {inv.label || (inv.class_name ? `Link ${inv.class_name}` : 'Link Undangan')}
-            </span>
-            <RoleBadge role={inv.target_role} />
-            <span style={{ fontSize:'11px', fontWeight:'700', padding:'2px 8px', borderRadius:'999px', background:st.bg, color:st.color }}>{st.label}</span>
+    <div style={{ border: '1px solid #F1F5F9', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: m.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon size={14} color={m.color} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {inv.label || (inv.class_name ? `Link ${inv.class_name}` : 'Link Undangan')}
           </div>
-          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap' }}>
-            {inv.class_name && (
-              <span style={{ fontSize:'11px', color:'#94A3B8', display:'flex', alignItems:'center', gap:'3px' }}>
-                <School size={10}/>{inv.class_name}
-              </span>
-            )}
-            <span style={{ fontSize:'11px', color:'#94A3B8', display:'flex', alignItems:'center', gap:'3px' }}>
-              <Users size={10}/>
-              {inv.use_count}{inv.max_uses > 0 ? `/${inv.max_uses}` : ''} terpakai
+          <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#94A3B8' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot, display: 'inline-block' }} />
+              {st.label}
             </span>
-            <span style={{ fontSize:'11px', color:'#94A3B8', display:'flex', alignItems:'center', gap:'3px' }}>
-              <Clock size={10}/>
-              {isExpired(inv) ? 'Kadaluarsa' : `Berlaku sampai ${new Date(inv.expires_at).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}`}
+            <span style={{ fontSize: 11, color: '#94A3B8' }}>
+              {inv.use_count}{inv.max_uses > 0 ? `/${inv.max_uses}` : ''} pakai
+            </span>
+            <span style={{ fontSize: 11, color: '#94A3B8' }}>
+              s/d {fmtDate(inv.expires_at)}
             </span>
           </div>
         </div>
-        {/* Actions */}
-        {inv.is_active && !isExpired(inv) && !isQuotaFull(inv) && (
-          <Btn variant="danger" icon={Trash2} sm loading={deactivating} onClick={handleDeactivate}>
-            Nonaktifkan
-          </Btn>
+        {canUse && (
+          <button onClick={deact} disabled={busy}
+            style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 7, border: `1px solid ${T.dangBdr}`, background: T.dangBg, color: T.danger, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", opacity: busy ? 0.6 : 1 }}>
+            {busy ? '...' : 'Nonaktifkan'}
+          </button>
         )}
       </div>
-
-      {/* URL + copy */}
-      {inv.is_active && !isExpired(inv) && !isQuotaFull(inv) && (
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'9px 12px', background:'#F8FAFC', borderRadius:'9px', border:'1px solid #F1F5F9' }}>
-          <ExternalLink size={12} style={{ color:'#94A3B8', flexShrink:0 }} />
-          <span style={{ flex:1, fontSize:'11px', color:'#64748B', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{url}</span>
+      {canUse && (
+        <div style={{ padding: '8px 14px 12px', borderTop: '1px solid #F8FAFC', background: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ExternalLink size={11} style={{ color: '#CBD5E1', flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
           <CopyBtn text={url} />
         </div>
       )}
@@ -231,189 +256,141 @@ const InviteRow = ({ inv, onDeactivate }) => {
   );
 };
 
-// ─── Main Modal ───────────────────────────────────────────────────
+// ── InviteManagerModal ────────────────────────────────────────────
 const InviteManagerModal = ({ profile, classId, className, defaultRole, onClose }) => {
-  const [tab, setTab]           = useState('create'); // 'create' | 'list'
-  const [invites, setInvites]   = useState([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [newLink, setNewLink]   = useState(null); // link baru yang baru dibuat
+  const [tab, setTab]         = useState('create');
+  const [invites, setInvites] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [newLink, setNewLink] = useState(null);
 
   const loadInvites = useCallback(async () => {
-    setLoadingList(true);
+    setLoading(true);
     try {
       const data = classId
         ? await getInvitesByClass(classId)
         : await getInvitesBySchool(profile.school_id);
       setInvites(data);
-    } catch { /* silent */ }
-    finally { setLoadingList(false); }
+    } catch { } finally { setLoading(false); }
   }, [classId, profile.school_id]);
 
+  useEffect(() => { if (tab === 'history') loadInvites(); }, [tab, loadInvites]);
+
   useEffect(() => {
-    if (tab === 'list') loadInvites();
-  }, [tab, loadInvites]);
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
 
-  const handleCreated = (info) => {
-    const url = buildInviteUrl(info.token);
-    setNewLink({ url, ...info });
-    setTab('created');
-  };
-
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.6)', backdropFilter:'blur(6px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'500px', maxHeight:'88vh', overflow:'hidden', display:'flex', flexDirection:'column', boxShadow:'0 30px 80px rgba(0,0,0,.25)', animation:'scaleIn .2s ease' }}>
-
-        {/* Header */}
-        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #F1F5F9', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'11px' }}>
-            <div style={{ width:'34px', height:'34px', borderRadius:'9px', background:'#EEF2FF', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Link2 size={16} style={{ color:'#4F46E5' }} />
-            </div>
-            <div>
-              <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:'15px', fontWeight:'700', color:'#0F172A', margin:0 }}>
-                Link Undangan
-              </h2>
-              {className && <p style={{ fontSize:'11px', color:'#94A3B8', margin:0 }}>{className}</p>}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ width:'28px', height:'28px', borderRadius:'8px', border:'1px solid #F1F5F9', background:'#F8FAFC', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#94A3B8' }}><X size={14}/></button>
-        </div>
-
-        {/* Tabs */}
-        {tab !== 'created' && (
-          <div style={{ display:'flex', gap:'2px', padding:'10px 22px 0', borderBottom:'1px solid #F1F5F9', flexShrink:0 }}>
-            {[{key:'create',label:'Buat Link'},{key:'list',label:'Riwayat Link'}].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                style={{ padding:'8px 16px', borderRadius:'8px 8px 0 0', fontSize:'13px', fontWeight:'600', border:'none', cursor:'pointer', background:'none', color: tab===t.key ? '#4F46E5':'#94A3B8', borderBottom: tab===t.key ? '2px solid #4F46E5':'2px solid transparent', transition:'all .15s' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Body */}
-        <div style={{ padding:'20px 22px', overflowY:'auto', flex:1 }}>
-
-          {/* Tab: Create */}
-          {tab === 'create' && (
-            <CreateForm
-              profile={profile}
-              classId={classId}
-              className={className}
-              defaultRole={defaultRole}
-              onCreated={handleCreated}
-            />
-          )}
-
-          {/* Tab: Created (result) */}
-          {tab === 'created' && newLink && (
-            <div style={{ textAlign:'center' }}>
-              <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'#F0FDF4', border:'2px solid #A7F3D0', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
-                <CheckCircle2 size={24} color="#10B981" />
-              </div>
-              <h3 style={{ fontFamily:'Sora,sans-serif', fontSize:'16px', fontWeight:'700', color:'#0F172A', marginBottom:'6px' }}>
-                Link Siap Dibagikan!
-              </h3>
-              <p style={{ fontSize:'12.5px', color:'#64748B', lineHeight:1.65, marginBottom:'16px' }}>
-                {newLink.role === 'student' ? 'Bagikan ke siswa' : 'Bagikan ke guru'} via WhatsApp, grup kelas, atau email.
-                <br/>Link berlaku selama <strong>7 hari</strong>.
-              </p>
-
-              {/* URL box */}
-              <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:'12px', padding:'14px 16px', marginBottom:'14px', textAlign:'left' }}>
-                <p style={{ fontSize:'10px', fontWeight:'700', color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'6px' }}>Link Undangan</p>
-                <p style={{ fontSize:'12px', color:'#374151', fontFamily:'monospace', wordBreak:'break-all', lineHeight:1.6, marginBottom:'10px' }}>{newLink.url}</p>
-                <CopyBtn text={newLink.url} />
-              </div>
-
-              {/* Share hint */}
-              <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:'10px', padding:'10px 14px', textAlign:'left', marginBottom:'16px' }}>
-                <p style={{ fontSize:'12px', color:'#92400E', fontWeight:'600', marginBottom:'4px' }}>💡 Tips Berbagi</p>
-                <p style={{ fontSize:'11.5px', color:'#B45309', lineHeight:1.6 }}>
-                  Tempel link ini ke grup WhatsApp kelas atau kirim langsung ke siswa.
-                  Siswa hanya perlu klik → isi nama, NIS, email, password → selesai!
-                </p>
-              </div>
-
-              <div style={{ display:'flex', gap:'8px' }}>
-                <Btn variant="secondary" style={{ flex:1 }} onClick={() => { setNewLink(null); setTab('create'); }}>Buat Link Lain</Btn>
-                <Btn style={{ flex:1 }} onClick={() => { loadInvites(); setTab('list'); }}>Lihat Semua Link</Btn>
-              </div>
-            </div>
-          )}
-
-          {/* Tab: List */}
-          {tab === 'list' && (
-            <div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
-                <span style={{ fontSize:'13px', color:'#64748B' }}>{invites.length} link ditemukan</span>
-                <Btn variant="ghost" icon={RefreshCw} sm loading={loadingList} onClick={loadInvites}>Refresh</Btn>
-              </div>
-              {loadingList ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-                  {[1,2].map(i => <div key={i} style={{ height:'80px', borderRadius:'12px', background:'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize:'800px 100%', animation:'shimmer 1.2s infinite' }} />)}
-                </div>
-              ) : invites.length === 0 ? (
-                <div style={{ padding:'40px 20px', textAlign:'center', border:'1px solid #F1F5F9', borderRadius:'12px' }}>
-                  <Link2 size={28} style={{ color:'#CBD5E1', margin:'0 auto 10px', display:'block' }} />
-                  <p style={{ fontSize:'13px', fontWeight:'600', color:'#0F172A', marginBottom:'4px' }}>Belum ada link</p>
-                  <p style={{ fontSize:'12px', color:'#94A3B8' }}>Buat link undangan pertama untuk kelas ini</p>
-                </div>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-                  {invites.map(inv => (
-                    <InviteRow key={inv.id} inv={inv} onDeactivate={id => setInvites(prev => prev.filter(i => i.id !== id))} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Public export — wrapper dengan trigger button ────────────────
-const InviteManager = ({
-  profile,
-  classId = null,
-  className = null,
-  defaultRole = 'student',
-  trigger,
-}) => {
-  const [open, setOpen] = useState(false);
-
-  const defaultTrigger = (
-    <button
-      onClick={() => setOpen(true)}
-      style={{ display:'inline-flex', alignItems:'center', gap:'7px', padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #C7D2FE', background:'#EEF2FF', color:'#4F46E5', fontSize:'13px', fontWeight:'700', cursor:'pointer', fontFamily:"'Plus Jakarta Sans',sans-serif", transition:'all .15s' }}
-      onMouseEnter={e=>{ e.currentTarget.style.background='#E0E7FF'; }}
-      onMouseLeave={e=>{ e.currentTarget.style.background='#EEF2FF'; }}>
-      <Link2 size={14}/> Bagikan Link Daftar
-    </button>
-  );
+  const showTabs = tab === 'create' || tab === 'history';
 
   return (
     <>
       <style>{`
-        @keyframes scaleIn  { from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
-        @keyframes shimmer  { 0%{background-position:-400px 0;}100%{background-position:400px 0;} }
-        @keyframes spin     { to{transform:rotate(360deg);} }
+        @keyframes scaleIn { from{opacity:0;transform:scale(.96) translateY(10px);}to{opacity:1;transform:scale(1) translateY(0);} }
+        @keyframes spin    { to{transform:rotate(360deg);} }
+        @keyframes shimmer { 0%{background-position:-400px 0;}100%{background-position:400px 0;} }
       `}</style>
-      <div onClick={() => setOpen(true)} style={{ display:'contents' }}>
-        {trigger || defaultTrigger}
+
+      {/* Backdrop */}
+      <div onClick={e => e.target === e.currentTarget && onClose()}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(5px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+
+        {/* Modal */}
+        <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,.3)', animation: 'scaleIn .22s cubic-bezier(.16,1,.3,1)', overflow: 'hidden' }}>
+
+          {/* Header */}
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: T.brandBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Link2 size={16} color={T.brand} />
+              </div>
+              <div>
+                <h2 style={{ fontFamily: 'Sora,sans-serif', fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>Link Undangan</h2>
+                {className && <p style={{ fontSize: 12, color: '#94A3B8', margin: '2px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}><School size={11} />{className}</p>}
+              </div>
+            </div>
+            <button onClick={onClose}
+              style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94A3B8', transition: 'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#374151'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.color = '#94A3B8'; }}>
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          {showTabs && (
+            <div style={{ display: 'flex', padding: '0 22px', borderBottom: '1px solid #F1F5F9', flexShrink: 0 }}>
+              {[{ key: 'create', label: 'Buat Link' }, { key: 'history', label: 'Riwayat' }].map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  style={{ padding: '12px 16px', fontSize: 13, fontWeight: tab === t.key ? 700 : 500, color: tab === t.key ? T.brand : '#94A3B8', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.key ? T.brand : 'transparent'}`, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'all .15s' }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Body — scrollable */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 22, scrollbarWidth: 'thin', scrollbarColor: '#E2E8F0 transparent' }}>
+
+            {tab === 'create' && (
+              <CreateForm profile={profile} classId={classId} className={className} defaultRole={defaultRole}
+                onCreated={info => { setNewLink(info); setTab('result'); }} />
+            )}
+
+            {tab === 'result' && newLink && (
+              <ResultScreen newLink={newLink}
+                onBack={() => { setNewLink(null); setTab('create'); }}
+                onHistory={() => { loadInvites(); setTab('history'); }} />
+            )}
+
+            {tab === 'history' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <span style={{ fontSize: 12, color: '#94A3B8' }}>{invites.length} link</span>
+                  <button onClick={loadInvites} disabled={loading}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                    <RefreshCw size={11} style={{ animation: loading ? 'spin .7s linear infinite' : 'none' }} /> Refresh
+                  </button>
+                </div>
+                {loading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[1, 2, 3].map(i => <div key={i} style={{ height: 70, borderRadius: 12, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite' }} />)}
+                  </div>
+                ) : invites.length === 0 ? (
+                  <div style={{ padding: '40px 20px', textAlign: 'center', border: '1px solid #F1F5F9', borderRadius: 12 }}>
+                    <Link2 size={28} style={{ color: '#CBD5E1', display: 'block', margin: '0 auto 10px' }} />
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: '0 0 5px' }}>Belum ada link</p>
+                    <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>Buat link undangan pertama</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {invites.map(inv => (
+                      <InviteRow key={inv.id} inv={inv}
+                        onDeactivate={id => setInvites(prev => prev.filter(i => i.id !== id))} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      {open && (
-        <InviteManagerModal
-          profile={profile}
-          classId={classId}
-          className={className}
-          defaultRole={defaultRole}
-          onClose={() => setOpen(false)}
-        />
-      )}
+    </>
+  );
+};
+
+// ── Public wrapper ────────────────────────────────────────────────
+const InviteManager = ({ profile, classId = null, className = null, defaultRole = 'student', trigger }) => {
+  const [open, setOpen] = useState(false);
+  const defaultTrigger = (
+    <button style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: `1.5px solid ${T.brandBdr}`, background: T.brandBg, color: T.brand, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", transition: 'all .15s', whiteSpace: 'nowrap' }}>
+      <Link2 size={13} /> Bagikan Link
+    </button>
+  );
+  return (
+    <>
+      <div onClick={() => setOpen(true)} style={{ display: 'contents' }}>{trigger || defaultTrigger}</div>
+      {open && <InviteManagerModal profile={profile} classId={classId} className={className} defaultRole={defaultRole} onClose={() => setOpen(false)} />}
     </>
   );
 };
