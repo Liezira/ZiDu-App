@@ -486,7 +486,8 @@ export default function ReportCardPage() {
 
       const { data } = await supabase.from('classes').select('id, name').in('id', classIds).order('name');
       setTeacherClasses(data || []);
-      if (data?.length && !classId) setClassId(data[0].id);
+      // FIX: Gunakan functional updater agar tidak perlu classId di deps array
+      setClassId(prev => (prev || (data?.length ? data[0].id : '')));
     } catch (e) { setError(e.message); }
     finally { setLoading(false); setRefreshing(false); }
   }, [profile?.id]);
@@ -494,20 +495,31 @@ export default function ReportCardPage() {
   useEffect(() => { loadClasses(); }, [loadClasses]);
 
   // ── Load students when class selected ──────────────────────
+  // FIX: Hapus classes(name) join yang butuh FK constraint di Supabase
+  // (jika FK belum dikonfigurasi, query return error yg di-swallow → list kosong).
+  // Gunakan teacherClasses yg sudah di-load untuk resolve class name.
+  // Tambah school_id filter untuk isolasi data multi-tenant.
   useEffect(() => {
-    if (!classId) { setStudents([]); return; }
+    if (!classId || !profile?.school_id) { setStudents([]); return; }
     setStudLoading(true);
+    setError('');
+    const className = teacherClasses.find(c => c.id === classId)?.name || '';
     supabase.from('profiles')
-      .select('id, name, nis, class_id, classes(name)')
+      .select('id, name, nis, class_id')
       .eq('class_id', classId)
       .eq('role', 'student')
       .eq('status', 'active')
+      .eq('school_id', profile.school_id)
       .order('name')
       .then(({ data, error }) => {
-        if (!error) setStudents((data || []).map(s => ({ ...s, class_name: s.classes?.name })));
+        if (error) {
+          setError('Gagal memuat daftar siswa: ' + error.message);
+        } else {
+          setStudents((data || []).map(s => ({ ...s, class_name: className })));
+        }
         setStudLoading(false);
       });
-  }, [classId]);
+  }, [classId, teacherClasses, profile?.school_id]);
 
   const filtered = students.filter(s =>
     !search || s.name.toLowerCase().includes(search.toLowerCase()) || (s.nis || '').includes(search)
