@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { createTracker, trackExamEvent } from '../../lib/examEvents';
+import { EXAM_EVENTS }   from '../../lib/experimentUtils';
+import { useExperiment } from '../../hooks/useExperiment';
 import {
   Key, AlertCircle, Clock, ChevronLeft, ChevronRight,
   CheckCircle2, Send, Shield, BookOpen, AlertTriangle,
@@ -35,7 +38,6 @@ const pad        = (n) => String(n).padStart(2, '0');
 const formatTime = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 const checkIOS   = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-// FIX: Hitung sisa waktu dari started_at agar resume tidak reset timer
 const calcRemainingTime = (result, session) => {
   if (!result?.started_at) return session.duration_minutes * 60;
   const endTime   = new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000;
@@ -299,7 +301,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
-// QUESTION NAVIGATOR — grid dots, works on both desktop & mobile
+// QUESTION NAVIGATOR
 // ─────────────────────────────────────────────────────────────────
 const QuestionNav = ({ total, current, answers, questions, onGo }) => (
   <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
@@ -317,7 +319,7 @@ const QuestionNav = ({ total, current, answers, questions, onGo }) => (
 );
 
 // ─────────────────────────────────────────────────────────────────
-// MOBILE NAV DRAWER — bottom sheet for question navigation on HP
+// MOBILE NAV DRAWER
 // ─────────────────────────────────────────────────────────────────
 const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, answered, submitting, onSubmit }) => {
   if (!open) return null;
@@ -334,18 +336,15 @@ const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, an
             <X size={14} color="#64748B"/>
           </button>
         </div>
-        {/* Legend */}
         <div style={{ display:'flex', gap:12, marginBottom:12, fontSize:11, color:'#64748B' }}>
           <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:12, height:12, borderRadius:3, background:'#0891B2' }}/> Sekarang</div>
           <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:12, height:12, borderRadius:3, background:'#EFF6FF', border:'1.5px solid #BAE6FD' }}/> Dijawab</div>
           <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:12, height:12, borderRadius:3, background:'#F8FAFC', border:'1.5px solid #E2E8F0' }}/> Belum</div>
         </div>
         <QuestionNav total={total} current={current} answers={answers} questions={questions} onGo={(i)=>{ onGo(i); onClose(); }}/>
-        {/* Progress bar */}
         <div style={{ marginTop:16, height:6, borderRadius:99, background:'#F1F5F9', overflow:'hidden' }}>
           <div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered/total)*100}%`, transition:'width .3s' }}/>
         </div>
-        {/* Submit button */}
         <button onClick={()=>{ onClose(); onSubmit(); }} disabled={submitting}
           style={{ width:'100%', marginTop:16, padding:14, borderRadius:12, border:'none', background:'#16A34A', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           <Send size={15}/> Kumpulkan Jawaban
@@ -358,10 +357,10 @@ const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, an
 // ─────────────────────────────────────────────────────────────────
 // EXAM ROOM CONTENT
 // ─────────────────────────────────────────────────────────────────
-const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, submitError }) => {
+const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, submitError, variant }) => {
+  const { profile } = useAuth();
   const [current,         setCurrent]        = useState(0);
   const [answers,         setAnswers]        = useState({});
-  // FIX: Hitung sisa waktu dari started_at (bukan selalu full duration)
   const [timeLeft,        setTimeLeft]       = useState(() => calcRemainingTime(result, session));
   const [showSubmit,      setShowSubmit]     = useState(false);
   const [showNavDrawer,   setShowNavDrawer]  = useState(false);
@@ -379,26 +378,41 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const lastViolTime    = useRef({});
   const pauseEnd        = useRef(null);
 
+  // ── LANGKAH D: Buat tracker
+  const track = useMemo(() => createTracker({
+    studentId:      profile?.id,
+    schoolId:       profile?.school_id,
+    examSessionId:  session.id,
+    examResultId:   result.id,
+    experimentId:   session.experiment_id ?? null,
+    variant,
+  }), [profile?.id, profile?.school_id, result.id, session.id, session.experiment_id, variant]);
+
+  // ── LANGKAH E: Tambah event di useEffect mount (exam_started) 
+  useEffect(() => {
+    track(EXAM_EVENTS.EXAM_STARTED, {
+      question_count: questions.length,
+      shuffle:        session.shuffle_questions,
+      duration_min:   session.duration_minutes,
+    });
+  }, []); // eslint-disable-line
+
   useWakeLock(securityActive && !isPaused);
 
-  // Detect mobile resize
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Restore localStorage
   useEffect(() => {
     try { const s=localStorage.getItem(EXAM_SAVE_KEY(result.id)); if(s) setAnswers(JSON.parse(s)); } catch {}
   }, [result.id]);
 
-  // Auto-save localStorage
   useEffect(() => {
     try { localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify(answers)); } catch {}
   }, [answers, result.id]);
 
-  // Periodic DB sync
   useEffect(() => {
     const iv=setInterval(async()=>{
       if(!Object.keys(answers).length) return;
@@ -408,10 +422,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return ()=>clearInterval(iv);
   }, [answers,questions,result.id]);
 
-  // FIX: Timer — berjalan terus dari sisa waktu yang benar, auto-submit saat 0
   useEffect(() => {
     if(isPaused) return;
-    // Jika waktu sudah habis saat mount (resume setelah overtime), langsung submit
     if(timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
     const iv=setInterval(()=>{
       setTimeLeft(t=>{ if(t<=1){clearInterval(iv);handleSubmitRef.current?.(true);return 0;} return t-1; });
@@ -419,7 +431,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return ()=>clearInterval(iv);
   }, [isPaused]); // eslint-disable-line
 
-  // Pause countdown
   useEffect(() => {
     if(!isPaused) return;
     const iv=setInterval(()=>{
@@ -430,16 +441,21 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return ()=>clearInterval(iv);
   }, [isPaused]); // eslint-disable-line
 
-  // Submit handler — passed up to parent which handles async + error
   const handleSubmit = useCallback((auto=false)=>{
+    // ── LANGKAH F: Tambah event di handleSubmit
+    track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
+      answered_count: Object.keys(answers).length,
+      total:          questions.length,
+      violation_score: violationScore,
+      time_left:       timeLeft,
+    });
     setSecurityActive(false);
     const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
     onSubmit(arr,violationScore,auto);
-  },[answers,questions,onSubmit,violationScore]);
+  },[answers,questions,onSubmit,violationScore, track, timeLeft]);
 
   useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
 
-  // Violation handler
   const handleViolation = useCallback(async(type,detail)=>{
     if(!securityActive||isPaused||pendingModal||forceSubmitted) return;
     const now=Date.now();
@@ -455,6 +471,15 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     const newScore=violationScore+deduct;
     setViolationCounts(newCounts);
     setViolationScore(newScore);
+    
+    // ── LANGKAH G: Tambah event di handleViolation
+    track(EXAM_EVENTS.VIOLATION_TRIGGERED, {
+      violation_type:  type,
+      score_after:     newScore,
+      count_for_type:  cnt,
+      in_grace:        inGrace,
+    });
+
     try {
       const {data}=await supabase.rpc('append_violation',{p_result_id:result.id,p_type:type,p_detail:detail});
       if(data&&!data.error){
@@ -465,22 +490,23 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     if(inGrace) return;
     if(newScore>=MAX_VIOLATION_SCORE){setForceSubmitted(true);setSecurityActive(false);handleSubmitRef.current?.(true);return;}
     setPendingModal({message:detail,score:newScore,isHard:newScore>=WARN_VIOLATION_SCORE});
-  },[securityActive,isPaused,pendingModal,forceSubmitted,violationCounts,violationScore,result.id]);
+  },[securityActive,isPaused,pendingModal,forceSubmitted,violationCounts,violationScore,result.id, track]);
 
-  // Pause/resume
   const handlePause=useCallback(()=>{
     if(pauseCount>=MAX_PAUSE) return;
+    // ── LANGKAH H: Tambah event di handlePause
+    track(EXAM_EVENTS.PAUSE_USED, { pause_count_used: pauseCount + 1 });
     setPauseCount(c=>c+1); setPauseTimeLeft(PAUSE_DUR);
     pauseEnd.current=Date.now()+PAUSE_DUR*1000;
     setIsPaused(true);
     if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-  },[pauseCount]);
+  },[pauseCount, track]);
+
   const handleResume=useCallback(()=>{
     setIsPaused(false);
     if(!checkIOS()) document.documentElement.requestFullscreen().catch(()=>{});
   },[]);
 
-  // Enter fullscreen on mount
   useEffect(()=>{
     if(!checkIOS()&&!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
     return()=>{ if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{}); };
@@ -494,11 +520,10 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const sc       = violationScore>=WARN_VIOLATION_SCORE?'#DC2626':violationScore>0?'#F59E0B':'#16A34A';
   const opts     = ['A','B','C','D'];
 
-  // ── RENDER ─────────────────────────────────────────────────────
   return (
     <div style={{ minHeight:'100vh', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }} onContextMenu={e=>e.preventDefault()}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600 ;700;800&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -509,7 +534,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       <SecurityMonitor active={securityActive&&!isPaused} onViolation={handleViolation}/>
       {isPaused&&<PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
       {pendingModal&&!isPaused&&<ViolationModal message={pendingModal.message} violationScore={pendingModal.score} isHard={pendingModal.isHard} onClose={()=>{setPendingModal(null);if(!checkIOS()&&!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});}}/>}
-      {/* Mobile nav drawer */}
+      
       <NavDrawer
         open={showNavDrawer} onClose={()=>setShowNavDrawer(false)}
         total={questions.length} current={current} answers={answers} questions={questions}
@@ -520,7 +545,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       {/* ── TOP BAR ── */}
       <div style={{ background:'#fff', borderBottom:'1px solid #F1F5F9', position:'sticky', top:0, zIndex:10, boxShadow:'0 1px 8px rgba(0,0,0,.04)' }}>
         <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
-          {/* Left: title + progress */}
           <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
             <div style={{ width:28, height:28, borderRadius:8, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               <BookOpen size={14} color="#0891B2"/>
@@ -531,38 +555,31 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
             </div>
           </div>
 
-          {/* Right: controls */}
           <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-            {/* Mobile: nav drawer button */}
             {isMobile && (
               <button onClick={()=>setShowNavDrawer(true)}
                 style={{ display:'flex', alignItems:'center', gap:4, padding:'7px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:12, fontWeight:600, color:'#475569', cursor:'pointer' }}>
                 <Grid size={12}/><span>{current+1}/{questions.length}</span>
               </button>
             )}
-            {/* Pause button */}
             <button onClick={handlePause} disabled={pauseCount>=MAX_PAUSE}
               style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background:pauseCount>=MAX_PAUSE?'#F8FAFC':'#fff', fontSize:12, fontWeight:600, color:pauseCount>=MAX_PAUSE?'#CBD5E1':'#475569', cursor:pauseCount>=MAX_PAUSE?'not-allowed':'pointer' }}>
               <Pause size={12}/>{!isMobile&&<span>{MAX_PAUSE-pauseCount}</span>}
             </button>
-            {/* Violation badge */}
             {violationScore>0&&(
               <div style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 8px', borderRadius:8, background:violationScore>=WARN_VIOLATION_SCORE?'#FEF2F2':'#FFFBEB', border:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, fontSize:12, fontWeight:700, color:sc, animation:violationScore>=WARN_VIOLATION_SCORE?'pulse 1.5s infinite':'none' }}>
                 <Shield size={11}/>{violationScore}/{MAX_VIOLATION_SCORE}
               </div>
             )}
-            {/* Timer */}
             <div style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', borderRadius:10, background:crit?'#FEF2F2':'#EFF6FF', border:`1px solid ${crit?'#FECACA':'#BAE6FD'}` }}>
               <Clock size={13} color={crit?'#DC2626':'#0891B2'}/>
               <span style={{ fontFamily:'Sora,sans-serif', fontSize: isMobile ? 14 : 16, fontWeight:700, color:crit?'#DC2626':'#0891B2', animation:crit?'pulse 1s infinite':'none' }}>{formatTime(timeLeft)}</span>
             </div>
           </div>
         </div>
-        {/* Violation progress bar */}
         {violationScore>0&&<div style={{ height:3, background:'#F1F5F9' }}><div style={{ height:'100%', background:sc, width:`${pct}%`, transition:'width .3s,background .3s' }}/></div>}
       </div>
 
-      {/* ── SUBMIT ERROR BANNER ── */}
       {submitError && (
         <div style={{ background:'#FEF2F2', borderBottom:'1px solid #FECACA', padding:'10px 20px', display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#DC2626' }}>
           <AlertCircle size={14}/> Gagal mengumpulkan: {submitError}. Coba lagi.
@@ -580,9 +597,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         alignItems: 'start',
       }}>
 
-        {/* ── QUESTION CARD ── */}
         <div style={{ background:'#fff', borderRadius:16, border:'1px solid #F1F5F9', padding: isMobile ? 18 : 28, boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
-          {/* Question header */}
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
             <div style={{ width:34, height:34, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14, color:'#0891B2', flexShrink:0 }}>{current+1}</div>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -595,10 +610,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
             </div>
           </div>
 
-          {/* Question text */}
           <div style={{ fontSize: isMobile ? 15 : 16, lineHeight:1.8, color:'#0F172A', marginBottom:20 }}>{q.question}</div>
 
-          {/* Options */}
           {q.type==='multiple_choice'&&(
             <div style={{ display:'flex', flexDirection:'column', gap: isMobile ? 10 : 10 }}>
               {q.options?.map((opt,i)=>{
@@ -635,7 +648,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
               onFocus={e=>e.target.style.borderColor='#0891B2'} onBlur={e=>e.target.style.borderColor='#E2E8F0'}/>
           )}
 
-          {/* Desktop prev/next navigation */}
           {!isMobile && (
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:28, paddingTop:20, borderTop:'1px solid #F1F5F9' }}>
               <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0}
@@ -655,7 +667,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
           )}
         </div>
 
-        {/* ── DESKTOP SIDEBAR ── */}
         {!isMobile && (
           <div style={{ display:'flex', flexDirection:'column', gap:14, position:'sticky', top:72 }}>
             <div style={{ background:'#fff', borderRadius:14, border:'1px solid #F1F5F9', padding:16 }}>
@@ -687,15 +698,12 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         )}
       </div>
 
-      {/* ── MOBILE BOTTOM NAV BAR ── */}
       {isMobile && (
         <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #F1F5F9', padding:'10px 14px 16px', display:'flex', gap:8, alignItems:'center', boxShadow:'0 -4px 16px rgba(0,0,0,.08)', zIndex:20 }}>
-          {/* Prev */}
           <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0}
             style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:current===0?'#CBD5E1':'#374151', cursor:current===0?'not-allowed':'pointer', touchAction:'manipulation', minHeight:48 }}>
             <ChevronLeft size={16}/>
           </button>
-          {/* Center: submit or next */}
           {current<questions.length-1
             ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))}
               style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#0891B2', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
@@ -705,7 +713,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
               style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
               <Send size={14}/> Kumpulkan
             </button>}
-          {/* Next or Nav */}
           {current<questions.length-1
             ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))}
               style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
@@ -718,7 +725,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         </div>
       )}
 
-      {/* ── SUBMIT CONFIRM MODAL ── */}
       {showSubmit&&(
         <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.7)', backdropFilter:'blur(6px)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
           <div style={{ background:'#fff', borderRadius:20, padding:32, width:'100%', maxWidth:400, textAlign:'center', animation:'fadeUp .2s ease', fontFamily:"'DM Sans',sans-serif" }}>
@@ -799,12 +805,15 @@ export default function ExamRoom() {
   const navigate      = useNavigate();
   const [screen,      setScreen]      = useState('token');
   const [session,     setSession]     = useState(null);
+  
+  // ── LANGKAH B: Ambil experiment_id dari session yang sudah di-fetch
+  const { variant } = useExperiment(session?.experiment_id ?? null);
+
   const [questions,   setQuestions]   = useState([]);
   const [result,      setResult]      = useState(null);
   const [tokenError,  setTokenError]  = useState('');
   const [tokenLoading,setTokenLoading]= useState(false);
   const [submitting,  setSubmitting]  = useState(false);
-  // FIX: expose submit errors ke UI (sebelumnya hanya console.error)
   const [submitError, setSubmitError] = useState('');
 
   const handleEnterToken=async(input)=>{
@@ -821,13 +830,51 @@ export default function ExamRoom() {
       if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
       let qShow=qs;
       if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
+      
       setSession(sess);setQuestions(qShow);
+      
+      // ── LANGKAH C: Di dalam handleEnterToken(), setelah token VALID
+      trackExamEvent({
+        eventType:      EXAM_EVENTS.TOKEN_VALID,
+        studentId:      profile.id,
+        schoolId:       profile.school_id,
+        examSessionId:  sess.id,
+        experimentId:   sess.experiment_id ?? null,
+        variant,
+        properties: { exam_type: sess.exam_type, class_id: profile.class_id },
+      });
+
       if(!existing){
-        const {data:nr}=await supabase.from('exam_results').insert([{exam_session_id:sess.id,student_id:profile.id,answers:[],status:'in_progress',violation_count:0,violation_score:0,violation_counts:{},violations:[],started_at:new Date().toISOString(),created_at:new Date().toISOString(),updated_at:new Date().toISOString()}]).select().single();
+        const {data:nr}=await supabase.from('exam_results').insert([{
+          exam_session_id:sess.id,
+          student_id:profile.id,
+          answers:[],
+          status:'in_progress',
+          violation_count:0,
+          violation_score:0,
+          violation_counts:{},
+          violations:[],
+          started_at:new Date().toISOString(),
+          created_at:new Date().toISOString(),
+          updated_at:new Date().toISOString(),
+          // ── LANGKAH J: Update baris insert exam_results
+          experiment_id: sess.experiment_id ?? null,
+          variant_name:  variant ?? null,
+        }]).select().single();
         setResult(nr);
       } else {setResult(existing);}
       setScreen('confirm');
-    } catch(err){setTokenError(err.message||'Terjadi kesalahan.');}
+    } catch(err){
+      const msg = err.message||'Terjadi kesalahan.';
+      setTokenError(msg);
+      // ── LANGKAH C: Untuk token invalid, di catch block handleEnterToken
+      trackExamEvent({
+        eventType:      EXAM_EVENTS.TOKEN_INVALID,
+        studentId:      profile.id,
+        schoolId:       profile.school_id,
+        properties: { reason: msg },
+      });
+    }
     finally{setTokenLoading(false);}
   };
 
@@ -840,8 +887,25 @@ export default function ExamRoom() {
       try{localStorage.removeItem(EXAM_SAVE_KEY(result.id));}catch{}
       setResult(p=>({...p,...data}));
       setScreen('result');
+
+      // ── LANGKAH I: Di handleSubmit di ExamRoom (parent), setelah berhasil
+      trackExamEvent({
+        eventType:     EXAM_EVENTS.EXAM_SUBMITTED,
+        studentId:     profile.id,
+        schoolId:      profile.school_id,
+        examSessionId: session.id,
+        examResultId:  result.id,
+        experimentId:  session.experiment_id ?? null,
+        variant,
+        properties: {
+          score:           data.score,
+          passed:          data.passed,
+          violation_score: vScore,
+          auto_submitted:  auto,
+        },
+      });
+
     } catch(err){
-      // FIX: tampilkan error ke user, jangan silent
       const msg = err?.message || 'Koneksi gagal. Cek internet lalu coba lagi.';
       setSubmitError(msg);
       console.error('[ExamRoom submit error]', err);
@@ -860,7 +924,8 @@ export default function ExamRoom() {
         </div>
       </div>
     );
-    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} submitError={submitError}/>;
+    // ── Kirim prop variant ke ExamRoomContent
+    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} submitError={submitError} variant={variant}/>;
   }
   if(screen==='result') return <ResultScreen result={result} session={session} onBack={()=>navigate('/student')}/>;
   return null;

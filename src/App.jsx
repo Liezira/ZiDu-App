@@ -4,7 +4,6 @@ import { useAuth } from './contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
-
 // ── Static imports ────────────────────────────────────────────────
 import Login from './pages/auth/Login';
 import ResetPassword from './pages/auth/ResetPassword';
@@ -40,6 +39,7 @@ const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
 const SchoolReportCardPage = lazy(() => import('./pages/school/SchoolReportCardPage'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const ABTestingDashboard = lazy(() => import('./pages/teacher/ABTestingDashboard'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -211,6 +211,18 @@ const App = () => {
         <Route path="attendance"    element={<Lazy><AttendancePage /></Lazy>} />
         <Route path="report-card"   element={<Lazy><ReportCardPage /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
+      </Route>
+
+      {/* ── AB TESTING DASHBOARD (TEACHER & SCHOOL ADMIN) ── */}
+      <Route 
+        path="/teacher/ab-testing" 
+        element={
+          <ProtectedRoute allowedRoles={['teacher', 'school_admin']}>
+            <Lazy><DashboardLayout /></Lazy>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Lazy><ABTestingDashboard /></Lazy>} />
       </Route>
 
       {/* ── STUDENT ── */}
