@@ -252,7 +252,7 @@ const CommentModal = ({ student, periode, existingComment, profile, onClose, onS
 };
 
 // ── Report Card Preview Drawer ────────────────────────────────
-const ReportDrawer = ({ student, dateFrom, dateTo, periode, profile, onClose }) => {
+const ReportDrawer = ({ student, dateFrom, dateTo, periode, profile, teacherId, onClose }) => {
   const [data,    setData]    = useState(null);
   const [comment, setComment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -267,6 +267,7 @@ const ReportDrawer = ({ student, dateFrom, dateTo, periode, profile, onClose }) 
           p_student_id: student.id,
           p_date_from:  dateFrom,
           p_date_to:    dateTo,
+          p_teacher_id: teacherId,   // teacher hanya lihat ujian miliknya
         }),
         supabase.from('report_comments')
           .select('id, catatan')
@@ -536,6 +537,7 @@ export default function ReportCardPage() {
           p_student_id: filtered[i].id,
           p_date_from:  dateFrom,
           p_date_to:    dateTo,
+          p_teacher_id: profile.id,  // teacher filter
         });
         const { data: cmt } = await supabase.from('report_comments')
           .select('catatan').eq('student_id', filtered[i].id).eq('periode', periode).maybeSingle();
@@ -694,6 +696,7 @@ export default function ReportCardPage() {
           dateTo={dateTo}
           periode={periode}
           profile={profile}
+          teacherId={profile.id}
           onClose={() => setActiveStudent(null)}
         />
       )}

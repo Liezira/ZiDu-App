@@ -37,6 +37,7 @@ const AttendancePage        = lazy(() => import('./pages/teacher/AttendancePage'
 const ReportCardPage        = lazy(() => import('./pages/teacher/ReportCardPage'));
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'));
 const StudentApprovals = lazy(() => import('./pages/school/StudentApprovals'));
+const SchoolReportCardPage = lazy(() => import('./pages/school/SchoolReportCardPage'));
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 
@@ -186,6 +187,7 @@ const App = () => {
         <Route path="subjects" element={<Lazy><SubjectManagement /></Lazy>} />
         <Route path="approvals" element={<Lazy><StudentApprovals /></Lazy>} />
         <Route path="announcements" element={<Lazy><SchoolAnnouncements /></Lazy>} />
+        <Route path="report-card"   element={<Lazy><SchoolReportCardPage /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 

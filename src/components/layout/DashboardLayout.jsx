@@ -60,6 +60,12 @@ const MENUS = {
       ],
     },
     {
+      group: 'Akademik',
+      items: [
+        { label: 'Rapor Siswa', icon: NotebookPen, path: '/school/report-card' },
+      ],
+    },
+    {
       group: 'Akun',
       items: [
         { label: 'Profil Saya', icon: UserCircle, path: '/school/profile' },
@@ -148,6 +154,7 @@ const PAGE_NAMES = {
   '/teacher/announcements': 'Pengumuman',
   '/teacher/attendance':    'Absensi',
   '/teacher/report-card':   'Laporan Nilai',
+  '/school/report-card':    'Rapor Siswa',
   '/teacher/classes':       'Kelas Saya',
   '/teacher/profile':       'Profil Saya',
   '/student':               'Ujian Saya',
