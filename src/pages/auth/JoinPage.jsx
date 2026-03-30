@@ -5,7 +5,7 @@ import { getInviteByToken, useInviteLink } from '../../services/inviteService';
 import {
   Mail, Lock, Eye, EyeOff, User, AlertCircle,
   CheckCircle2, GraduationCap, BookOpen, School,
-  Clock, ChevronRight, ChevronLeft, Sparkles,
+  Clock, ChevronRight, ChevronLeft, Sparkles, Shield,
 } from 'lucide-react';
 
 const getStrength = (p) => {
@@ -32,8 +32,9 @@ const mapAuthError = (msg, status) => {
 };
 
 const ROLE_META = {
-  student: { label: 'Siswa',  icon: GraduationCap, accent: '#F59E0B', soft: '#FFFBEB', border: '#FDE68A', glow: 'rgba(245,158,11,.18)' },
-  teacher: { label: 'Guru',   icon: BookOpen,       accent: '#10B981', soft: '#ECFDF5', border: '#A7F3D0', glow: 'rgba(16,185,129,.18)' },
+  student:      { label: 'Siswa',        icon: GraduationCap, accent: '#F59E0B', soft: '#FFFBEB', border: '#FDE68A', glow: 'rgba(245,158,11,.18)' },
+  teacher:      { label: 'Guru',         icon: BookOpen,      accent: '#10B981', soft: '#ECFDF5', border: '#A7F3D0', glow: 'rgba(16,185,129,.18)' },
+  school_admin: { label: 'Admin Sekolah',icon: Shield,        accent: '#4F46E5', soft: '#EEF2FF', border: '#C7D2FE', glow: 'rgba(79,70,229,.18)'  },
 };
 
 const strengthColors = ['#EF4444','#F59E0B','#3B82F6','#10B981'];
@@ -200,8 +201,13 @@ const JoinPage = () => {
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }]);
       await useInviteLink(token, uid);
-      if (invite.target_role === 'teacher') { setNewUserId(uid); setStep(2); }
-      else { setDone(true); setTimeout(() => navigate('/login'), 3000); }
+      if (invite.target_role === 'teacher') {
+        setNewUserId(uid);
+        setStep(2);
+      } else {
+        setDone(true);
+        setTimeout(() => navigate('/login'), 3000);
+      }
     } catch (err) {
       const status = err?.status || err?.code || 0;
       setErrors(p => ({ ...p, _form: mapAuthError(err.message || '', status) }));
@@ -255,7 +261,7 @@ const JoinPage = () => {
 
   // ── Computed ──────────────────────────────────────────────────
   const isTeacher = invite?.target_role === 'teacher';
-  const meta = ROLE_META[invite?.target_role || 'student'];
+  const meta = ROLE_META[invite?.target_role] || ROLE_META['student'];
   const RoleIcon = meta.icon;
   const strength = getStrength(password);
 
@@ -332,7 +338,8 @@ const JoinPage = () => {
           </div>
           <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: 22, fontWeight: 800, color: '#F1F5F9', marginBottom: 10 }}>Selamat Datang! 🎉</h2>
           <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7 }}>
-            Akun kamu sudah aktif.{invite?.class_name ? <> Kamu bergabung ke <strong style={{ color: '#818CF8' }}>{invite.class_name}</strong>.</> : null}
+            Akun kamu sudah aktif sebagai <strong style={{ color: '#818CF8' }}>{ROLE_META[invite?.target_role]?.label || invite?.target_role}</strong>.
+            {invite?.class_name ? <> Kamu bergabung ke <strong style={{ color: '#818CF8' }}>{invite.class_name}</strong>.</> : null}
             <br/>Mengarahkan ke halaman login...
           </p>
           <div style={{ marginTop: 24, height: 3, borderRadius: 99, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>

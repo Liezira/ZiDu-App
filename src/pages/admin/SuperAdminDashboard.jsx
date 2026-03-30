@@ -4,6 +4,7 @@ import {
   School, Users, CheckCircle2, Clock, XCircle, AlertCircle,
   RefreshCw, Crown, Zap, Search, ChevronDown, Edit2, X,
   Save, ArrowLeft, Calendar, Plus, Shield,
+  UserPlus, Link, Copy, Mail,
 } from 'lucide-react';
 import {
   T, DashboardStyles, StatCard, StatCardSkeleton, Shimmer,
@@ -127,7 +128,218 @@ const SchoolModal = ({ open, school, onClose, onSaved }) => {
   );
 };
 
-const SchoolDrawer = ({ school, onClose, onEdit }) => {
+
+// ── InviteAdminModal ──────────────────────────────────────────────
+const InviteAdminModal = ({ school, createdBy, onClose }) => {
+  const [step,      setStep]      = useState('form'); // 'form' | 'success'
+  const [label,     setLabel]     = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [copied,    setCopied]    = useState(false);
+
+  useEffect(() => {
+    if (school) setLabel(`Admin ${school.name}`);
+  }, [school?.id]);
+
+  const handleGenerate = async () => {
+    setLoading(true); setError('');
+    try {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error: insertErr } = await supabase
+        .from('invite_links')
+        .insert([{
+          school_id:   school.id,
+          created_by:  createdBy,
+          target_role: 'school_admin',
+          class_id:    null,
+          class_name:  null,
+          label:       label.trim() || `Admin ${school.name}`,
+          max_uses:    1,           // sekali pakai
+          expires_at:  expiresAt,
+        }])
+        .select('token')
+        .single();
+      if (insertErr) throw insertErr;
+      setInviteUrl(`${window.location.origin}/join?invite=${data.token}`);
+      setStep('success');
+    } catch (e) {
+      setError(
+        e.message?.includes('violates check constraint')
+          ? 'Constraint DB belum diupdate. Jalankan SQL migrasi terlebih dahulu.'
+          : e.message
+      );
+    } finally { setLoading(false); }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  if (!school) return null;
+
+  return (
+    <div
+      style={{ position:'fixed',inset:0,background:'rgba(15,23,42,.65)',backdropFilter:'blur(6px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background:'#fff',borderRadius:20,width:'100%',maxWidth:480,boxShadow:'0 32px 80px rgba(0,0,0,.25)',overflow:'hidden',fontFamily:"'DM Sans',sans-serif",animation:'scaleIn .2s ease' }}>
+
+        {/* Header */}
+        <div style={{ padding:'20px 24px 16px',background:'linear-gradient(135deg,#1E3A5F,#4F46E5)',color:'#fff' }}>
+          <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start' }}>
+            <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+              <div style={{ width:38,height:38,borderRadius:10,background:'rgba(255,255,255,.15)',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                <UserPlus size={17}/>
+              </div>
+              <div>
+                <div style={{ fontSize:11,fontWeight:700,opacity:.7,letterSpacing:'.06em',marginBottom:2 }}>UNDANG ADMIN SEKOLAH</div>
+                <h2 style={{ fontFamily:"Sora,sans-serif",fontSize:15,fontWeight:700,margin:0 }}>{school.name}</h2>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ width:28,height:28,borderRadius:8,border:'1px solid rgba(255,255,255,.2)',background:'rgba(255,255,255,.1)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+              <X size={13} color="#fff"/>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding:'22px 24px' }}>
+          {step === 'form' && (
+            <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+
+              {/* Info */}
+              <div style={{ background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:10,padding:'12px 14px',display:'flex',gap:9,alignItems:'flex-start' }}>
+                <Link size={14} color="#2563EB" style={{ flexShrink:0,marginTop:1 }}/>
+                <div style={{ fontSize:12.5,color:'#1E40AF',lineHeight:1.6 }}>
+                  Sistem akan membuat <strong>link undangan sekali pakai</strong> (berlaku 7 hari).
+                  Kirimkan ke calon admin — mereka daftar sendiri dan langsung mendapat akses <strong>Admin Sekolah</strong>.
+                </div>
+              </div>
+
+              {/* Label */}
+              <div>
+                <label style={{ display:'block',fontSize:12,fontWeight:700,color:'#374151',marginBottom:5 }}>
+                  Label Undangan <span style={{ fontSize:11,color:'#94A3B8',fontWeight:400 }}>(opsional)</span>
+                </label>
+                <input
+                  type="text" value={label}
+                  onChange={e => setLabel(e.target.value)}
+                  placeholder={`Admin ${school.name}`}
+                  style={{ width:'100%',padding:'9px 12px',borderRadius:'9px',border:'1.5px solid #E2E8F0',background:'#F8FAFC',fontSize:13,color:'#0F172A',outline:'none',boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif",transition:'border-color .15s' }}
+                  onFocus={e => { e.target.style.borderColor='#4F46E5'; e.target.style.boxShadow='0 0 0 3px rgba(79,70,229,.1)'; }}
+                  onBlur={e  => { e.target.style.borderColor='#E2E8F0'; e.target.style.boxShadow='none'; }}
+                />
+              </div>
+
+              {/* Config summary */}
+              <div style={{ background:'#F8FAFC',borderRadius:10,padding:'12px 14px',border:'1px solid #F1F5F9' }}>
+                <div style={{ fontSize:11,fontWeight:700,color:'#94A3B8',letterSpacing:'.06em',marginBottom:10 }}>KONFIGURASI LINK</div>
+                {[
+                  { label:'Sekolah',        value: school.name },
+                  { label:'Role diberikan', value: 'school_admin', badge: true },
+                  { label:'Maks. pakai',    value: '1× (sekali pakai)' },
+                  { label:'Berlaku',        value: '7 hari' },
+                ].map(row => (
+                  <div key={row.label} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7 }}>
+                    <span style={{ fontSize:12,color:'#64748B' }}>{row.label}</span>
+                    {row.badge
+                      ? <span style={{ fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:999,background:'#EEF2FF',color:'#4F46E5' }}>{row.value}</span>
+                      : <span style={{ fontSize:12,fontWeight:600,color:'#0F172A' }}>{row.value}</span>
+                    }
+                  </div>
+                ))}
+              </div>
+
+              {error && (
+                <div style={{ padding:'10px 13px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:9,color:'#DC2626',fontSize:12.5,display:'flex',gap:7,alignItems:'flex-start' }}>
+                  <AlertCircle size={13} style={{ flexShrink:0,marginTop:1 }}/>{error}
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 'success' && (
+            <div style={{ display:'flex',flexDirection:'column',gap:18 }}>
+
+              {/* Success header */}
+              <div style={{ textAlign:'center',padding:'6px 0' }}>
+                <div style={{ width:52,height:52,borderRadius:'50%',background:'#F0FDF4',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px' }}>
+                  <CheckCircle2 size={26} color="#16A34A"/>
+                </div>
+                <div style={{ fontFamily:'Sora,sans-serif',fontSize:16,fontWeight:700,color:'#0F172A',marginBottom:4 }}>Link Undangan Berhasil Dibuat!</div>
+                <div style={{ fontSize:13,color:'#64748B' }}>Kirimkan link ini ke calon Admin Sekolah</div>
+              </div>
+
+              {/* URL box */}
+              <div>
+                <label style={{ display:'block',fontSize:11,fontWeight:700,color:'#94A3B8',letterSpacing:'.06em',marginBottom:8 }}>LINK UNDANGAN</label>
+                <div style={{ background:'#F8FAFC',border:'1.5px solid #E2E8F0',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:10 }}>
+                  <Link size={13} color="#94A3B8" style={{ flexShrink:0 }}/>
+                  <span style={{ flex:1,fontSize:12,color:'#4F46E5',wordBreak:'break-all',lineHeight:1.5,fontWeight:500 }}>{inviteUrl}</span>
+                  <button onClick={handleCopy}
+                    style={{ flexShrink:0,display:'flex',alignItems:'center',gap:5,padding:'6px 13px',borderRadius:8,border:'1px solid #E2E8F0',background:copied?'#F0FDF4':'#fff',fontSize:12,fontWeight:600,color:copied?'#16A34A':'#374151',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap' }}>
+                    {copied ? <><Check size={12}/>Copied!</> : <><Copy size={12}/>Salin</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Steps for admin */}
+              <div style={{ background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,padding:'14px 16px' }}>
+                <div style={{ fontSize:12,fontWeight:700,color:'#92400E',marginBottom:10 }}>📋 Instruksi untuk calon admin:</div>
+                {[
+                  'Buka link undangan di browser',
+                  'Isi nama lengkap, email, dan buat password',
+                  'Klik "Daftar Sekarang" — akun langsung aktif',
+                  'Login ke ZiDu dan mulai kelola sekolah',
+                ].map((s, i) => (
+                  <div key={i} style={{ display:'flex',gap:10,marginBottom:i<3?8:0,alignItems:'flex-start' }}>
+                    <span style={{ flexShrink:0,width:20,height:20,borderRadius:'50%',background:'#D97706',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center' }}>{i+1}</span>
+                    <span style={{ fontSize:12.5,color:'#78350F',lineHeight:1.5 }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Share via */}
+              <div style={{ display:'flex',gap:8 }}>
+                <a href={`mailto:?subject=Undangan Admin Sekolah ZiDu — ${school.name}&body=Halo,%0A%0AAnda diundang menjadi Admin Sekolah di ${encodeURIComponent(school.name)} pada platform ZiDu.%0A%0ASilakan klik link berikut untuk mendaftar:%0A${encodeURIComponent(inviteUrl)}%0A%0ALink berlaku 7 hari dan hanya bisa digunakan 1 kali.%0A%0ASalam,%0AZiDu`}
+                  style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'9px',borderRadius:9,border:'1.5px solid #E2E8F0',background:'#fff',fontSize:12,fontWeight:600,color:'#475569',cursor:'pointer',textDecoration:'none',transition:'background .12s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F8FAFC'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <Mail size={13}/>Kirim via Email
+                </a>
+                <button onClick={handleCopy}
+                  style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'9px',borderRadius:9,border:'1.5px solid #E2E8F0',background:copied?'#F0FDF4':'#fff',fontSize:12,fontWeight:600,color:copied?'#16A34A':'#475569',cursor:'pointer',transition:'all .15s' }}>
+                  {copied ? <><Check size={13}/>Tersalin!</> : <><Copy size={13}/>Salin Link</>}
+                </button>
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'14px 24px',borderTop:'1px solid #F1F5F9',display:'flex',justifyContent:'flex-end',gap:10 }}>
+          <button onClick={onClose} style={{ padding:'9px 18px',borderRadius:'9px',border:'1.5px solid #E2E8F0',background:'#fff',fontSize:13,fontWeight:600,color:'#475569',cursor:'pointer',fontFamily:"'DM Sans',sans-serif" }}>
+            {step === 'success' ? 'Selesai' : 'Batal'}
+          </button>
+          {step === 'form' && (
+            <button onClick={handleGenerate} disabled={loading}
+              style={{ padding:'9px 20px',borderRadius:'9px',border:'none',background:loading?'#E2E8F0':'#4F46E5',fontSize:13,fontWeight:700,color:loading?'#94A3B8':'#fff',cursor:loading?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:7,fontFamily:"'DM Sans',sans-serif",transition:'all .15s' }}>
+              {loading
+                ? <><div style={{ width:13,height:13,borderRadius:'50%',border:'2px solid rgba(255,255,255,.3)',borderTopColor:'#fff',animation:'spin .7s linear infinite' }}/>Membuat Link…</>
+                : <><UserPlus size={14}/>Buat Link Undangan</>}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SchoolDrawer = ({ school, onClose, onEdit, onInviteAdmin }) => {
   const [profiles, setProfiles] = useState([]);
   const [pLoading, setPLoading] = useState(true);
   const [tab, setTab] = useState('overview');
@@ -153,7 +365,10 @@ const SchoolDrawer = ({ school, onClose, onEdit }) => {
         <div style={{ padding:'18px 22px',borderBottom:`1px solid ${T.borderLight}`,flexShrink:0 }}>
           <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px' }}>
             <button onClick={onClose} style={{ display:'flex',alignItems:'center',gap:'5px',background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:T.textSub,padding:0,fontFamily:T.fontBody }}><ArrowLeft size={13}/> Tutup</button>
+            <div style={{ display:'flex',gap:6 }}>
             <button onClick={onEdit} className="du-btn-ghost" style={{ padding:'6px 11px', fontSize:'12px' }}><Edit2 size={11}/> Edit</button>
+            <button onClick={onInviteAdmin} className="du-btn-primary" style={{ padding:'6px 11px',fontSize:'12px',display:'flex',alignItems:'center',gap:4 }}><UserPlus size={11}/> Undang Admin</button>
+          </div>
           </div>
           <div style={{ display:'flex',gap:'13px',alignItems:'flex-start' }}>
             <div style={{ width:'46px',height:'46px',borderRadius:'13px',background:T.brandLight,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:T.fontDisplay,fontWeight:'700',fontSize:'17px',color:T.brand,flexShrink:0 }}>{school.name.charAt(0).toUpperCase()}</div>
@@ -250,6 +465,7 @@ const SuperAdminDashboard = () => {
   const [modal,        setModal]        = useState(false);
   const [editSch,      setEditSch]      = useState(null);
   const [drawer,       setDrawer]       = useState(null);
+  const [inviteModal,  setInviteModal]  = useState(null);
   const [toast,        setToast]        = useState(null);
 
   const showToast = (msg, type='success') => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
@@ -294,6 +510,8 @@ const SuperAdminDashboard = () => {
       <DashboardStyles />
       <style>{`
         @keyframes slideLeft { from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:translateX(0);} }
+        @keyframes scaleIn  { from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
+        @keyframes spin     { to{transform:rotate(360deg);} }
         @keyframes slideUp   { from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);} }
         .sa-row:hover { background: #FAFBFF !important; cursor: pointer; }
       `}</style>
@@ -441,7 +659,8 @@ const SuperAdminDashboard = () => {
       </div>
 
       <SchoolModal open={modal} school={editSch} onClose={()=>{setModal(false);setEditSch(null);}} onSaved={()=>{fetchData();showToast(editSch?'Sekolah diperbarui':'Sekolah berhasil ditambahkan');}} />
-      {drawer && <SchoolDrawer school={drawer} onClose={()=>setDrawer(null)} onEdit={()=>{setEditSch(drawer);setDrawer(null);setModal(true);}} />}
+      {drawer && <SchoolDrawer school={drawer} onClose={()=>setDrawer(null)} onEdit={()=>{setEditSch(drawer);setDrawer(null);setModal(true);}} onInviteAdmin={()=>setInviteModal(drawer)} />}
+      {inviteModal && <InviteAdminModal school={inviteModal} createdBy={null} onClose={()=>setInviteModal(null)} />}
 
       {toast && (
         <div style={{ position:'fixed',bottom:'22px',right:'22px',zIndex:300,display:'flex',alignItems:'center',gap:'9px',padding:'12px 16px',borderRadius:T.rMd,background:toast.type==='error'?T.red:T.text,color:'#fff',fontSize:'13px',fontWeight:'500',boxShadow:'0 8px 30px rgba(0,0,0,.2)',fontFamily:T.fontBody,animation:'slideUp .22s ease' }}>

@@ -12,7 +12,7 @@ const EXPIRE_DAYS = 7;
  * @param {object} p
  * @param {string} p.schoolId
  * @param {string} p.createdBy   - profile.id guru / admin
- * @param {'student'|'teacher'} p.targetRole
+ * @param {'student'|'teacher'|'school_admin'} p.targetRole
  * @param {string|null} p.classId
  * @param {string|null} p.className
  * @param {string|null} p.label  - label opsional untuk mudah dikenali
