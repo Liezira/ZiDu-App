@@ -18,16 +18,27 @@ const AUTOSAVE_INTERVAL_MS    = 30_000;
 const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
-const VIOLATION_CFG = {
-  tab_switch:   { label: 'Pindah Tab / Window',  deduction: 2, grace: 1 },
-  fullscreen:   { label: 'Keluar Fullscreen',     deduction: 1, grace: 2 },
-  copy_paste:   { label: 'Copy / Paste',          deduction: 3, grace: 0 },
-  devtools:     { label: 'Buka DevTools',         deduction: 5, grace: 0 },
-  split_screen: { label: 'Split Screen',          deduction: 3, grace: 0 },
+// ZERO TOLERANCE — semua pelanggaran langsung auto-submit
+// Referensi keketatan: UTBK SecurityMonitor (deteksi split screen, devtools, tab switch)
+const VIOLATION_LABELS = {
+  tab_switch:   'Pindah Tab / Window',
+  fullscreen:   'Keluar Fullscreen',
+  copy_paste:   'Copy / Paste',
+  devtools:     'Buka DevTools',
+  split_screen: 'Split Screen / Floating Window',
 };
-const MAX_VIOLATION_SCORE  = 15;
-const WARN_VIOLATION_SCORE = 8;
-const FS_EXIT_GRACE_MS     = 2_000;
+// Legacy — tidak dipakai untuk logika, hanya untuk kompatibilitas ResultScreen
+const VIOLATION_CFG = {
+  tab_switch:   { label: VIOLATION_LABELS.tab_switch,   deduction: 0, grace: 0 },
+  fullscreen:   { label: VIOLATION_LABELS.fullscreen,   deduction: 0, grace: 0 },
+  copy_paste:   { label: VIOLATION_LABELS.copy_paste,   deduction: 0, grace: 0 },
+  devtools:     { label: VIOLATION_LABELS.devtools,     deduction: 0, grace: 0 },
+  split_screen: { label: VIOLATION_LABELS.split_screen, deduction: 0, grace: 0 },
+};
+const MAX_VIOLATION_SCORE  = 1;  // 1 pelanggaran = langsung auto-submit
+const WARN_VIOLATION_SCORE = 0;  // tidak ada warning — langsung submit
+// Grace fullscreen: 500ms saja (cukup untuk transisi UI, tidak lebih)
+const FS_EXIT_GRACE_MS     = 500;
 const MAX_PAUSE            = 2;
 const PAUSE_DUR            = 300; // 5 menit
 
@@ -90,8 +101,14 @@ const TokenEntry = ({ onEnter, loading, error }) => {
           <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8, color:'#0891B2', fontWeight:700, fontSize:13 }}>
             <Shield size={14} /> Sistem Pengamanan Aktif
           </div>
-          {[`Pindah tab +2 poin (grace 1×)`,`Keluar fullscreen +1 poin (grace 2×)`,`Copy/Paste +3 poin · DevTools +5 poin`,`Akumulasi ≥ ${MAX_VIOLATION_SCORE} poin → Submit Otomatis`].map(t => (
-            <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2' }}>·</span>{t}</div>
+          {[
+            '🚫 Pindah tab / window → Submit Otomatis',
+            '🚫 Copy / Paste → Submit Otomatis',
+            '🚫 Buka DevTools → Submit Otomatis',
+            '🚫 Split screen / floating → Submit Otomatis',
+            '🚫 Keluar fullscreen → Submit Otomatis',
+          ].map(t => (
+            <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#EF4444' }}>·</span>{t}</div>
           ))}
         </div>
         <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
@@ -136,7 +153,7 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
           ))}
         </div>
         <div style={{ background:'rgba(220,38,38,.1)', border:'1px solid rgba(220,38,38,.2)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FCA5A5', lineHeight:1.7 }}>
-          <strong>⚠ Aturan ujian:</strong> Jangan pindah tab, buka DevTools, atau copy-paste. Akumulasi ≥ {MAX_VIOLATION_SCORE} poin → ujian dikumpulkan otomatis.
+          <strong>⛔ ZERO TOLERANCE:</strong> Pindah tab, copy-paste, buka DevTools, split screen, atau keluar fullscreen akan langsung mengumpulkan ujian secara otomatis tanpa peringatan.
         </div>
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={onBack} style={{ flex:1, padding:12, borderRadius:10, border:'1px solid rgba(255,255,255,.1)', background:'transparent', color:'#94A3B8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali</button>
@@ -262,18 +279,27 @@ const SecurityMonitor = ({ active, onViolation }) => {
       } else { if (fsTimer.current) { clearTimeout(fsTimer.current); fsTimer.current=null; } }
     };
 
+    // UTBK-style detection: threshold ketat, interval 500ms
     checkIv.current = setInterval(() => {
+      // DevTools detection (dari UTBK: threshold 160px)
       const devW = window.outerWidth  - window.innerWidth  > 160;
       const devH = !ios && (window.outerHeight - window.innerHeight > 160);
-      if (devW||devH) onViolation('devtools','DevTools atau console terbuka');
+      if (devW || devH) { onViolation('devtools', 'DevTools / Console terbuka'); return; }
+
       const tag    = document.activeElement?.tagName;
-      const typing = tag==='INPUT'||tag==='TEXTAREA';
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
       if (!typing && !ios) {
-        const availH = window.screen.availHeight||window.screen.height;
-        if (window.innerHeight < availH*0.78) onViolation('split_screen','Terdeteksi split screen (tinggi window kecil)');
-        if (window.innerWidth  < window.outerWidth*0.88) onViolation('split_screen','Terdeteksi floating window');
+        // Split screen H: tinggi window < 80% layar (dari UTBK: < 0.80)
+        const availH = window.screen.availHeight || window.screen.height;
+        if (window.innerHeight < availH * 0.80) {
+          onViolation('split_screen', 'Split screen terdeteksi'); return;
+        }
+        // Split screen W / floating window: dari UTBK < 0.90
+        if (window.innerWidth < window.outerWidth * 0.90) {
+          onViolation('split_screen', 'Floating window terdeteksi'); return;
+        }
       }
-    }, 800);
+    }, 500);
 
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
@@ -456,41 +482,33 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
   useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
 
+  // ZERO TOLERANCE: pelanggaran pertama apapun = langsung auto-submit
+  // Debounce 1500ms per tipe agar tidak double-fire dari event bersamaan
   const handleViolation = useCallback(async(type,detail)=>{
-    if(!securityActive||isPaused||pendingModal||forceSubmitted) return;
-    const now=Date.now();
-    if((now-(lastViolTime.current[type]||0))<2000) return;
-    lastViolTime.current[type]=now;
-    const cfg=VIOLATION_CFG[type];
-    if(!cfg) return;
-    const prev=violationCounts[type]||0;
-    const cnt=prev+1;
-    const inGrace=cnt<=cfg.grace;
-    const deduct=inGrace?0:cfg.deduction;
-    const newCounts={...violationCounts,[type]:cnt};
-    const newScore=violationScore+deduct;
-    setViolationCounts(newCounts);
-    setViolationScore(newScore);
-    
-    // ── LANGKAH G: Tambah event di handleViolation
+    if(!securityActive || isPaused || forceSubmitted) return;
+    const now = Date.now();
+    if((now - (lastViolTime.current[type] || 0)) < 1500) return;
+    lastViolTime.current[type] = now;
+
+    // Track event sebelum submit
     track(EXAM_EVENTS.VIOLATION_TRIGGERED, {
-      violation_type:  type,
-      score_after:     newScore,
-      count_for_type:  cnt,
-      in_grace:        inGrace,
+      violation_type: type,
+      detail,
+      zero_tolerance: true,
     });
 
-    try {
-      const {data}=await supabase.rpc('append_violation',{p_result_id:result.id,p_type:type,p_detail:detail});
-      if(data&&!data.error){
-        setViolationScore(data.violation_score);
-        if(data.should_force_submit){setForceSubmitted(true);setSecurityActive(false);handleSubmitRef.current?.(true);return;}
-      }
-    } catch {}
-    if(inGrace) return;
-    if(newScore>=MAX_VIOLATION_SCORE){setForceSubmitted(true);setSecurityActive(false);handleSubmitRef.current?.(true);return;}
-    setPendingModal({message:detail,score:newScore,isHard:newScore>=WARN_VIOLATION_SCORE});
-  },[securityActive,isPaused,pendingModal,forceSubmitted,violationCounts,violationScore,result.id, track]);
+    // Log ke Supabase (fire-and-forget, tidak menunda submit)
+    supabase.rpc('append_violation', {
+      p_result_id: result.id,
+      p_type:      type,
+      p_detail:    detail,
+    }).catch(() => {});
+
+    // LANGSUNG auto-submit — tidak ada grace, tidak ada warning
+    setForceSubmitted(true);
+    setSecurityActive(false);
+    handleSubmitRef.current?.(true);
+  },[securityActive, isPaused, forceSubmitted, result.id, track]);
 
   const handlePause=useCallback(()=>{
     if(pauseCount>=MAX_PAUSE) return;
@@ -533,7 +551,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
       <SecurityMonitor active={securityActive&&!isPaused} onViolation={handleViolation}/>
       {isPaused&&<PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
-      {pendingModal&&!isPaused&&<ViolationModal message={pendingModal.message} violationScore={pendingModal.score} isHard={pendingModal.isHard} onClose={()=>{setPendingModal(null);if(!checkIOS()&&!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});}}/>}
+      {/* ViolationModal dihapus — zero tolerance tidak perlu warning, langsung auto-submit */}
       
       <NavDrawer
         open={showNavDrawer} onClose={()=>setShowNavDrawer(false)}
@@ -816,27 +834,6 @@ export default function ExamRoom() {
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  // FIX: Resolve variant langsung via RPC saat token valid,
-  // bukan dari useExperiment() hook yang masih null karena async race condition.
-  // Hook tetap digunakan untuk ExamRoomContent rendering variant-aware UI.
-  const resolveVariantForSession = async (sess) => {
-    if (!sess.experiment_id || !profile?.class_id) return null;
-    const cacheKey = `zidu_exp_${sess.experiment_id}_${profile.class_id}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return cached;
-    try {
-      const { data } = await supabase.rpc('get_or_assign_variant', {
-        p_experiment_id: sess.experiment_id,
-        p_class_id:      profile.class_id,
-      });
-      const resolved = data ?? 'control';
-      sessionStorage.setItem(cacheKey, resolved);
-      return resolved;
-    } catch {
-      return 'control';
-    }
-  };
-
   const handleEnterToken=async(input)=>{
     setTokenLoading(true);setTokenError('');
     try {
@@ -851,23 +848,17 @@ export default function ExamRoom() {
       if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
       let qShow=qs;
       if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
-      // FIX: Potong soal sesuai total_questions yang dikonfigurasi guru
-      if(sess.total_questions && sess.total_questions < qShow.length){
-        qShow = qShow.slice(0, sess.total_questions);
-      }
-
+      
       setSession(sess);setQuestions(qShow);
-
-      // FIX: Resolve variant langsung (bukan dari hook yang masih null)
-      const resolvedVariant = await resolveVariantForSession(sess);
-
+      
+      // ── LANGKAH C: Di dalam handleEnterToken(), setelah token VALID
       trackExamEvent({
         eventType:      EXAM_EVENTS.TOKEN_VALID,
         studentId:      profile.id,
         schoolId:       profile.school_id,
         examSessionId:  sess.id,
         experimentId:   sess.experiment_id ?? null,
-        variant:        resolvedVariant,   // ← pakai resolved, bukan state hook
+        variant,
         properties: { exam_type: sess.exam_type, class_id: profile.class_id },
       });
 
@@ -884,8 +875,9 @@ export default function ExamRoom() {
           started_at:new Date().toISOString(),
           created_at:new Date().toISOString(),
           updated_at:new Date().toISOString(),
+          // ── LANGKAH J: Update baris insert exam_results
           experiment_id: sess.experiment_id ?? null,
-          variant_name:  resolvedVariant,  // ← sudah resolve, tidak null
+          variant_name:  variant ?? null,
         }]).select().single();
         setResult(nr);
       } else {setResult(existing);}
