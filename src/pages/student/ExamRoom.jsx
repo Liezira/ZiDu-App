@@ -816,6 +816,27 @@ export default function ExamRoom() {
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  // FIX: Resolve variant langsung via RPC saat token valid,
+  // bukan dari useExperiment() hook yang masih null karena async race condition.
+  // Hook tetap digunakan untuk ExamRoomContent rendering variant-aware UI.
+  const resolveVariantForSession = async (sess) => {
+    if (!sess.experiment_id || !profile?.class_id) return null;
+    const cacheKey = `zidu_exp_${sess.experiment_id}_${profile.class_id}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) return cached;
+    try {
+      const { data } = await supabase.rpc('get_or_assign_variant', {
+        p_experiment_id: sess.experiment_id,
+        p_class_id:      profile.class_id,
+      });
+      const resolved = data ?? 'control';
+      sessionStorage.setItem(cacheKey, resolved);
+      return resolved;
+    } catch {
+      return 'control';
+    }
+  };
+
   const handleEnterToken=async(input)=>{
     setTokenLoading(true);setTokenError('');
     try {
@@ -830,17 +851,23 @@ export default function ExamRoom() {
       if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
       let qShow=qs;
       if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
-      
+      // FIX: Potong soal sesuai total_questions yang dikonfigurasi guru
+      if(sess.total_questions && sess.total_questions < qShow.length){
+        qShow = qShow.slice(0, sess.total_questions);
+      }
+
       setSession(sess);setQuestions(qShow);
-      
-      // ── LANGKAH C: Di dalam handleEnterToken(), setelah token VALID
+
+      // FIX: Resolve variant langsung (bukan dari hook yang masih null)
+      const resolvedVariant = await resolveVariantForSession(sess);
+
       trackExamEvent({
         eventType:      EXAM_EVENTS.TOKEN_VALID,
         studentId:      profile.id,
         schoolId:       profile.school_id,
         examSessionId:  sess.id,
         experimentId:   sess.experiment_id ?? null,
-        variant,
+        variant:        resolvedVariant,   // ← pakai resolved, bukan state hook
         properties: { exam_type: sess.exam_type, class_id: profile.class_id },
       });
 
@@ -857,9 +884,8 @@ export default function ExamRoom() {
           started_at:new Date().toISOString(),
           created_at:new Date().toISOString(),
           updated_at:new Date().toISOString(),
-          // ── LANGKAH J: Update baris insert exam_results
           experiment_id: sess.experiment_id ?? null,
-          variant_name:  variant ?? null,
+          variant_name:  resolvedVariant,  // ← sudah resolve, tidak null
         }]).select().single();
         setResult(nr);
       } else {setResult(existing);}

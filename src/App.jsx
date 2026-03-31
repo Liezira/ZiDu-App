@@ -210,19 +210,8 @@ const App = () => {
         <Route path="announcements" element={<Lazy><TeacherAnnouncements /></Lazy>} />
         <Route path="attendance"    element={<Lazy><AttendancePage /></Lazy>} />
         <Route path="report-card"   element={<Lazy><ReportCardPage /></Lazy>} />
+        <Route path="ab-testing"    element={<Lazy><ABTestingDashboard /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
-      </Route>
-
-      {/* ── AB TESTING DASHBOARD (TEACHER & SCHOOL ADMIN) ── */}
-      <Route 
-        path="/teacher/ab-testing" 
-        element={
-          <ProtectedRoute allowedRoles={['teacher', 'school_admin']}>
-            <Lazy><DashboardLayout /></Lazy>
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Lazy><ABTestingDashboard /></Lazy>} />
       </Route>
 
       {/* ── STUDENT ── */}
