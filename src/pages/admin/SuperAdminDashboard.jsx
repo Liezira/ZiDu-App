@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   School, Users, CheckCircle2, Clock, XCircle, AlertCircle,
   RefreshCw, Crown, Zap, Search, ChevronDown, Edit2, X,
@@ -454,6 +455,7 @@ const SchoolDrawer = ({ school, onClose, onEdit, onInviteAdmin }) => {
 };
 
 const SuperAdminDashboard = () => {
+  const { profile } = useAuth();
   const [schools,      setSchools]      = useState([]);
   const [profiles,     setProfiles]     = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -660,7 +662,7 @@ const SuperAdminDashboard = () => {
 
       <SchoolModal open={modal} school={editSch} onClose={()=>{setModal(false);setEditSch(null);}} onSaved={()=>{fetchData();showToast(editSch?'Sekolah diperbarui':'Sekolah berhasil ditambahkan');}} />
       {drawer && <SchoolDrawer school={drawer} onClose={()=>setDrawer(null)} onEdit={()=>{setEditSch(drawer);setDrawer(null);setModal(true);}} onInviteAdmin={()=>setInviteModal(drawer)} />}
-      {inviteModal && <InviteAdminModal school={inviteModal} createdBy={null} onClose={()=>setInviteModal(null)} />}
+      {inviteModal && <InviteAdminModal school={inviteModal} createdBy={profile?.id} onClose={()=>setInviteModal(null)} />}
 
       {toast && (
         <div style={{ position:'fixed',bottom:'22px',right:'22px',zIndex:300,display:'flex',alignItems:'center',gap:'9px',padding:'12px 16px',borderRadius:T.rMd,background:toast.type==='error'?T.red:T.text,color:'#fff',fontSize:'13px',fontWeight:'500',boxShadow:'0 8px 30px rgba(0,0,0,.2)',fontFamily:T.fontBody,animation:'slideUp .22s ease' }}>

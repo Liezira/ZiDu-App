@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Plus, Search, RefreshCw, MoreVertical, Edit2, Trash2,
   CheckCircle2, XCircle, Clock, AlertCircle, X, Save,
@@ -645,6 +646,7 @@ const ActionMenu = ({ school, onView, onEdit, onToggleStatus, onDelete, onInvite
 
 // ── Main Page ─────────────────────────────────────────────────────
 const SchoolManagement = () => {
+  const { profile } = useAuth();
   const [schools, setSchools] = useState([]);
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -974,7 +976,7 @@ const SchoolManagement = () => {
       {inviteModal && (
         <InviteAdminModal
           school={inviteModal}
-          createdBy={null}
+          createdBy={profile?.id}
           onClose={() => setInviteModal(null)}
         />
       )}

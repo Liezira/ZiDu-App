@@ -620,6 +620,8 @@ const ExamManagement = () => {
       message: `Hapus "${sess.title}"? Semua data hasil ujian siswa pada sesi ini akan ikut terhapus.`,
       onConfirm: async () => {
         setActLoading(true);
+        // Hapus child tables sebelum hapus exam_sessions (urutan penting untuk FK)
+        await supabase.from('exam_events').delete().eq('exam_session_id', sess.id);
         await supabase.from('exam_results').delete().eq('exam_session_id', sess.id);
         const { error } = await supabase.from('exam_sessions').delete().eq('id', sess.id);
         if (error) showToast(error.message, 'error');
