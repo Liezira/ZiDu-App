@@ -214,6 +214,8 @@ const App = () => {
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
 
+
+
       {/* ── STUDENT ── */}
       <Route
         path="/student"
@@ -227,9 +229,18 @@ const App = () => {
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
         <Route path="class" element={<Lazy><MyClassPage /></Lazy>} />
         <Route path="announcements" element={<Lazy><StudentAnnouncements /></Lazy>} />
-        <Route path="exam" element={<Lazy><ExamRoom /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
       </Route>
+
+      {/* ── STUDENT EXAM — standalone tanpa sidebar (anti-cheating) ── */}
+      <Route
+        path="/student/exam"
+        element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <Lazy><ExamRoom /></Lazy>
+          </ProtectedRoute>
+        }
+      />
 
       {/* ── 403 ── */}
       <Route
