@@ -271,7 +271,7 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
   const pct    = records.length ? Math.round(counts.hadir / records.length * 100) : 0;
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:900, display:'flex', justifyContent:'flex-end' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:900, display:'flex', justifyContent:'flex-end', padding: 20 }}>
       {/* Backdrop */}
       <div style={{ position:'absolute', inset:0, background:'rgba(15,23,42,.28)' }} onClick={onClose} />
 
