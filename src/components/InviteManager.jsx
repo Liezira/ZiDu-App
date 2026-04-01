@@ -33,10 +33,32 @@ const Spin = () => (
   <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite', flexShrink: 0 }} />
 );
 
+const copyToClipboard = async (text) => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    return true;
+  } catch { return false; }
+};
+
 const CopyBtn = ({ text }) => {
   const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(text);
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    else alert('Salin manual:\n\n' + text);
+  };
   return (
-    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+    <button onClick={handleCopy}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 8, border: `1.5px solid ${copied ? T.sucBdr : T.brandBdr}`, background: copied ? T.sucBg : T.brandBg, color: copied ? T.success : T.brand, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', whiteSpace: 'nowrap', fontFamily: "'Plus Jakarta Sans',sans-serif", flexShrink: 0 }}>
       {copied ? <><Check size={11} /> Tersalin!</> : <><Copy size={11} /> Salin Link</>}
     </button>

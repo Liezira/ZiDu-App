@@ -173,10 +173,24 @@ const InviteAdminModal = ({ school, createdBy, onClose }) => {
     } finally { setLoading(false); }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(inviteUrl);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = inviteUrl;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      alert('Salin manual:\n\n' + inviteUrl);
+    }
   };
 
   if (!school) return null;
