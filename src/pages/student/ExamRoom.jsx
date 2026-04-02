@@ -18,27 +18,44 @@ const AUTOSAVE_INTERVAL_MS    = 30_000;
 const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
-// ZERO TOLERANCE — semua pelanggaran langsung auto-submit
-// Referensi keketatan: UTBK SecurityMonitor (deteksi split screen, devtools, tab switch)
-const VIOLATION_LABELS = {
-  tab_switch:   'Pindah Tab / Window',
-  fullscreen:   'Keluar Fullscreen',
-  copy_paste:   'Copy / Paste',
-  devtools:     'Buka DevTools',
-  split_screen: 'Split Screen / Floating Window',
+// ── SISTEM SKORING PELANGGARAN (sinkron dengan UTBK SecurityMonitor) ──────────
+// Setiap kategori memiliki: deduction (poin per kejadian), grace (gratis pertama N kali)
+const VIOLATION_SCORING = {
+  types: {
+    tab_switch:   { label: 'Pindah Tab / Window',       deduction: 5,  grace: 1 },
+    fullscreen:   { label: 'Keluar Fullscreen',          deduction: 3,  grace: 2 },
+    copy_paste:   { label: 'Copy / Paste',               deduction: 8,  grace: 0 },
+    devtools:     { label: 'Buka DevTools',              deduction: 20, grace: 0 },
+    split_screen: { label: 'Split Screen / Floating',    deduction: 10, grace: 0 },
+  },
+  maxTotalScore:   20,   // Threshold auto-submit
+  warnThreshold:   10,   // Peringatan keras muncul di atas nilai ini
+  debounceMs:      1500, // Anti double-fire per kategori
 };
-// Legacy — tidak dipakai untuk logika, hanya untuk kompatibilitas ResultScreen
-const VIOLATION_CFG = {
-  tab_switch:   { label: VIOLATION_LABELS.tab_switch,   deduction: 0, grace: 0 },
-  fullscreen:   { label: VIOLATION_LABELS.fullscreen,   deduction: 0, grace: 0 },
-  copy_paste:   { label: VIOLATION_LABELS.copy_paste,   deduction: 0, grace: 0 },
-  devtools:     { label: VIOLATION_LABELS.devtools,     deduction: 0, grace: 0 },
-  split_screen: { label: VIOLATION_LABELS.split_screen, deduction: 0, grace: 0 },
+
+// Map tipe raw event → kategori scoring
+const VIOLATION_TYPE_MAP = {
+  tab_switch:       'tab_switch',
+  visibility:       'tab_switch',
+  blur:             'tab_switch',
+  fullscreen:       'fullscreen',
+  fullscreen_exit:  'fullscreen',
+  copy_paste:       'copy_paste',
+  devtools:         'devtools',
+  split_screen:     'split_screen',
+  split_screen_h:   'split_screen',
+  split_screen_w:   'split_screen',
+  rightClick:       null,  // Diblok tapi tidak menambah poin
 };
-const MAX_VIOLATION_SCORE  = 1;  // 1 pelanggaran = langsung auto-submit
-const WARN_VIOLATION_SCORE = 0;  // tidak ada warning — langsung submit
-// Grace fullscreen: 500ms saja (cukup untuk transisi UI, tidak lebih)
-const FS_EXIT_GRACE_MS     = 500;
+
+// Shorthand untuk kompatibilitas komponen lama
+const VIOLATION_CFG    = Object.fromEntries(
+  Object.entries(VIOLATION_SCORING.types).map(([k,v]) => [k, { label: v.label }])
+);
+const MAX_VIOLATION_SCORE  = VIOLATION_SCORING.maxTotalScore;
+const WARN_VIOLATION_SCORE = VIOLATION_SCORING.warnThreshold;
+// Grace fullscreen: 800ms (sedikit lebih longgar untuk transisi UI)
+const FS_EXIT_GRACE_MS     = 800;
 const MAX_PAUSE            = 2;
 const PAUSE_DUR            = 300; // 5 menit
 
@@ -99,17 +116,20 @@ const TokenEntry = ({ onEnter, loading, error }) => {
         </div>
         <div style={{ background:'rgba(8,145,178,.08)', border:'1px solid rgba(8,145,178,.2)', borderRadius:12, padding:'14px 16px', marginBottom:20, fontSize:12, color:'#94A3B8', lineHeight:1.7 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8, color:'#0891B2', fontWeight:700, fontSize:13 }}>
-            <Shield size={14} /> Sistem Pengamanan Aktif
+            <Shield size={14} /> Sistem Pengamanan — Skoring Pelanggaran
           </div>
           {[
-            '🚫 Pindah tab / window → Submit Otomatis',
-            '🚫 Copy / Paste → Submit Otomatis',
-            '🚫 Buka DevTools → Submit Otomatis',
-            '🚫 Split screen / floating → Submit Otomatis',
-            '🚫 Keluar fullscreen → Submit Otomatis',
+            `✅ Grace period: tab-switch (1×), fullscreen (2×) tidak langsung kena poin`,
+            `⚠️ Pindah tab/window: +5 poin per kejadian`,
+            `⚠️ Keluar fullscreen: +3 poin per kejadian`,
+            `🚫 Copy/Paste: +8 poin — langsung diblok`,
+            `🚫 Split Screen / Floating: +10 poin`,
+            `🚫 Buka DevTools: +20 poin — hampir pasti auto-submit`,
+            `❌ Total ≥ ${MAX_VIOLATION_SCORE} poin → Submit Otomatis`,
           ].map(t => (
-            <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#EF4444' }}>·</span>{t}</div>
+            <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2', flexShrink:0 }}>·</span>{t}</div>
           ))}
+        </div>
         </div>
         <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
           <label style={{ fontSize:12, fontWeight:700, color:'#94A3B8', display:'block', marginBottom:8, letterSpacing:'.05em' }}>TOKEN UJIAN</label>
@@ -145,15 +165,19 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
           </div>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:20 }}>
-          {[['Jumlah Soal',`${session.total_questions} soal`],['Durasi',`${session.duration_minutes} menit`],['KKM',session.passing_score],['Batas Poin',`${MAX_VIOLATION_SCORE} poin pelanggaran`]].map(([k,v]) => (
+          {[['Jumlah Soal',`${session.total_questions} soal`],['Durasi',`${session.duration_minutes} menit`],['KKM',session.passing_score],['Auto-Submit',`≥ ${MAX_VIOLATION_SCORE} poin`]].map(([k,v]) => (
             <div key={k} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:12 }}>
               <div style={{ fontSize:11, color:'#64748B', fontWeight:600, marginBottom:3 }}>{k}</div>
               <div style={{ fontFamily:'Sora,sans-serif', fontSize:15, fontWeight:700, color:'#F1F5F9' }}>{v}</div>
             </div>
           ))}
         </div>
-        <div style={{ background:'rgba(220,38,38,.1)', border:'1px solid rgba(220,38,38,.2)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FCA5A5', lineHeight:1.7 }}>
-          <strong>⛔ ZERO TOLERANCE:</strong> Pindah tab, copy-paste, buka DevTools, split screen, atau keluar fullscreen akan langsung mengumpulkan ujian secara otomatis tanpa peringatan.
+        <div style={{ background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.25)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FDE68A', lineHeight:1.7 }}>
+          <strong>⚠️ SISTEM SKORING PELANGGARAN:</strong>
+          <div style={{ marginTop:6, fontSize:12, color:'#94A3B8', lineHeight:1.8 }}>
+            Pindah tab (+5) · Keluar fullscreen (+3) · Copy/Paste (+8) · Split screen (+10) · DevTools (+20).
+            Ada grace period untuk pelanggaran tidak sengaja. Total ≥ <strong style={{color:'#FCA5A5'}}>{MAX_VIOLATION_SCORE} poin</strong> = ujian otomatis dikumpulkan.
+          </div>
         </div>
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={onBack} style={{ flex:1, padding:12, borderRadius:10, border:'1px solid rgba(255,255,255,.1)', background:'transparent', color:'#94A3B8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali</button>
@@ -169,43 +193,62 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
 // ─────────────────────────────────────────────────────────────────
 // VIOLATION MODAL
 // ─────────────────────────────────────────────────────────────────
-const ViolationModal = ({ message, violationScore, isHard, onClose }) => (
-  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
-    <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard?'#DC2626':'#F59E0B'}`, animation:'fadeUp .2s ease' }}>
-      <div style={{ padding:'20px 24px', background:isHard?'#DC2626':'#F59E0B', textAlign:'center' }}>
-        <AlertTriangle size={40} color="#fff" style={{ margin:'0 auto 8px', display:'block' }}/>
-        <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:800, color:'#fff', margin:0 }}>
-          {isHard?'PERINGATAN KERAS!':'PELANGGARAN TERDETEKSI'}
-        </h2>
-      </div>
-      <div style={{ padding:'20px 24px' }}>
-        <p style={{ fontSize:13, color:'#374151', background:'#F9FAFB', padding:'10px 14px', borderRadius:10, border:'1px solid #E5E7EB', marginBottom:16, fontStyle:'italic' }}>"{message}"</p>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
-          <div style={{ textAlign:'center', padding:'10px 8px', background:isHard?'#FEF2F2':'#FFFBEB', borderRadius:10, border:`1px solid ${isHard?'#FECACA':'#FDE68A'}` }}>
-            <div style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:800, color:isHard?'#DC2626':'#D97706' }}>{violationScore}</div>
-            <div style={{ fontSize:10, fontWeight:700, color:isHard?'#DC2626':'#D97706', letterSpacing:'.05em' }}>POIN SEKARANG</div>
-          </div>
-          <div style={{ textAlign:'center', padding:'10px 8px', background:'#F8FAFC', borderRadius:10, border:'1px solid #E2E8F0' }}>
-            <div style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:800, color:'#374151' }}>{MAX_VIOLATION_SCORE}</div>
-            <div style={{ fontSize:10, fontWeight:700, color:'#64748B', letterSpacing:'.05em' }}>BATAS AUTO-SUBMIT</div>
-          </div>
+const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
+  const remaining = MAX_VIOLATION_SCORE - violationScore;
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
+      <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard?'#DC2626':'#F59E0B'}`, animation:'fadeUp .2s ease' }}>
+        <div style={{ padding:'20px 24px', background:isHard?'#DC2626':'#F59E0B', textAlign:'center' }}>
+          <AlertTriangle size={40} color=\"#fff\" style={{ margin:'0 auto 8px', display:'block', animation:'pulse 1s infinite' }}/>
+          <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:800, color:'#fff', margin:0 }}>
+            {isHard?'⛔ PERINGATAN KERAS!':'⚠️ PELANGGARAN TERDETEKSI'}
+          </h2>
+          <p style={{ fontSize:11, color:'rgba(255,255,255,.8)', margin:'4px 0 0' }}>
+            {isHard ? 'Poin mendekati batas — hati-hati!' : 'Poin pelanggaran bertambah'}
+          </p>
         </div>
-        {isHard
-          ? <div style={{ background:'#FEF2F2', borderLeft:'4px solid #DC2626', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#7F1D1D' }}>
-              <strong>⛔ Peringatan Keras:</strong> Satu pelanggaran lagi → <strong>Submit Otomatis</strong>.
+        <div style={{ padding:'20px 24px' }}>
+          <p style={{ fontSize:13, color:'#374151', background:'#F9FAFB', padding:'10px 14px', borderRadius:10, border:'1px solid #E5E7EB', marginBottom:16, fontStyle:'italic' }}>"{message}"</p>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:14 }}>
+            <div style={{ textAlign:'center', padding:'10px 6px', background:isHard?'#FEF2F2':'#FFFBEB', borderRadius:10, border:`1px solid ${isHard?'#FECACA':'#FDE68A'}` }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:isHard?'#DC2626':'#D97706' }}>{violationScore}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:isHard?'#DC2626':'#D97706', letterSpacing:'.03em' }}>POIN SEKARANG</div>
             </div>
-          : <div style={{ background:'#FFFBEB', borderLeft:'4px solid #F59E0B', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#78350F' }}>
-              <strong>⚠ Perhatian:</strong> Setiap pelanggaran mengurangi poin. Kembali ke mode normal.
-            </div>}
-      </div>
-      <div style={{ padding:'0 24px 20px' }}>
-        <button onClick={onClose} style={{ width:'100%', padding:11, borderRadius:10, border:'none', background:isHard?'#DC2626':'#F59E0B', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-          Mengerti, Kembali ke Ujian
-        </button>
+            <div style={{ textAlign:'center', padding:'10px 6px', background:'#F8FAFC', borderRadius:10, border:'1px solid #E2E8F0' }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'#374151' }}>{MAX_VIOLATION_SCORE}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:'#64748B', letterSpacing:'.03em' }}>BATAS AUTO-SUBMIT</div>
+            </div>
+            <div style={{ textAlign:'center', padding:'10px 6px', background: remaining <= 5 ? '#FEF2F2' : '#F0FDF4', borderRadius:10, border:`1px solid ${remaining <= 5 ? '#FECACA' : '#BBF7D0'}` }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color: remaining <= 5 ? '#DC2626' : '#16A34A' }}>{remaining}</div>
+              <div style={{ fontSize:10, fontWeight:700, color: remaining <= 5 ? '#DC2626' : '#16A34A', letterSpacing:'.03em' }}>SISA AMAN</div>
+            </div>
+          </div>
+          {/* Progress bar pelanggaran */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ height:8, background:'#F1F5F9', borderRadius:99, overflow:'hidden' }}>
+              <div style={{ height:'100%', borderRadius:99, background: isHard ? '#DC2626' : '#F59E0B', width:`${Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100)}%`, transition:'width .3s' }}/>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#94A3B8', marginTop:3 }}>
+              <span>0</span><span style={{color:'#F59E0B'}}>{WARN_VIOLATION_SCORE} (peringatan)</span><span style={{color:'#DC2626'}}>{MAX_VIOLATION_SCORE}</span>
+            </div>
+          </div>
+          {isHard
+            ? <div style={{ background:'#FEF2F2', borderLeft:'4px solid #DC2626', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#7F1D1D' }}>
+                <strong>⛔ Peringatan Keras:</strong> Satu pelanggaran besar berikutnya → <strong>Submit Otomatis</strong>. Tetap di tab ini.
+              </div>
+            : <div style={{ background:'#FFFBEB', borderLeft:'4px solid #F59E0B', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#78350F' }}>
+                <strong>⚠ Perhatian:</strong> Setiap pelanggaran mengurangi sisa aman. Kembali ke mode ujian normal.
+              </div>}
+        </div>
+        <div style={{ padding:'0 24px 20px' }}>
+          <button onClick={onClose} style={{ width:'100%', padding:11, borderRadius:10, border:'none', background:isHard?'#DC2626':'#F59E0B', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+            Mengerti — Kembali ke Ujian
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────
 // PAUSE MODAL
@@ -390,19 +433,23 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const [timeLeft,        setTimeLeft]       = useState(() => calcRemainingTime(result, session));
   const [showSubmit,      setShowSubmit]     = useState(false);
   const [showNavDrawer,   setShowNavDrawer]  = useState(false);
-  const [securityActive,  setSecurityActive] = useState(true);
-  const [violationScore,  setViolationScore] = useState(result.violation_score||0);
-  const [violationCounts, setViolationCounts]= useState(result.violation_counts||{});
-  const [pendingModal,    setPendingModal]   = useState(null);
-  const [forceSubmitted,  setForceSubmitted] = useState(false);
-  const [isPaused,        setIsPaused]       = useState(false);
-  const [pauseCount,      setPauseCount]     = useState(0);
-  const [pauseTimeLeft,   setPauseTimeLeft]  = useState(PAUSE_DUR);
-  const [isMobile,        setIsMobile]       = useState(() => window.innerWidth < 768);
+  const [securityActive,      setSecurityActive]      = useState(true);
+  const [violationScore,      setViolationScore]      = useState(result.violation_score||0);
+  const [violationCounts,     setViolationCounts]     = useState(result.violation_counts||{});
+  const [forceSubmitted,      setForceSubmitted]      = useState(false);
+  const [showViolationWarning,setShowViolationWarning]= useState(false);
+  const [lastViolationMsg,    setLastViolationMsg]    = useState('');
+  const [currentViolScore,    setCurrentViolScore]    = useState(result.violation_score||0);
+  const [isPaused,            setIsPaused]            = useState(false);
+  const [pauseCount,          setPauseCount]          = useState(0);
+  const [pauseTimeLeft,       setPauseTimeLeft]       = useState(PAUSE_DUR);
+  const [isMobile,            setIsMobile]            = useState(() => window.innerWidth < 768);
 
-  const handleSubmitRef = useRef(null);
-  const lastViolTime    = useRef({});
-  const pauseEnd        = useRef(null);
+  const handleSubmitRef  = useRef(null);
+  const lastViolTime     = useRef({});
+  const violScoreRef     = useRef(result.violation_score||0);   // sync ref agar closure handleViolation selalu fresh
+  const violCountsRef    = useRef(result.violation_counts||{}); // idem
+  const pauseEnd         = useRef(null);
 
   // ── LANGKAH D: Buat tracker
   const track = useMemo(() => createTracker({
@@ -468,12 +515,13 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   }, [isPaused]); // eslint-disable-line
 
   const handleSubmit = useCallback((auto=false)=>{
-    // ── LANGKAH F: Tambah event di handleSubmit
     track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
-      answered_count: Object.keys(answers).length,
-      total:          questions.length,
+      answered_count:  Object.keys(answers).length,
+      total:           questions.length,
       violation_score: violationScore,
+      violation_counts:violationCounts,
       time_left:       timeLeft,
+      auto_reason:     auto ? `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}` : null,
     });
     setSecurityActive(false);
     const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
@@ -482,33 +530,73 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
   useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
 
-  // ZERO TOLERANCE: pelanggaran pertama apapun = langsung auto-submit
-  // Debounce 1500ms per tipe agar tidak double-fire dari event bersamaan
-  const handleViolation = useCallback(async(type,detail)=>{
-    if(!securityActive || isPaused || forceSubmitted) return;
+  // ── SCORING VIOLATION HANDLER — ala UTBK SecurityMonitor ─────────────────────
+  // Grace → poin akumulasi → warning modal → auto-submit saat ≥ maxTotalScore
+  const handleViolation = useCallback(async (type, detail) => {
+    if (!securityActive || isPaused || forceSubmitted || showViolationWarning) return;
+
     const now = Date.now();
-    if((now - (lastViolTime.current[type] || 0)) < 1500) return;
+    if ((now - (lastViolTime.current[type] || 0)) < VIOLATION_SCORING.debounceMs) return;
     lastViolTime.current[type] = now;
 
-    // Track event sebelum submit
+    // Resolve kategori; rightClick (null) = blok tanpa poin
+    const category = VIOLATION_TYPE_MAP[type] ?? type;
+    if (!category) return;
+    const cfg = VIOLATION_SCORING.types[category];
+    if (!cfg) return;
+
+    // Count per kategori via ref (fresh selalu, aman di closure)
+    const prevCount = (violCountsRef.current[category] || 0);
+    const newCount  = prevCount + 1;
+    const isGrace   = newCount <= cfg.grace;
+    const deduction = isGrace ? 0 : cfg.deduction;
+
+    const newCounts = { ...violCountsRef.current, [category]: newCount };
+    const newScore  = violScoreRef.current + deduction;
+    violCountsRef.current = newCounts;
+    violScoreRef.current  = newScore;
+    setViolationCounts(newCounts);
+    setViolationScore(newScore);
+    setCurrentViolScore(newScore);
+
     track(EXAM_EVENTS.VIOLATION_TRIGGERED, {
-      violation_type: type,
+      violation_type:  type,
+      category,
       detail,
-      zero_tolerance: true,
+      deduction,
+      is_grace:        isGrace,
+      violation_score: newScore,
     });
 
-    // Log ke Supabase (fire-and-forget, tidak menunda submit)
+    // Log ke Supabase (fire-and-forget)
     supabase.rpc('append_violation', {
-      p_result_id: result.id,
-      p_type:      type,
-      p_detail:    detail,
+      p_result_id:   result.id,
+      p_type:        category,
+      p_detail:      detail,
+      p_deduction:   deduction,
+      p_is_grace:    isGrace,
+      p_score_total: newScore,
     }).catch(() => {});
 
-    // LANGSUNG auto-submit — tidak ada grace, tidak ada warning
-    setForceSubmitted(true);
-    setSecurityActive(false);
-    handleSubmitRef.current?.(true);
-  },[securityActive, isPaused, forceSubmitted, result.id, track]);
+    // Grace: diam-diam, tidak ganggu siswa
+    if (isGrace) {
+      console.warn(`[GRACE] ${category} #${newCount}/${cfg.grace}: ${detail}`);
+      return;
+    }
+
+    // Auto-submit jika poin capai threshold
+    if (newScore >= VIOLATION_SCORING.maxTotalScore) {
+      setForceSubmitted(true);
+      setSecurityActive(false);
+      setShowViolationWarning(false);
+      handleSubmitRef.current?.(true);
+      return;
+    }
+
+    // Tampilkan warning modal untuk pelanggaran non-fatal
+    setLastViolationMsg(detail);
+    setShowViolationWarning(true);
+  }, [securityActive, isPaused, forceSubmitted, showViolationWarning, result.id, track]);
 
   const handlePause=useCallback(()=>{
     if(pauseCount>=MAX_PAUSE) return;
@@ -535,7 +623,10 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const answered = questions.filter(q=>answers[q.id]!==undefined&&answers[q.id]!==null&&answers[q.id]!=='').length;
   const crit     = timeLeft<TIMER_WARNING_THRESHOLD;
   const pct      = Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100);
-  const sc       = violationScore>=WARN_VIOLATION_SCORE?'#DC2626':violationScore>0?'#F59E0B':'#16A34A';
+  // 3 level: hijau (aman) → kuning (mendekati warn) → merah (danger ≥ warn threshold)
+  const sc       = violationScore >= WARN_VIOLATION_SCORE ? '#DC2626'
+                 : violationScore > 0                     ? '#F59E0B'
+                 :                                          '#16A34A';
   const opts     = ['A','B','C','D'];
 
   return (
@@ -551,7 +642,22 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
       <SecurityMonitor active={securityActive&&!isPaused} onViolation={handleViolation}/>
       {isPaused&&<PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
-      {/* ViolationModal dihapus — zero tolerance tidak perlu warning, langsung auto-submit */}
+
+      {/* ── Violation Warning Modal — tampil saat poin belum capai threshold ── */}
+      {showViolationWarning && !isPaused && (
+        <ViolationModal
+          message={lastViolationMsg}
+          violationScore={currentViolScore}
+          isHard={currentViolScore >= WARN_VIOLATION_SCORE}
+          onClose={() => {
+            setShowViolationWarning(false);
+            // Re-aktifkan fullscreen setelah menutup modal
+            if (!checkIOS() && !document.fullscreenElement) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            }
+          }}
+        />
+      )}
       
       <NavDrawer
         open={showNavDrawer} onClose={()=>setShowNavDrawer(false)}
@@ -585,7 +691,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
               <Pause size={12}/>{!isMobile&&<span>{MAX_PAUSE-pauseCount}</span>}
             </button>
             {violationScore>0&&(
-              <div style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 8px', borderRadius:8, background:violationScore>=WARN_VIOLATION_SCORE?'#FEF2F2':'#FFFBEB', border:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, fontSize:12, fontWeight:700, color:sc, animation:violationScore>=WARN_VIOLATION_SCORE?'pulse 1.5s infinite':'none' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 8px', borderRadius:8,
+                background: violationScore>=WARN_VIOLATION_SCORE ? '#FEF2F2' : '#FFFBEB',
+                border: `1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`,
+                fontSize:12, fontWeight:700, color:sc,
+                animation: violationScore>=WARN_VIOLATION_SCORE ? 'pulse 1s infinite' : 'none' }}>
                 <Shield size={11}/>{violationScore}/{MAX_VIOLATION_SCORE}
               </div>
             )}
