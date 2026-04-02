@@ -195,9 +195,6 @@ const StudentDashboard = () => {
         </div>
 
         <div className="du-fadein" style={{ display: 'flex', justifyContent: 'flex-end', animationDelay: '400ms' }}>
-          <span style={{ fontSize: '11px', color: T.border, display: 'flex', alignItems: 'center', gap: '4px', fontFamily: T.fontBody }}>
-            <Zap size={10} style={{ color: T.brand }} /> Real-time
-          </span>
         </div>
       </div>
     </>

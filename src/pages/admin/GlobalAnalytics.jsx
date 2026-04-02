@@ -408,9 +408,6 @@ const GlobalAnalytics = () => {
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', opacity: 0, animation: 'fadeUp 0.4s ease 440ms forwards' }}>
-          <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Zap size={10} style={{ color: '#4F46E5' }} /> Data real-time dari Supabase
-          </span>
         </div>
       </div>
     </>

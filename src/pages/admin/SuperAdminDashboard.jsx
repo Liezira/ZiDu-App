@@ -667,7 +667,6 @@ const SuperAdminDashboard = () => {
               </div>
               <div style={{ padding:'9px 16px',borderTop:`1px solid ${T.borderLight}`,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
                 <span style={{ fontSize:'12px',color:T.textMuted,fontFamily:T.fontBody }}>Menampilkan {filtered.length} dari {schools.length} sekolah</span>
-                <span style={{ fontSize:'11px',color:T.border,display:'flex',alignItems:'center',gap:'4px',fontFamily:T.fontBody }}><Zap size={10} style={{color:T.brand}}/> Real-time</span>
               </div>
             </>
           )}

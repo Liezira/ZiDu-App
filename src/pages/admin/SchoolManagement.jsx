@@ -948,9 +948,6 @@ const SchoolManagement = () => {
           {!loading && filtered.length > 0 && (
             <div style={{ padding: '11px 20px', borderTop: '1px solid #F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#94A3B8' }}>Menampilkan {filtered.length} dari {schools.length} sekolah</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#CBD5E1' }}>
-                <Zap size={10} style={{ color: '#4F46E5' }} /> Real-time dari Supabase
-              </div>
             </div>
           )}
         </div>

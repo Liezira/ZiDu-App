@@ -423,9 +423,6 @@ const StudentResults = () => {
         }
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', opacity: 0, animation: 'fadeUp .4s ease 300ms forwards' }}>
-          <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Zap size={10} style={{ color: '#D97706' }} /> Real-time dari Supabase
-          </span>
         </div>
       </div>
 

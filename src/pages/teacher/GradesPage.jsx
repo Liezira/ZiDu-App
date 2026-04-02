@@ -556,7 +556,6 @@ const GradesPage = () => {
                 </div>
                 <div style={{ padding: '10px 16px', borderTop: '1px solid #F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '12px', color: '#94A3B8' }}>Menampilkan {displayed.length} hasil</span>
-                  <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '4px' }}><Zap size={10} style={{ color: '#D97706' }} /> Real-time dari Supabase</span>
                 </div>
               </>
           }
