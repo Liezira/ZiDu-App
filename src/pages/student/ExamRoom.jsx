@@ -130,7 +130,6 @@ const TokenEntry = ({ onEnter, loading, error }) => {
             <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2', flexShrink:0 }}>·</span>{t}</div>
           ))}
         </div>
-        </div>
         <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
           <label style={{ fontSize:12, fontWeight:700, color:'#94A3B8', display:'block', marginBottom:8, letterSpacing:'.05em' }}>TOKEN UJIAN</label>
           <input type="text" value={token} onChange={e => setToken(e.target.value.toUpperCase().slice(0,8))}
