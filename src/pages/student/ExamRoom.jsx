@@ -199,7 +199,7 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
       <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard?'#DC2626':'#F59E0B'}`, animation:'fadeUp .2s ease' }}>
         <div style={{ padding:'20px 24px', background:isHard?'#DC2626':'#F59E0B', textAlign:'center' }}>
-          <AlertTriangle size={40} color=\"#fff\" style={{ margin:'0 auto 8px', display:'block', animation:'pulse 1s infinite' }}/>
+          <AlertTriangle size={40} color="#fff" style={{ margin:'0 auto 8px', display:'block', animation:'pulse 1s infinite' }}/>
           <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:800, color:'#fff', margin:0 }}>
             {isHard?'⛔ PERINGATAN KERAS!':'⚠️ PELANGGARAN TERDETEKSI'}
           </h2>
