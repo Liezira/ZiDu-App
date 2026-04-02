@@ -764,9 +764,6 @@ const SubjectManagement = () => {
           {!loading && filtered.length > 0 && (
             <div style={{ padding: '10px 18px', borderTop: '1px solid #F8FAFC', display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '12px', color: '#94A3B8' }}>Menampilkan {filtered.length} dari {subjects.length} mata pelajaran</span>
-              <span style={{ fontSize: '11px', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ color: '#4F46E5', fontSize: '10px' }}>⚡</span> Real-time dari Supabase
-              </span>
             </div>
           )}
         </div>
