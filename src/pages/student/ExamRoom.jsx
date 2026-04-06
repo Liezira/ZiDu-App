@@ -8,7 +8,7 @@ import { useExperiment } from '../../hooks/useExperiment';
 import {
   Key, AlertCircle, Clock, ChevronLeft, ChevronRight,
   CheckCircle2, Send, Shield, BookOpen, AlertTriangle,
-  XCircle, Pause, Play, Monitor, Grid, X,
+  XCircle, Pause, Play, Monitor, Grid, X, Smartphone,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────
@@ -19,21 +19,21 @@ const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
 // ── SISTEM SKORING PELANGGARAN (sinkron dengan UTBK SecurityMonitor) ──────────
-// Setiap kategori memiliki: deduction (poin per kejadian), grace (gratis pertama N kali)
 const VIOLATION_SCORING = {
   types: {
-    tab_switch:   { label: 'Pindah Tab / Window',       deduction: 5,  grace: 1 },
-    fullscreen:   { label: 'Keluar Fullscreen',          deduction: 3,  grace: 2 },
-    copy_paste:   { label: 'Copy / Paste',               deduction: 8,  grace: 0 },
-    devtools:     { label: 'Buka DevTools',              deduction: 20, grace: 0 },
-    split_screen: { label: 'Split Screen / Floating',    deduction: 10, grace: 0 },
+    tab_switch:   { label: 'Pindah Tab / Window',        deduction: 5,  grace: 1 },
+    fullscreen:   { label: 'Keluar Fullscreen',           deduction: 3,  grace: 2 },
+    copy_paste:   { label: 'Copy / Paste',                deduction: 8,  grace: 0 },
+    devtools:     { label: 'Buka DevTools',               deduction: 20, grace: 0 },
+    split_screen: { label: 'Split Screen / Floating',     deduction: 10, grace: 0 },
+    orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 3,  grace: 1 },
+    screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 5,  grace: 1 },
   },
-  maxTotalScore:   20,   // Threshold auto-submit
-  warnThreshold:   10,   // Peringatan keras muncul di atas nilai ini
-  debounceMs:      1500, // Anti double-fire per kategori
+  maxTotalScore:   20,
+  warnThreshold:   10,
+  debounceMs:      1500,
 };
 
-// Map tipe raw event → kategori scoring
 const VIOLATION_TYPE_MAP = {
   tab_switch:       'tab_switch',
   visibility:       'tab_switch',
@@ -41,60 +41,130 @@ const VIOLATION_TYPE_MAP = {
   fullscreen:       'fullscreen',
   fullscreen_exit:  'fullscreen',
   copy_paste:       'copy_paste',
+  copy:             'copy_paste',
+  paste:            'copy_paste',
   devtools:         'devtools',
   split_screen:     'split_screen',
   split_screen_h:   'split_screen',
   split_screen_w:   'split_screen',
-  rightClick:       null,  // Diblok tapi tidak menambah poin
+  orientation:      'orientation',
+  screenshot:       'screenshot',
+  rightClick:       null,
 };
 
-// Shorthand untuk kompatibilitas komponen lama
 const VIOLATION_CFG    = Object.fromEntries(
   Object.entries(VIOLATION_SCORING.types).map(([k,v]) => [k, { label: v.label }])
 );
 const MAX_VIOLATION_SCORE  = VIOLATION_SCORING.maxTotalScore;
 const WARN_VIOLATION_SCORE = VIOLATION_SCORING.warnThreshold;
-// Grace fullscreen: 800ms (sedikit lebih longgar untuk transisi UI)
-const FS_EXIT_GRACE_MS     = 800;
-const MAX_PAUSE            = 2;
-const PAUSE_DUR            = 300; // 5 menit
+
+// Grace fullscreen: 2000ms — sinkron dengan UTBK SECURITY_CONFIG.FULLSCREEN_EXIT_GRACE_PERIOD
+const FS_EXIT_GRACE_MS = 2000;
+const MAX_PAUSE        = 2;
+const PAUSE_DUR        = 300; // 5 menit
+
+// ─────────────────────────────────────────────────────────────────
+// DEVICE DETECTION — deteksi platform secara komprehensif
+// ─────────────────────────────────────────────────────────────────
+const detectDevice = () => {
+  const ua = navigator.userAgent;
+  const isIOS     = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  // iPadOS 13+ melaporkan diri sebagai macOS — gunakan maxTouchPoints
+  const isIPadOS  = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  const isAndroid = /Android/.test(ua);
+  const isMobileBrowser = isIOS || isIPadOS || isAndroid ||
+    /webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  // Fullscreen API tidak tersedia di Safari/iOS/iPadOS
+  const supportsFullscreen =
+    !isIOS && !isIPadOS &&
+    (typeof document.documentElement.requestFullscreen === 'function' ||
+     typeof document.documentElement.webkitRequestFullscreen === 'function');
+  const supportsVisibility = typeof document.hidden !== 'undefined';
+  return { isIOS, isIPadOS, isAndroid, isMobileBrowser, supportsFullscreen, supportsVisibility };
+};
 
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
 const pad        = (n) => String(n).padStart(2, '0');
 const formatTime = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
-const checkIOS   = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 const calcRemainingTime = (result, session) => {
   if (!result?.started_at) return session.duration_minutes * 60;
   const endTime   = new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000;
-  const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-  return remaining;
+  return Math.max(0, Math.floor((endTime - Date.now()) / 1000));
 };
 
+// Cross-browser Fullscreen API wrappers
+const requestFullscreen = (el = document.documentElement) => {
+  if (el.requestFullscreen)       return el.requestFullscreen();
+  if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+  if (el.mozRequestFullScreen)    return el.mozRequestFullScreen();
+  if (el.msRequestFullscreen)     return el.msRequestFullscreen();
+  return Promise.resolve();
+};
+
+const exitFullscreen = () => {
+  if (document.exitFullscreen)        return document.exitFullscreen();
+  if (document.webkitExitFullscreen)  return document.webkitExitFullscreen();
+  if (document.mozCancelFullScreen)   return document.mozCancelFullScreen();
+  if (document.msExitFullscreen)      return document.msExitFullscreen();
+  return Promise.resolve();
+};
+
+const getFullscreenElement = () =>
+  document.fullscreenElement ||
+  document.webkitFullscreenElement ||
+  document.mozFullScreenElement ||
+  document.msFullscreenElement;
+
 // ─────────────────────────────────────────────────────────────────
-// WAKE LOCK
+// WAKE LOCK — cegah layar mati (iOS: NoSleep video fallback)
 // ─────────────────────────────────────────────────────────────────
 function useWakeLock(active) {
-  const ref = useRef(null);
+  const nativeLock = useRef(null);
+  const videoEl    = useRef(null);
+
   useEffect(() => {
-    if (!active) {
-      ref.current?.release().catch(() => {}).finally(() => { ref.current = null; });
-      return;
+    const { isIOS, isIPadOS } = detectDevice();
+    const needsVideoFallback  = isIOS || isIPadOS;
+
+    const releaseAll = () => {
+      nativeLock.current?.release().catch(() => {}).finally(() => { nativeLock.current = null; });
+      if (videoEl.current) { videoEl.current.pause(); videoEl.current.remove(); videoEl.current = null; }
+    };
+
+    if (!active) { releaseAll(); return; }
+
+    if (needsVideoFallback) {
+      // NoSleep trick: 1px muted looping video memaksa layar tetap menyala di Safari iOS
+      if (!videoEl.current) {
+        const v = document.createElement('video');
+        v.setAttribute('playsinline', '');
+        v.setAttribute('muted', '');
+        v.setAttribute('loop', '');
+        v.style.cssText = 'position:fixed;top:-2px;left:-2px;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
+        // Minimal valid MP4 (1 frame, ~300 bytes base64)
+        v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA21tZGF0AAACrAYF//+m3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDEyMiByMjE5MSBhM2Y0NDA3IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNCAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTYgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTI1IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAPZWiIhAAv//p+C7v8tDlHOHVMb4TsHnQlHAMHSgAAAwAAAkMC6DIUAAKZAAAF0AAgTuui0wMEGAAwmrfkR9n0UrUr6AAADAAADAAI';
+        document.body.appendChild(v);
+        videoEl.current = v;
+        v.play().catch(() => {});
+      }
+    } else {
+      // Native Wake Lock API (Chrome, Edge, Android Chrome)
+      const requestNative = async () => {
+        try { if ('wakeLock' in navigator) nativeLock.current = await navigator.wakeLock.request('screen'); }
+        catch { /* ignored */ }
+      };
+      requestNative();
+      const onVis = () => {
+        if (document.visibilityState === 'visible' && !nativeLock.current) requestNative();
+      };
+      document.addEventListener('visibilitychange', onVis);
+      return () => { document.removeEventListener('visibilitychange', onVis); releaseAll(); };
     }
-    const request = async () => {
-      try {
-        if ('wakeLock' in navigator) ref.current = await navigator.wakeLock.request('screen');
-      } catch { /* ignored */ }
-    };
-    request();
-    const onVis = () => { if (document.visibilityState === 'visible' && active && !ref.current) request(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      ref.current?.release().catch(() => {}).finally(() => { ref.current = null; });
-    };
+
+    return releaseAll;
   }, [active]);
 }
 
@@ -103,6 +173,9 @@ function useWakeLock(active) {
 // ─────────────────────────────────────────────────────────────────
 const TokenEntry = ({ onEnter, loading, error }) => {
   const [token, setToken] = useState('');
+  const { isIOS, isIPadOS, isAndroid } = detectDevice();
+  const isMobileDevice = isIOS || isIPadOS || isAndroid;
+
   return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -114,27 +187,43 @@ const TokenEntry = ({ onEnter, loading, error }) => {
           <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:24, fontWeight:700, color:'#F1F5F9', margin:'0 0 8px' }}>Masuk Ruang Ujian</h1>
           <p style={{ fontSize:14, color:'#64748B', margin:0 }}>Masukkan token ujian dari guru</p>
         </div>
+
+        {/* iOS / Android Notice */}
+        {isMobileDevice && (
+          <div style={{ background:'rgba(59,130,246,.12)', border:'1px solid rgba(59,130,246,.3)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:12, color:'#93C5FD' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:6, color:'#60A5FA', fontWeight:700, fontSize:13 }}>
+              <Smartphone size={14}/> {isAndroid ? 'Android' : 'iOS / iPadOS'} Terdeteksi
+            </div>
+            {(isIOS || isIPadOS)
+              ? <span>Fullscreen tidak didukung Safari. Sistem keamanan lainnya (tab-switch, split screen, dll) tetap aktif penuh. Gunakan Chrome/Firefox untuk pengalaman terbaik.</span>
+              : <span>Android terdeteksi. Fullscreen aktif. Jangan gunakan <strong>split-screen</strong>, <strong>pop-up window</strong>, atau <strong>layar dibagi</strong> selama ujian.</span>
+            }
+          </div>
+        )}
+
         <div style={{ background:'rgba(8,145,178,.08)', border:'1px solid rgba(8,145,178,.2)', borderRadius:12, padding:'14px 16px', marginBottom:20, fontSize:12, color:'#94A3B8', lineHeight:1.7 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8, color:'#0891B2', fontWeight:700, fontSize:13 }}>
             <Shield size={14} /> Sistem Pengamanan — Skoring Pelanggaran
           </div>
           {[
             `✅ Grace period: tab-switch (1×), fullscreen (2×) tidak langsung kena poin`,
-            `⚠️ Pindah tab/window: +5 poin per kejadian`,
+            `⚠️ Pindah tab/app: +5 poin per kejadian`,
             `⚠️ Keluar fullscreen: +3 poin per kejadian`,
             `🚫 Copy/Paste: +8 poin — langsung diblok`,
             `🚫 Split Screen / Floating: +10 poin`,
             `🚫 Buka DevTools: +20 poin — hampir pasti auto-submit`,
+            `📱 Rotasi landscape (mobile): +3 poin`,
             `❌ Total ≥ ${MAX_VIOLATION_SCORE} poin → Submit Otomatis`,
           ].map(t => (
             <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2', flexShrink:0 }}>·</span>{t}</div>
           ))}
         </div>
+
         <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
           <label style={{ fontSize:12, fontWeight:700, color:'#94A3B8', display:'block', marginBottom:8, letterSpacing:'.05em' }}>TOKEN UJIAN</label>
           <input type="text" value={token} onChange={e => setToken(e.target.value.toUpperCase().slice(0,8))}
             onKeyDown={e => e.key==='Enter' && token.length>=4 && onEnter(token)}
-            placeholder="Contoh: AB12CD" autoFocus
+            placeholder="Contoh: AB12CD" autoFocus autoComplete="off" autoCorrect="off" spellCheck="false"
             style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${error?'#EF4444':'rgba(255,255,255,.12)'}`, background:'rgba(255,255,255,.06)', color:'#F1F5F9', fontSize:20, fontFamily:'Sora,sans-serif', fontWeight:700, letterSpacing:'.2em', outline:'none', textAlign:'center', boxSizing:'border-box' }} />
           {error && <div style={{ marginTop:8, fontSize:13, color:'#EF4444', display:'flex', alignItems:'center', gap:6 }}><AlertCircle size={13}/>{error}</div>}
           <button onClick={() => onEnter(token)} disabled={token.length<4||loading}
@@ -174,7 +263,7 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
         <div style={{ background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.25)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FDE68A', lineHeight:1.7 }}>
           <strong>⚠️ SISTEM SKORING PELANGGARAN:</strong>
           <div style={{ marginTop:6, fontSize:12, color:'#94A3B8', lineHeight:1.8 }}>
-            Pindah tab (+5) · Keluar fullscreen (+3) · Copy/Paste (+8) · Split screen (+10) · DevTools (+20).
+            Pindah tab (+5) · Keluar fullscreen (+3) · Copy/Paste (+8) · Split screen (+10) · DevTools (+20) · Landscape mobile (+3).
             Ada grace period untuk pelanggaran tidak sengaja. Total ≥ <strong style={{color:'#FCA5A5'}}>{MAX_VIOLATION_SCORE} poin</strong> = ujian otomatis dikumpulkan.
           </div>
         </div>
@@ -217,15 +306,14 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
               <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'#374151' }}>{MAX_VIOLATION_SCORE}</div>
               <div style={{ fontSize:10, fontWeight:700, color:'#64748B', letterSpacing:'.03em' }}>BATAS AUTO-SUBMIT</div>
             </div>
-            <div style={{ textAlign:'center', padding:'10px 6px', background: remaining <= 5 ? '#FEF2F2' : '#F0FDF4', borderRadius:10, border:`1px solid ${remaining <= 5 ? '#FECACA' : '#BBF7D0'}` }}>
-              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color: remaining <= 5 ? '#DC2626' : '#16A34A' }}>{remaining}</div>
-              <div style={{ fontSize:10, fontWeight:700, color: remaining <= 5 ? '#DC2626' : '#16A34A', letterSpacing:'.03em' }}>SISA AMAN</div>
+            <div style={{ textAlign:'center', padding:'10px 6px', background:remaining<=5?'#FEF2F2':'#F0FDF4', borderRadius:10, border:`1px solid ${remaining<=5?'#FECACA':'#BBF7D0'}` }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:remaining<=5?'#DC2626':'#16A34A' }}>{remaining}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:remaining<=5?'#DC2626':'#16A34A', letterSpacing:'.03em' }}>SISA AMAN</div>
             </div>
           </div>
-          {/* Progress bar pelanggaran */}
           <div style={{ marginBottom:14 }}>
             <div style={{ height:8, background:'#F1F5F9', borderRadius:99, overflow:'hidden' }}>
-              <div style={{ height:'100%', borderRadius:99, background: isHard ? '#DC2626' : '#F59E0B', width:`${Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100)}%`, transition:'width .3s' }}/>
+              <div style={{ height:'100%', borderRadius:99, background:isHard?'#DC2626':'#F59E0B', width:`${Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100)}%`, transition:'width .3s' }}/>
             </div>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#94A3B8', marginTop:3 }}>
               <span>0</span><span style={{color:'#F59E0B'}}>{WARN_VIOLATION_SCORE} (peringatan)</span><span style={{color:'#DC2626'}}>{MAX_VIOLATION_SCORE}</span>
@@ -245,6 +333,48 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
           </button>
         </div>
       </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────
+// LANDSCAPE BLOCKER — mobile only, kena poin orientation
+// ─────────────────────────────────────────────────────────────────
+const LandscapeBlocker = ({ onViolation }) => {
+  const [isLandscape, setIsLandscape] = useState(false);
+  const reported = useRef(false);
+
+  useEffect(() => {
+    const check = () => {
+      // Hanya aktif di perangkat mobile (lebar < 1024)
+      const landscape = window.innerWidth > window.innerHeight && window.innerWidth < 1024;
+      setIsLandscape(landscape);
+      if (landscape && !reported.current) {
+        reported.current = true;
+        onViolation?.('orientation', 'Rotasi landscape terdeteksi pada perangkat mobile');
+      }
+      if (!landscape) reported.current = false;
+    };
+    check();
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
+  }, [onViolation]);
+
+  if (!isLandscape) return null;
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:99999, background:'#000', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#fff', userSelect:'none' }}>
+      <div style={{ fontSize:48, marginBottom:16, animation:'pulse 1s infinite' }}>📱</div>
+      <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:800, color:'#F87171', marginBottom:8, letterSpacing:'.05em', textTransform:'uppercase' }}>
+        Orientasi Terkunci
+      </h2>
+      <p style={{ fontSize:14, color:'#94A3B8', textAlign:'center', maxWidth:260, lineHeight:1.6 }}>
+        Mode <strong>Landscape</strong> tidak diizinkan selama ujian.<br/>
+        Putar ke <strong style={{color:'#4ADE80'}}>Portrait (vertikal)</strong>.
+      </p>
     </div>
   );
 };
@@ -276,7 +406,7 @@ const PauseModal = ({ timeLeft, count, onResume }) => (
           </div>
         </div>
         <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 12px', marginBottom:16, fontSize:12, color:'#78350F' }}>
-          <strong>⚠ Catatan:</strong> Timer ujian tidak berjalan. Sistem keamanan tetap aktif — jangan pindah tab.
+          <strong>⚠ Catatan:</strong> Timer ujian tidak berjalan. Sistem keamanan tetap aktif — jangan pindah app atau rotasi layar.
         </div>
         <button onClick={onResume} style={{ width:'100%', padding:14, borderRadius:12, border:'none', background:'#2563EB', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           <Play size={16}/> Lanjutkan Ujian
@@ -287,83 +417,180 @@ const PauseModal = ({ timeLeft, count, onResume }) => (
 );
 
 // ─────────────────────────────────────────────────────────────────
-// SECURITY MONITOR
+// SECURITY MONITOR — Cross-platform: Desktop + iOS + Android
 // ─────────────────────────────────────────────────────────────────
 const SecurityMonitor = ({ active, onViolation }) => {
   const fsTimer = useRef(null);
   const checkIv = useRef(null);
-  const ios     = checkIOS();
+  const lastAct = useRef(Date.now());
 
   useEffect(() => {
     if (!active) return;
 
+    const { isIOS, isIPadOS, isAndroid, supportsFullscreen, supportsVisibility } = detectDevice();
+
+    // Inject CSS: disable text select + print
     const style = document.createElement('style');
-    style.textContent = `body{-webkit-user-select:none;-moz-user-select:none;user-select:none;}@media print{html,body{display:none!important;}}`;
+    style.textContent = `
+      body { -webkit-user-select:none; -moz-user-select:none; user-select:none; }
+      @media print { html,body { display:none !important; } }
+    `;
     document.head.appendChild(style);
 
-    const onVis   = () => { if (document.hidden) onViolation('tab_switch','Pindah tab atau window terdeteksi'); };
-    const onBlur  = () => onViolation('tab_switch','Fokus window hilang');
-    const onCopy  = e => { e.preventDefault(); onViolation('copy_paste','Mencoba menyalin teks (Ctrl+C)'); };
-    const onPaste = e => { e.preventDefault(); onViolation('copy_paste','Mencoba menempelkan teks (Ctrl+V)'); };
-    const onCtx   = e => e.preventDefault();
-    const onKey   = e => {
-      if (e.key==='F12') { e.preventDefault(); onViolation('devtools','Shortcut DevTools (F12)'); return; }
-      if (e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase())) {
-        e.preventDefault(); onViolation('devtools',`Shortcut DevTools (Ctrl+Shift+${e.key})`);
+    // ── 1. VISIBILITY CHANGE — works on ALL platforms including iOS Safari ──
+    const onVis = () => {
+      if (document.hidden) {
+        onViolation('tab_switch', 'Pindah tab atau app terdeteksi');
+        // Screenshot heuristic: very fast hide = possible screenshot
+        if (Date.now() - lastAct.current < 100) {
+          onViolation('screenshot', 'Kemungkinan screenshot terdeteksi');
+        }
+      } else {
+        // Re-enter fullscreen on return (Desktop + Android Chrome)
+        if (supportsFullscreen && !getFullscreenElement()) {
+          requestFullscreen().catch(() => {});
+        }
       }
-      if (e.ctrlKey && e.key.toUpperCase()==='U') e.preventDefault();
-    };
-    const onFS = () => {
-      if (ios) return;
-      if (!document.fullscreenElement) {
-        if (fsTimer.current) clearTimeout(fsTimer.current);
-        fsTimer.current = setTimeout(() => { if (!document.fullscreenElement) onViolation('fullscreen','Keluar dari mode fullscreen'); }, FS_EXIT_GRACE_MS);
-      } else { if (fsTimer.current) { clearTimeout(fsTimer.current); fsTimer.current=null; } }
+      lastAct.current = Date.now();
     };
 
-    // UTBK-style detection: threshold ketat, interval 500ms
+    // ── 2. WINDOW BLUR — tab switch, Alt+Tab, Android notification bar ──
+    const onBlur = () => onViolation('tab_switch', 'Fokus window hilang');
+
+    // ── 3. COPY / PASTE ──
+    const onCopy  = e => { e.preventDefault(); onViolation('copy_paste', 'Mencoba menyalin teks'); };
+    const onPaste = e => { e.preventDefault(); onViolation('copy_paste', 'Mencoba menempelkan teks'); };
+
+    // ── 4. CONTEXT MENU / RIGHT CLICK ──
+    const onCtx = e => e.preventDefault();
+
+    // ── 5. KEYBOARD — Desktop (tidak relevan di mobile native, aman untuk didaftarkan) ──
+    const onKey = e => {
+      if (e.key === 'F12') { e.preventDefault(); onViolation('devtools', 'Shortcut DevTools (F12)'); return; }
+      if (e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase())) {
+        e.preventDefault(); onViolation('devtools', `Shortcut DevTools (Ctrl+Shift+${e.key})`); return;
+      }
+      if (e.ctrlKey && e.key.toUpperCase() === 'U') { e.preventDefault(); return; }
+      // Escape — cegah keluar fullscreen via keyboard
+      if (e.key === 'Escape') { e.preventDefault(); return; }
+      // Alt+Tab / Alt+F4 (Windows)
+      if (e.altKey && (e.key === 'Tab' || e.key === 'F4')) {
+        e.preventDefault(); onViolation('tab_switch', `Shortcut pindah app (Alt+${e.key})`); return;
+      }
+      // Windows / Meta key
+      if (e.metaKey && !e.ctrlKey) { e.preventDefault(); onViolation('tab_switch', 'Tombol Windows/Meta ditekan'); return; }
+      // Ctrl+W / T / N — tutup/buka tab
+      if (e.ctrlKey && ['W','T','N'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+    };
+
+    // ── 6. FULLSCREEN CHANGE — Desktop + Android Chrome, skip iOS/iPadOS ──
+    const onFS = () => {
+      if (isIOS || isIPadOS) return;
+      if (!getFullscreenElement()) {
+        if (fsTimer.current) clearTimeout(fsTimer.current);
+        // Grace 2000ms — sinkron UTBK
+        fsTimer.current = setTimeout(() => {
+          if (!getFullscreenElement()) onViolation('fullscreen', 'Keluar dari mode fullscreen');
+        }, FS_EXIT_GRACE_MS);
+      } else {
+        if (fsTimer.current) { clearTimeout(fsTimer.current); fsTimer.current = null; }
+      }
+    };
+
+    // ── 7. TOUCH — iOS/Android: deteksi gesture multi-jari (app switcher, screenshot) ──
+    const onTouchStart = e => {
+      lastAct.current = Date.now();
+      // 3+ jari serentak = app switcher gesture (iOS) atau screenshot (beberapa Android)
+      if (e.touches.length >= 3) {
+        onViolation('tab_switch', `Gesture multi-touch terdeteksi (${e.touches.length} jari)`);
+      }
+    };
+
+    // ── 8. PAGE HIDE — lebih reliable di iOS Safari untuk navigasi keluar ──
+    const onPageHide = e => {
+      if (e.persisted) {
+        // masuk bfcache = user navigasi keluar
+        onViolation('tab_switch', 'Navigasi keluar halaman terdeteksi');
+      }
+    };
+
+    // ── 9. BEFORE UNLOAD — dialog konfirmasi saat tutup tab / refresh ──
+    const onBeforeUnload = e => {
+      e.preventDefault();
+      e.returnValue = 'Ujian masih berlangsung. Yakin ingin keluar?';
+      return e.returnValue;
+    };
+
+    // ── 10. POPSTATE — trap tombol Back browser / Android back gesture ──
+    window.history.pushState({ examActive: true }, '', window.location.href);
+    const onPopState = () => {
+      window.history.pushState({ examActive: true }, '', window.location.href);
+      onViolation('tab_switch', 'Tombol Back ditekan');
+    };
+
+    // ── 11. INTERVAL 500ms — DevTools, split screen, floating window ──
     checkIv.current = setInterval(() => {
-      // DevTools detection (dari UTBK: threshold 160px)
-      const devW = window.outerWidth  - window.innerWidth  > 160;
-      const devH = !ios && (window.outerHeight - window.innerHeight > 160);
+      // DevTools width/height threshold 160px (sinkron UTBK)
+      const devW = window.outerWidth - window.innerWidth > 160;
+      const devH = !(isIOS || isIPadOS) && (window.outerHeight - window.innerHeight > 160);
       if (devW || devH) { onViolation('devtools', 'DevTools / Console terbuka'); return; }
 
       const tag    = document.activeElement?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA';
-      if (!typing && !ios) {
-        // Split screen H: tinggi window < 80% layar (dari UTBK: < 0.80)
-        const availH = window.screen.availHeight || window.screen.height;
-        if (window.innerHeight < availH * 0.80) {
-          onViolation('split_screen', 'Split screen terdeteksi'); return;
-        }
-        // Split screen W / floating window: dari UTBK < 0.90
-        if (window.innerWidth < window.outerWidth * 0.90) {
-          onViolation('split_screen', 'Floating window terdeteksi'); return;
-        }
+      if (typing) return;
+
+      const availH = window.screen.availHeight || window.screen.height;
+
+      // Split screen vertical (threshold 80%, sinkron UTBK) — skip iOS Safari
+      if (!(isIOS || isIPadOS) && window.innerHeight < availH * 0.80) {
+        onViolation('split_screen', 'Split screen vertikal terdeteksi'); return;
       }
+
+      // Split screen / floating horizontal (threshold 90%, sinkron UTBK)
+      if (window.innerWidth < window.outerWidth * 0.90) {
+        onViolation('split_screen', isAndroid ? 'Split screen Android terdeteksi' : 'Floating window terdeteksi'); return;
+      }
+
+      // Android tambahan: pop-up window / overlay (innerWidth < 75% screen.width)
+      if (isAndroid && window.innerWidth < window.screen.width * 0.75) {
+        onViolation('split_screen', 'Pop-up window atau overlay terdeteksi'); return;
+      }
+
+      lastAct.current = Date.now();
     }, 500);
 
-    document.addEventListener('visibilitychange', onVis);
+    // Register all
+    if (supportsVisibility) document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
-    document.addEventListener('fullscreenchange', onFS);
     document.addEventListener('copy', onCopy);
     document.addEventListener('paste', onPaste);
     document.addEventListener('contextmenu', onCtx);
     document.addEventListener('keydown', onKey);
+    document.addEventListener('fullscreenchange', onFS);
+    document.addEventListener('webkitfullscreenchange', onFS); // Safari desktop
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('popstate', onPopState);
 
     return () => {
       clearInterval(checkIv.current);
       if (fsTimer.current) clearTimeout(fsTimer.current);
-      document.removeEventListener('visibilitychange', onVis);
+      if (supportsVisibility) document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('blur', onBlur);
-      document.removeEventListener('fullscreenchange', onFS);
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('paste', onPaste);
       document.removeEventListener('contextmenu', onCtx);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFS);
+      document.removeEventListener('webkitfullscreenchange', onFS);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('popstate', onPopState);
       if (document.head.contains(style)) document.head.removeChild(style);
     };
-  }, [active, onViolation, ios]);
+  }, [active, onViolation]);
 
   return null;
 };
@@ -427,30 +654,31 @@ const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, an
 // ─────────────────────────────────────────────────────────────────
 const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, submitError, variant }) => {
   const { profile } = useAuth();
-  const [current,         setCurrent]        = useState(0);
-  const [answers,         setAnswers]        = useState({});
-  const [timeLeft,        setTimeLeft]       = useState(() => calcRemainingTime(result, session));
-  const [showSubmit,      setShowSubmit]     = useState(false);
-  const [showNavDrawer,   setShowNavDrawer]  = useState(false);
-  const [securityActive,      setSecurityActive]      = useState(true);
-  const [violationScore,      setViolationScore]      = useState(result.violation_score||0);
-  const [violationCounts,     setViolationCounts]     = useState(result.violation_counts||{});
-  const [forceSubmitted,      setForceSubmitted]      = useState(false);
-  const [showViolationWarning,setShowViolationWarning]= useState(false);
-  const [lastViolationMsg,    setLastViolationMsg]    = useState('');
-  const [currentViolScore,    setCurrentViolScore]    = useState(result.violation_score||0);
-  const [isPaused,            setIsPaused]            = useState(false);
-  const [pauseCount,          setPauseCount]          = useState(0);
-  const [pauseTimeLeft,       setPauseTimeLeft]       = useState(PAUSE_DUR);
-  const [isMobile,            setIsMobile]            = useState(() => window.innerWidth < 768);
+  const { isIOS, isIPadOS, isAndroid, isMobileBrowser, supportsFullscreen } = detectDevice();
+
+  const [current,              setCurrent]             = useState(0);
+  const [answers,              setAnswers]             = useState({});
+  const [timeLeft,             setTimeLeft]            = useState(() => calcRemainingTime(result, session));
+  const [showSubmit,           setShowSubmit]          = useState(false);
+  const [showNavDrawer,        setShowNavDrawer]       = useState(false);
+  const [securityActive,       setSecurityActive]      = useState(true);
+  const [violationScore,       setViolationScore]      = useState(result.violation_score||0);
+  const [violationCounts,      setViolationCounts]     = useState(result.violation_counts||{});
+  const [forceSubmitted,       setForceSubmitted]      = useState(false);
+  const [showViolationWarning, setShowViolationWarning]= useState(false);
+  const [lastViolationMsg,     setLastViolationMsg]    = useState('');
+  const [currentViolScore,     setCurrentViolScore]    = useState(result.violation_score||0);
+  const [isPaused,             setIsPaused]            = useState(false);
+  const [pauseCount,           setPauseCount]          = useState(0);
+  const [pauseTimeLeft,        setPauseTimeLeft]       = useState(PAUSE_DUR);
+  const [isMobile,             setIsMobile]            = useState(() => window.innerWidth < 768);
 
   const handleSubmitRef  = useRef(null);
   const lastViolTime     = useRef({});
-  const violScoreRef     = useRef(result.violation_score||0);   // sync ref agar closure handleViolation selalu fresh
-  const violCountsRef    = useRef(result.violation_counts||{}); // idem
+  const violScoreRef     = useRef(result.violation_score||0);
+  const violCountsRef    = useRef(result.violation_counts||{});
   const pauseEnd         = useRef(null);
 
-  // ── LANGKAH D: Buat tracker
   const track = useMemo(() => createTracker({
     studentId:      profile?.id,
     schoolId:       profile?.school_id,
@@ -460,7 +688,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     variant,
   }), [profile?.id, profile?.school_id, result.id, session.id, session.experiment_id, variant]);
 
-  // ── LANGKAH E: Tambah event di useEffect mount (exam_started) 
   useEffect(() => {
     track(EXAM_EVENTS.EXAM_STARTED, {
       question_count: questions.length,
@@ -515,36 +742,35 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
   const handleSubmit = useCallback((auto=false)=>{
     track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
-      answered_count:  Object.keys(answers).length,
-      total:           questions.length,
-      violation_score: violationScore,
-      violation_counts:violationCounts,
-      time_left:       timeLeft,
-      auto_reason:     auto ? `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}` : null,
+      answered_count:   Object.keys(answers).length,
+      total:            questions.length,
+      violation_score:  violationScore,
+      violation_counts: violationCounts,
+      time_left:        timeLeft,
+      auto_reason:      auto ? `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}` : null,
     });
     setSecurityActive(false);
     const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
     onSubmit(arr,violationScore,auto);
-  },[answers,questions,onSubmit,violationScore, track, timeLeft]);
+  },[answers,questions,onSubmit,violationScore,track,timeLeft]);
 
   useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
 
-  // ── SCORING VIOLATION HANDLER — ala UTBK SecurityMonitor ─────────────────────
-  // Grace → poin akumulasi → warning modal → auto-submit saat ≥ maxTotalScore
+  // ── SCORING VIOLATION HANDLER ─────────────────────────────────
+  // FIX: showViolationWarning DIHAPUS dari guard — pelanggaran tetap tercatat
+  // saat modal terbuka (sinkron dengan UTBK, mencegah bypass via exit-fullscreen-saat-modal)
   const handleViolation = useCallback(async (type, detail) => {
-    if (!securityActive || isPaused || forceSubmitted || showViolationWarning) return;
+    if (!securityActive || isPaused || forceSubmitted) return;
 
     const now = Date.now();
     if ((now - (lastViolTime.current[type] || 0)) < VIOLATION_SCORING.debounceMs) return;
     lastViolTime.current[type] = now;
 
-    // Resolve kategori; rightClick (null) = blok tanpa poin
     const category = VIOLATION_TYPE_MAP[type] ?? type;
     if (!category) return;
     const cfg = VIOLATION_SCORING.types[category];
     if (!cfg) return;
 
-    // Count per kategori via ref (fresh selalu, aman di closure)
     const prevCount = (violCountsRef.current[category] || 0);
     const newCount  = prevCount + 1;
     const isGrace   = newCount <= cfg.grace;
@@ -567,7 +793,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       violation_score: newScore,
     });
 
-    // Log ke Supabase (fire-and-forget)
     supabase.rpc('append_violation', {
       p_result_id:   result.id,
       p_type:        category,
@@ -577,13 +802,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       p_score_total: newScore,
     }).catch(() => {});
 
-    // Grace: diam-diam, tidak ganggu siswa
     if (isGrace) {
       console.warn(`[GRACE] ${category} #${newCount}/${cfg.grace}: ${detail}`);
       return;
     }
 
-    // Auto-submit jika poin capai threshold
     if (newScore >= VIOLATION_SCORING.maxTotalScore) {
       setForceSubmitted(true);
       setSecurityActive(false);
@@ -592,37 +815,37 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       return;
     }
 
-    // Tampilkan warning modal untuk pelanggaran non-fatal
     setLastViolationMsg(detail);
     setShowViolationWarning(true);
-  }, [securityActive, isPaused, forceSubmitted, showViolationWarning, result.id, track]);
+  }, [securityActive, isPaused, forceSubmitted, result.id, track]);
 
-  const handlePause=useCallback(()=>{
+  const handlePause = useCallback(()=>{
     if(pauseCount>=MAX_PAUSE) return;
-    // ── LANGKAH H: Tambah event di handlePause
     track(EXAM_EVENTS.PAUSE_USED, { pause_count_used: pauseCount + 1 });
     setPauseCount(c=>c+1); setPauseTimeLeft(PAUSE_DUR);
     pauseEnd.current=Date.now()+PAUSE_DUR*1000;
     setIsPaused(true);
-    if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-  },[pauseCount, track]);
+    if(supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(()=>{});
+  },[pauseCount,track,supportsFullscreen]);
 
-  const handleResume=useCallback(()=>{
+  const handleResume = useCallback(()=>{
     setIsPaused(false);
-    if(!checkIOS()) document.documentElement.requestFullscreen().catch(()=>{});
-  },[]);
+    if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
+  },[supportsFullscreen]);
 
+  // Request fullscreen on mount (Desktop + Android Chrome, skip iOS/iPadOS)
   useEffect(()=>{
-    if(!checkIOS()&&!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-    return()=>{ if(!checkIOS()&&document.fullscreenElement) document.exitFullscreen().catch(()=>{}); };
-  },[]);
+    if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
+    return()=>{
+      if(supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(()=>{});
+    };
+  },[supportsFullscreen]);
 
   const q        = questions[current];
   if(!q) return null;
   const answered = questions.filter(q=>answers[q.id]!==undefined&&answers[q.id]!==null&&answers[q.id]!=='').length;
   const crit     = timeLeft<TIMER_WARNING_THRESHOLD;
   const pct      = Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100);
-  // 3 level: hijau (aman) → kuning (mendekati warn) → merah (danger ≥ warn threshold)
   const sc       = violationScore >= WARN_VIOLATION_SCORE ? '#DC2626'
                  : violationScore > 0                     ? '#F59E0B'
                  :                                          '#16A34A';
@@ -631,7 +854,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   return (
     <div style={{ minHeight:'100vh', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }} onContextMenu={e=>e.preventDefault()}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600 ;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -639,10 +862,24 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         .opt-btn:active{transform:scale(.98);}
       `}</style>
 
-      <SecurityMonitor active={securityActive&&!isPaused} onViolation={handleViolation}/>
-      {isPaused&&<PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
+      {/* Security Monitor — cross-platform */}
+      <SecurityMonitor active={securityActive && !isPaused} onViolation={handleViolation}/>
 
-      {/* ── Violation Warning Modal — tampil saat poin belum capai threshold ── */}
+      {/* Landscape Blocker — mobile only */}
+      {isMobileBrowser && <LandscapeBlocker onViolation={handleViolation}/>}
+
+      {/* iOS/iPadOS Notice Banner */}
+      {(isIOS || isIPadOS) && securityActive && (
+        <div style={{ background:'rgba(59,130,246,.12)', borderBottom:'1px solid rgba(59,130,246,.25)', padding:'7px 16px', display:'flex', alignItems:'center', gap:8, fontSize:11, color:'#93C5FD' }}>
+          <Smartphone size={12}/>
+          <span><strong>iOS/iPadOS:</strong> Fullscreen tidak tersedia di Safari. Sistem keamanan lain tetap aktif. Jangan switch app atau buka notifikasi.</span>
+        </div>
+      )}
+
+      {isPaused && <PauseModal timeLeft={pauseTimeLeft} count={pauseCount} onResume={handleResume}/>}
+
+      {/* Violation Warning Modal
+          NOTE: tidak memblok handleViolation — pelanggaran tetap dicatat saat modal terbuka */}
       {showViolationWarning && !isPaused && (
         <ViolationModal
           message={lastViolationMsg}
@@ -650,14 +887,14 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
           isHard={currentViolScore >= WARN_VIOLATION_SCORE}
           onClose={() => {
             setShowViolationWarning(false);
-            // Re-aktifkan fullscreen setelah menutup modal
-            if (!checkIOS() && !document.fullscreenElement) {
-              document.documentElement.requestFullscreen().catch(() => {});
+            // Re-aktifkan fullscreen setelah tutup modal (Desktop + Android)
+            if (supportsFullscreen && !getFullscreenElement()) {
+              requestFullscreen().catch(() => {});
             }
           }}
         />
       )}
-      
+
       <NavDrawer
         open={showNavDrawer} onClose={()=>setShowNavDrawer(false)}
         total={questions.length} current={current} answers={answers} questions={questions}
@@ -715,15 +952,12 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
       {/* ── MAIN CONTENT ── */}
       <div style={{
-        maxWidth: 900,
-        margin: '0 auto',
+        maxWidth: 900, margin: '0 auto',
         padding: isMobile ? '16px 14px 100px' : '24px 20px',
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '1fr 220px',
-        gap: 20,
-        alignItems: 'start',
+        gap: 20, alignItems: 'start',
       }}>
-
         <div style={{ background:'#fff', borderRadius:16, border:'1px solid #F1F5F9', padding: isMobile ? 18 : 28, boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
             <div style={{ width:34, height:34, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14, color:'#0891B2', flexShrink:0 }}>{current+1}</div>
@@ -740,14 +974,14 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
           <div style={{ fontSize: isMobile ? 15 : 16, lineHeight:1.8, color:'#0F172A', marginBottom:20 }}>{q.question}</div>
 
           {q.type==='multiple_choice'&&(
-            <div style={{ display:'flex', flexDirection:'column', gap: isMobile ? 10 : 10 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               {q.options?.map((opt,i)=>{
                 const lbl=opts[i]; const sel=answers[q.id]===lbl;
                 return (
                   <button key={i} className="opt-btn" onClick={()=>setAnswers(a=>({...a,[q.id]:lbl}))}
                     style={{ display:'flex', alignItems:'center', gap:12, padding: isMobile ? '14px 14px' : '13px 16px', borderRadius:12, border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#EFF6FF':'#F8FAFC', cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", minHeight:52, touchAction:'manipulation' }}>
                     <div style={{ width:30, height:30, borderRadius:'50%', border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#0891B2':'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:13, color:sel?'#fff':'#94A3B8', flexShrink:0 }}>{lbl}</div>
-                    <span style={{ fontSize: isMobile ? 14 : 14, color:sel?'#0C4A6E':'#374151', fontWeight:sel?500:400, lineHeight:1.5 }}>{opt}</span>
+                    <span style={{ fontSize:14, color:sel?'#0C4A6E':'#374151', fontWeight:sel?500:400, lineHeight:1.5 }}>{opt}</span>
                   </button>
                 );
               })}
@@ -932,10 +1166,7 @@ export default function ExamRoom() {
   const navigate      = useNavigate();
   const [screen,      setScreen]      = useState('token');
   const [session,     setSession]     = useState(null);
-  
-  // ── LANGKAH B: Ambil experiment_id dari session yang sudah di-fetch
   const { variant } = useExperiment(session?.experiment_id ?? null);
-
   const [questions,   setQuestions]   = useState([]);
   const [result,      setResult]      = useState(null);
   const [tokenError,  setTokenError]  = useState('');
@@ -943,7 +1174,6 @@ export default function ExamRoom() {
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  // FIX: resolve variant langsung saat token valid (bukan dari hook yang masih null)
   const resolveVariantForSession = async (sess) => {
     if (!sess.experiment_id || !profile?.class_id) return null;
     const cacheKey = `zidu_exp_${sess.experiment_id}_${profile.class_id}`;
@@ -974,92 +1204,35 @@ export default function ExamRoom() {
       if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
       let qShow=qs;
       if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
-      // FIX: potong sesuai total_questions yang dikonfigurasi guru
-      if(sess.total_questions && sess.total_questions < qShow.length){
-        qShow = qShow.slice(0, sess.total_questions);
-      }
-
+      if(sess.total_questions && sess.total_questions < qShow.length) qShow=qShow.slice(0,sess.total_questions);
       setSession(sess);setQuestions(qShow);
-
-      // FIX: resolve variant langsung (bukan dari hook yang async dan masih null)
       const resolvedVariant = await resolveVariantForSession(sess);
-
-      trackExamEvent({
-        eventType:      EXAM_EVENTS.TOKEN_VALID,
-        studentId:      profile.id,
-        schoolId:       profile.school_id,
-        examSessionId:  sess.id,
-        experimentId:   sess.experiment_id ?? null,
-        variant:        resolvedVariant,
-        properties: { exam_type: sess.exam_type, class_id: profile.class_id },
-      });
-
+      trackExamEvent({ eventType:EXAM_EVENTS.TOKEN_VALID, studentId:profile.id, schoolId:profile.school_id, examSessionId:sess.id, experimentId:sess.experiment_id??null, variant:resolvedVariant, properties:{ exam_type:sess.exam_type, class_id:profile.class_id } });
       if(!existing){
-        const {data:nr}=await supabase.from('exam_results').insert([{
-          exam_session_id:sess.id,
-          student_id:profile.id,
-          answers:[],
-          status:'in_progress',
-          violation_count:0,
-          violation_score:0,
-          violation_counts:{},
-          violations:[],
-          started_at:new Date().toISOString(),
-          created_at:new Date().toISOString(),
-          updated_at:new Date().toISOString(),
-          experiment_id: sess.experiment_id ?? null,
-          variant_name:  resolvedVariant,  // FIX: tidak null lagi
-        }]).select().single();
+        const {data:nr}=await supabase.from('exam_results').insert([{ exam_session_id:sess.id, student_id:profile.id, answers:[], status:'in_progress', violation_count:0, violation_score:0, violation_counts:{}, violations:[], started_at:new Date().toISOString(), created_at:new Date().toISOString(), updated_at:new Date().toISOString(), experiment_id:sess.experiment_id??null, variant_name:resolvedVariant }]).select().single();
         setResult(nr);
       } else {setResult(existing);}
       setScreen('confirm');
     } catch(err){
-      const msg = err.message||'Terjadi kesalahan.';
+      const msg=err.message||'Terjadi kesalahan.';
       setTokenError(msg);
-      // ── LANGKAH C: Untuk token invalid, di catch block handleEnterToken
-      trackExamEvent({
-        eventType:      EXAM_EVENTS.TOKEN_INVALID,
-        studentId:      profile.id,
-        schoolId:       profile.school_id,
-        properties: { reason: msg },
-      });
-    }
-    finally{setTokenLoading(false);}
+      trackExamEvent({ eventType:EXAM_EVENTS.TOKEN_INVALID, studentId:profile.id, schoolId:profile.school_id, properties:{ reason:msg } });
+    } finally{setTokenLoading(false);}
   };
 
   const handleSubmit=async(arr,vScore,auto)=>{
-    setSubmitting(true);
-    setSubmitError('');
+    setSubmitting(true); setSubmitError('');
     try {
       const {data,error}=await supabase.rpc('calculate_and_submit_exam',{p_result_id:result.id,p_answers:arr});
       if(error) throw error;
       try{localStorage.removeItem(EXAM_SAVE_KEY(result.id));}catch{}
-      setResult(p=>({...p,...data}));
-      setScreen('result');
-
-      // ── LANGKAH I: Di handleSubmit di ExamRoom (parent), setelah berhasil
-      trackExamEvent({
-        eventType:     EXAM_EVENTS.EXAM_SUBMITTED,
-        studentId:     profile.id,
-        schoolId:      profile.school_id,
-        examSessionId: session.id,
-        examResultId:  result.id,
-        experimentId:  session.experiment_id ?? null,
-        variant,
-        properties: {
-          score:           data.score,
-          passed:          data.passed,
-          violation_score: vScore,
-          auto_submitted:  auto,
-        },
-      });
-
+      setResult(p=>({...p,...data})); setScreen('result');
+      trackExamEvent({ eventType:EXAM_EVENTS.EXAM_SUBMITTED, studentId:profile.id, schoolId:profile.school_id, examSessionId:session.id, examResultId:result.id, experimentId:session.experiment_id??null, variant, properties:{ score:data.score, passed:data.passed, violation_score:vScore, auto_submitted:auto } });
     } catch(err){
-      const msg = err?.message || 'Koneksi gagal. Cek internet lalu coba lagi.';
+      const msg=err?.message||'Koneksi gagal. Cek internet lalu coba lagi.';
       setSubmitError(msg);
       console.error('[ExamRoom submit error]', err);
-    }
-    finally{setSubmitting(false);}
+    } finally{setSubmitting(false);}
   };
 
   if(screen==='token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError}/>;
@@ -1073,7 +1246,6 @@ export default function ExamRoom() {
         </div>
       </div>
     );
-    // ── Kirim prop variant ke ExamRoomContent
     return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} submitError={submitError} variant={variant}/>;
   }
   if(screen==='result') return <ResultScreen result={result} session={session} onBack={()=>navigate('/student')}/>;
