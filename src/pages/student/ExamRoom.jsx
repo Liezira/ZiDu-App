@@ -688,7 +688,15 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
   const [current,              setCurrent]             = useState(0);
   const [answers,              setAnswers]             = useState({});
-  const [timeLeft,             setTimeLeft]            = useState(() => calcRemainingTime(result, session));
+  // Hitung dari endTime absolut agar akurat walau ada delay mount
+  const examEndTime = useRef(result?.started_at
+    ? new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000
+    : Date.now() + session.duration_minutes * 60 * 1000
+  );
+  const [timeLeft,             setTimeLeft]            = useState(() => {
+    const rem = Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000));
+    return rem;
+  });
   const [showSubmit,           setShowSubmit]          = useState(false);
   const [showNavDrawer,        setShowNavDrawer]       = useState(false);
   const [securityActive,       setSecurityActive]      = useState(true);
@@ -761,13 +769,20 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   }, [answers,questions,result.id]);
 
   useEffect(() => {
-    if(isPaused) return;
+    // Hentikan timer jika paused atau sudah force-submitted
+    if(isPaused || forceSubmitted) return;
     if(timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
     const iv=setInterval(()=>{
-      setTimeLeft(t=>{ if(t<=1){clearInterval(iv);handleSubmitRef.current?.(true);return 0;} return t-1; });
+      // Hitung dari endTime absolut — tidak ada drift akibat setInterval skew
+      const rem = Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000));
+      setTimeLeft(rem);
+      if(rem <= 0){
+        clearInterval(iv);
+        if(!forceSubmittedRef.current) handleSubmitRef.current?.(true);
+      }
     }, 1000);
     return ()=>clearInterval(iv);
-  }, [isPaused]); // eslint-disable-line
+  }, [isPaused, forceSubmitted]); // eslint-disable-line
 
   useEffect(() => {
     if(!isPaused) return;
@@ -780,19 +795,24 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   }, [isPaused]); // eslint-disable-line
 
   const handleSubmit = useCallback((auto=false)=>{
+    // Pakai ref agar selalu fresh — violationScore di closure bisa stale
+    const currentVScore  = violScoreRef.current;
+    const currentVCounts = violCountsRef.current;
     track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
       answered_count:   Object.keys(answers).length,
       total:            questions.length,
-      violation_score:  violationScore,
-      violation_counts: violationCounts,
+      violation_score:  currentVScore,
+      violation_counts: currentVCounts,
       time_left:        timeLeft,
       auto_reason:      auto ? `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}` : null,
     });
     securityActiveRef.current = false;
+    forceSubmittedRef.current = true;
     setSecurityActive(false);
+    setForceSubmitted(true);
     const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
-    onSubmit(arr,violationScore,auto);
-  },[answers,questions,onSubmit,violationScore,track,timeLeft]);
+    onSubmit(arr, currentVScore, auto);
+  },[answers,questions,onSubmit,track,timeLeft]);
 
   useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
 
@@ -874,10 +894,12 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   },[pauseCount,track,supportsFullscreen]);
 
   const handleResume = useCallback(()=>{
-    isPausedRef.current = false; // sync ref immediately
+    // Rebuild endTime dari timeLeft sisa saat resume (sinkron UTBK handleResume)
+    examEndTime.current = Date.now() + timeLeft * 1000;
+    isPausedRef.current = false;
     setIsPaused(false);
     if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
-  },[supportsFullscreen]);
+  },[supportsFullscreen, timeLeft]);
 
   // Request fullscreen on mount (Desktop + Android Chrome, skip iOS/iPadOS)
   useEffect(()=>{
