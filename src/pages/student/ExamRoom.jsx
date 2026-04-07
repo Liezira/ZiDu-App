@@ -720,6 +720,10 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const securityActiveRef  = useRef(true);
   const isPausedRef        = useRef(false);
   const forceSubmittedRef  = useRef(false);
+  // Ref untuk data ujian — dipakai forceSubmitExam tanpa closure
+  const answersRef         = useRef({});
+  const questionsRef       = useRef(questions);
+  const onSubmitRef        = useRef(onSubmit);
 
   const track = useMemo(() => createTracker({
     studentId:      profile?.id,
@@ -746,10 +750,12 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Sync state → ref saat state berubah (runs synchronously after render)
+  // Sync state → ref saat state berubah
   useEffect(() => { securityActiveRef.current = securityActive; });
   useEffect(() => { isPausedRef.current = isPaused; });
   useEffect(() => { forceSubmittedRef.current = forceSubmitted; });
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+  useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
 
   useEffect(() => {
     try { const s=localStorage.getItem(EXAM_SAVE_KEY(result.id)); if(s) setAnswers(JSON.parse(s)); } catch {}
@@ -778,7 +784,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       setTimeLeft(rem);
       if(rem <= 0){
         clearInterval(iv);
-        if(!forceSubmittedRef.current) handleSubmitRef.current?.(true);
+        if(!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis');
       }
     }, 1000);
     return ()=>clearInterval(iv);
@@ -794,8 +800,36 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return ()=>clearInterval(iv);
   }, [isPaused]); // eslint-disable-line
 
+  // ── FORCE SUBMIT — dipanggil oleh violation handler & timer, pakai refs semua ──
+  // Tidak ada stale closure: semua data dari ref yang selalu fresh
+  const forceSubmitExam = useCallback((reason) => {
+    if (forceSubmittedRef.current) return; // guard double-submit
+    forceSubmittedRef.current = true;
+    securityActiveRef.current = false;
+    setForceSubmitted(true);
+    setSecurityActive(false);
+    setShowViolationWarning(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+
+    const currentVScore  = violScoreRef.current;
+    const currentVCounts = violCountsRef.current;
+    const currentAnswers = answersRef.current;
+    const arr = questionsRef.current.map(q => ({
+      question_id: q.id,
+      answer: currentAnswers[q.id] ?? null,
+      type: q.type,
+    }));
+
+    // Langsung panggil onSubmit — tidak lewat handleSubmit agar tidak ada ref lag
+    onSubmitRef.current(arr, currentVScore, true);
+  }, []); // deps kosong — semua pakai ref
+
+  const forceSubmitRef = useRef(forceSubmitExam);
+  useEffect(() => { forceSubmitRef.current = forceSubmitExam; }, [forceSubmitExam]);
+
   const handleSubmit = useCallback((auto=false)=>{
-    // Pakai ref agar selalu fresh — violationScore di closure bisa stale
+    if (forceSubmittedRef.current) return; // guard: sudah di-submit oleh forceSubmitExam
     const currentVScore  = violScoreRef.current;
     const currentVCounts = violCountsRef.current;
     track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
@@ -869,12 +903,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     }
 
     if (newScore >= VIOLATION_SCORING.maxTotalScore) {
-      forceSubmittedRef.current = true;
-      securityActiveRef.current = false;
-      setForceSubmitted(true);
-      setSecurityActive(false);
-      setShowViolationWarning(false);
-      handleSubmitRef.current?.(true);
+      // Panggil forceSubmitRef — tidak pakai handleSubmitRef agar tidak ada stale closure
+      forceSubmitRef.current?.(`poin pelanggaran ${newScore} ≥ ${VIOLATION_SCORING.maxTotalScore}`);
       return;
     }
 
