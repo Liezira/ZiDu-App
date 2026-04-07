@@ -18,19 +18,22 @@ const AUTOSAVE_INTERVAL_MS    = 30_000;
 const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
-// ── SISTEM SKORING PELANGGARAN (sinkron dengan UTBK SecurityMonitor) ──────────
+// ── SISTEM SKORING PELANGGARAN — identik dengan UTBK Admin/Student config ─────
+// Sumber: VIOLATION_SCORING di utbk-simulation-tester-student & admin
 const VIOLATION_SCORING = {
   types: {
-    tab_switch:   { label: 'Pindah Tab / Window',        deduction: 5,  grace: 1 },
-    fullscreen:   { label: 'Keluar Fullscreen',           deduction: 3,  grace: 2 },
-    copy_paste:   { label: 'Copy / Paste',                deduction: 8,  grace: 0 },
-    devtools:     { label: 'Buka DevTools',               deduction: 20, grace: 0 },
-    split_screen: { label: 'Split Screen / Floating',     deduction: 10, grace: 0 },
-    orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 3,  grace: 1 },
-    screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 5,  grace: 1 },
+    // Nilai sinkron 100% dengan UTBK
+    tab_switch:   { label: 'Pindah Tab / Window',        deduction: 2,  grace: 1 },
+    fullscreen:   { label: 'Keluar Fullscreen',           deduction: 1,  grace: 2 },
+    copy_paste:   { label: 'Copy / Paste',                deduction: 3,  grace: 0 },
+    devtools:     { label: 'Buka DevTools',               deduction: 5,  grace: 0 },
+    split_screen: { label: 'Split Screen / Floating',     deduction: 3,  grace: 0 },
+    // Ekstensi ZiDu (tidak ada di UTBK, tapi tetap dipertahankan)
+    orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 1,  grace: 1 },
+    screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 2,  grace: 1 },
   },
-  maxTotalScore:   20,
-  warnThreshold:   10,
+  maxTotalScore:   15,   // = UTBK maxTotalDeduction
+  warnThreshold:   8,    // = UTBK warningThreshold
   debounceMs:      1500,
 };
 
@@ -207,13 +210,13 @@ const TokenEntry = ({ onEnter, loading, error }) => {
           </div>
           {[
             `✅ Grace period: tab-switch (1×), fullscreen (2×) tidak langsung kena poin`,
-            `⚠️ Pindah tab/app: +5 poin per kejadian`,
-            `⚠️ Keluar fullscreen: +3 poin per kejadian`,
-            `🚫 Copy/Paste: +8 poin — langsung diblok`,
-            `🚫 Split Screen / Floating: +10 poin`,
-            `🚫 Buka DevTools: +20 poin — hampir pasti auto-submit`,
-            `📱 Rotasi landscape (mobile): +3 poin`,
-            `❌ Total ≥ ${MAX_VIOLATION_SCORE} poin → Submit Otomatis`,
+            `⚠️ Pindah tab/app: +2 poin per kejadian`,
+            `⚠️ Keluar fullscreen: +1 poin per kejadian (grace 2×)`,
+            `🚫 Copy/Paste: +3 poin — langsung diblok`,
+            `🚫 Split Screen / Floating: +3 poin`,
+            `🚫 Buka DevTools: +5 poin`,
+            `📱 Rotasi landscape (mobile): +1 poin`,
+            `❌ Total ≥ ${MAX_VIOLATION_SCORE} poin = Auto Submit Otomatis`,
           ].map(t => (
             <div key={t} style={{ display:'flex', gap:7 }}><span style={{ color:'#0891B2', flexShrink:0 }}>·</span>{t}</div>
           ))}
@@ -261,9 +264,9 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
           ))}
         </div>
         <div style={{ background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.25)', borderRadius:12, padding:'12px 14px', marginBottom:24, fontSize:13, color:'#FDE68A', lineHeight:1.7 }}>
-          <strong>⚠️ SISTEM SKORING PELANGGARAN:</strong>
+          <strong>⚠️ SISTEM SKORING PELANGGARAN (sinkron UTBK):</strong>
           <div style={{ marginTop:6, fontSize:12, color:'#94A3B8', lineHeight:1.8 }}>
-            Pindah tab (+5) · Keluar fullscreen (+3) · Copy/Paste (+8) · Split screen (+10) · DevTools (+20) · Landscape mobile (+3).
+            Pindah tab (+2) · Keluar fullscreen (+1, grace 2×) · Copy/Paste (+3) · Split screen (+3) · DevTools (+5) · Landscape (+1).
             Ada grace period untuk pelanggaran tidak sengaja. Total ≥ <strong style={{color:'#FCA5A5'}}>{MAX_VIOLATION_SCORE} poin</strong> = ujian otomatis dikumpulkan.
           </div>
         </div>
