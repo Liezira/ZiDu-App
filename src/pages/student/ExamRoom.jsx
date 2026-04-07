@@ -420,9 +420,16 @@ const PauseModal = ({ timeLeft, count, onResume }) => (
 // SECURITY MONITOR — Cross-platform: Desktop + iOS + Android
 // ─────────────────────────────────────────────────────────────────
 const SecurityMonitor = ({ active, onViolation }) => {
-  const fsTimer = useRef(null);
-  const checkIv = useRef(null);
-  const lastAct = useRef(Date.now());
+  const fsTimer     = useRef(null);
+  const checkIv     = useRef(null);
+  const lastAct     = useRef(Date.now());
+  // KUNCI FIX #1: simpan onViolation di ref — listener tidak perlu di-re-attach
+  // setiap kali handleViolation di parent di-recreate akibat state change
+  const onViolRef   = useRef(onViolation);
+  const wasInFS     = useRef(false); // track state fullscreen sebelumnya untuk polling
+
+  // Selalu sync ref tanpa trigger re-register listener
+  useEffect(() => { onViolRef.current = onViolation; }, [onViolation]);
 
   useEffect(() => {
     if (!active) return;
@@ -437,13 +444,15 @@ const SecurityMonitor = ({ active, onViolation }) => {
     `;
     document.head.appendChild(style);
 
+    // Init state fullscreen
+    wasInFS.current = !!getFullscreenElement();
+
     // ── 1. VISIBILITY CHANGE — works on ALL platforms including iOS Safari ──
     const onVis = () => {
       if (document.hidden) {
-        onViolation('tab_switch', 'Pindah tab atau app terdeteksi');
-        // Screenshot heuristic: very fast hide = possible screenshot
+        onViolRef.current('tab_switch', 'Pindah tab atau app terdeteksi');
         if (Date.now() - lastAct.current < 100) {
-          onViolation('screenshot', 'Kemungkinan screenshot terdeteksi');
+          onViolRef.current('screenshot', 'Kemungkinan screenshot terdeteksi');
         }
       } else {
         // Re-enter fullscreen on return (Desktop + Android Chrome)
@@ -454,86 +463,105 @@ const SecurityMonitor = ({ active, onViolation }) => {
       lastAct.current = Date.now();
     };
 
-    // ── 2. WINDOW BLUR — tab switch, Alt+Tab, Android notification bar ──
-    const onBlur = () => onViolation('tab_switch', 'Fokus window hilang');
+    // ── 2. WINDOW BLUR ──
+    const onBlur = () => onViolRef.current('tab_switch', 'Fokus window hilang');
 
     // ── 3. COPY / PASTE ──
-    const onCopy  = e => { e.preventDefault(); onViolation('copy_paste', 'Mencoba menyalin teks'); };
-    const onPaste = e => { e.preventDefault(); onViolation('copy_paste', 'Mencoba menempelkan teks'); };
+    const onCopy  = e => { e.preventDefault(); onViolRef.current('copy_paste', 'Mencoba menyalin teks'); };
+    const onPaste = e => { e.preventDefault(); onViolRef.current('copy_paste', 'Mencoba menempelkan teks'); };
 
-    // ── 4. CONTEXT MENU / RIGHT CLICK ──
+    // ── 4. CONTEXT MENU ──
     const onCtx = e => e.preventDefault();
 
-    // ── 5. KEYBOARD — Desktop (tidak relevan di mobile native, aman untuk didaftarkan) ──
+    // ── 5. KEYBOARD ──
     const onKey = e => {
-      if (e.key === 'F12') { e.preventDefault(); onViolation('devtools', 'Shortcut DevTools (F12)'); return; }
+      if (e.key === 'F12') { e.preventDefault(); onViolRef.current('devtools', 'Shortcut DevTools (F12)'); return; }
       if (e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase())) {
-        e.preventDefault(); onViolation('devtools', `Shortcut DevTools (Ctrl+Shift+${e.key})`); return;
+        e.preventDefault(); onViolRef.current('devtools', `Shortcut DevTools (Ctrl+Shift+${e.key})`); return;
       }
       if (e.ctrlKey && e.key.toUpperCase() === 'U') { e.preventDefault(); return; }
-      // Escape — cegah keluar fullscreen via keyboard
+      // Escape — KRITIS: ini cara paling umum siswa keluar fullscreen
       if (e.key === 'Escape') { e.preventDefault(); return; }
-      // Alt+Tab / Alt+F4 (Windows)
       if (e.altKey && (e.key === 'Tab' || e.key === 'F4')) {
-        e.preventDefault(); onViolation('tab_switch', `Shortcut pindah app (Alt+${e.key})`); return;
+        e.preventDefault(); onViolRef.current('tab_switch', `Shortcut pindah app (Alt+${e.key})`); return;
       }
-      // Windows / Meta key
-      if (e.metaKey && !e.ctrlKey) { e.preventDefault(); onViolation('tab_switch', 'Tombol Windows/Meta ditekan'); return; }
-      // Ctrl+W / T / N — tutup/buka tab
+      if (e.metaKey && !e.ctrlKey) { e.preventDefault(); onViolRef.current('tab_switch', 'Tombol Windows/Meta ditekan'); return; }
       if (e.ctrlKey && ['W','T','N'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
     };
 
-    // ── 6. FULLSCREEN CHANGE — Desktop + Android Chrome, skip iOS/iPadOS ──
+    // ── 6. FULLSCREEN CHANGE EVENT (Desktop + Android Chrome) ──
+    // Event-based — sebagai listener pertama
     const onFS = () => {
       if (isIOS || isIPadOS) return;
-      if (!getFullscreenElement()) {
+      const inFS = !!getFullscreenElement();
+      wasInFS.current = inFS;
+      if (!inFS) {
+        // Langsung re-request fullscreen
+        requestFullscreen().catch(() => {});
         if (fsTimer.current) clearTimeout(fsTimer.current);
-        // Grace 2000ms — sinkron UTBK
         fsTimer.current = setTimeout(() => {
-          if (!getFullscreenElement()) onViolation('fullscreen', 'Keluar dari mode fullscreen');
+          if (!getFullscreenElement()) {
+            onViolRef.current('fullscreen', 'Keluar dari mode fullscreen');
+          }
         }, FS_EXIT_GRACE_MS);
       } else {
         if (fsTimer.current) { clearTimeout(fsTimer.current); fsTimer.current = null; }
       }
     };
 
-    // ── 7. TOUCH — iOS/Android: deteksi gesture multi-jari (app switcher, screenshot) ──
+    // ── 7. TOUCH — multi-jari gesture ──
     const onTouchStart = e => {
       lastAct.current = Date.now();
-      // 3+ jari serentak = app switcher gesture (iOS) atau screenshot (beberapa Android)
       if (e.touches.length >= 3) {
-        onViolation('tab_switch', `Gesture multi-touch terdeteksi (${e.touches.length} jari)`);
+        onViolRef.current('tab_switch', `Gesture multi-touch terdeteksi (${e.touches.length} jari)`);
       }
     };
 
-    // ── 8. PAGE HIDE — lebih reliable di iOS Safari untuk navigasi keluar ──
+    // ── 8. PAGE HIDE — iOS Safari navigation ──
     const onPageHide = e => {
-      if (e.persisted) {
-        // masuk bfcache = user navigasi keluar
-        onViolation('tab_switch', 'Navigasi keluar halaman terdeteksi');
-      }
+      if (e.persisted) onViolRef.current('tab_switch', 'Navigasi keluar halaman terdeteksi');
     };
 
-    // ── 9. BEFORE UNLOAD — dialog konfirmasi saat tutup tab / refresh ──
+    // ── 9. BEFORE UNLOAD ──
     const onBeforeUnload = e => {
       e.preventDefault();
       e.returnValue = 'Ujian masih berlangsung. Yakin ingin keluar?';
       return e.returnValue;
     };
 
-    // ── 10. POPSTATE — trap tombol Back browser / Android back gesture ──
+    // ── 10. POPSTATE — back button trap ──
     window.history.pushState({ examActive: true }, '', window.location.href);
     const onPopState = () => {
       window.history.pushState({ examActive: true }, '', window.location.href);
-      onViolation('tab_switch', 'Tombol Back ditekan');
+      onViolRef.current('tab_switch', 'Tombol Back ditekan');
     };
 
-    // ── 11. INTERVAL 500ms — DevTools, split screen, floating window ──
+    // ── 11. INTERVAL 500ms — polling utama ──
+    // KUNCI FIX #2: polling fullscreen sebagai fallback karena fullscreenchange
+    // bisa tidak fire (browser intercept Escape sebelum event sampai ke listener)
     checkIv.current = setInterval(() => {
-      // DevTools width/height threshold 160px (sinkron UTBK)
+      // --- Fullscreen polling (FALLBACK, skip iOS/iPadOS) ---
+      if (supportsFullscreen && !(isIOS || isIPadOS)) {
+        const inFS = !!getFullscreenElement();
+        if (wasInFS.current && !inFS) {
+          // Baru saja keluar fullscreen — langsung paksa masuk lagi
+          requestFullscreen().catch(() => {});
+          if (!fsTimer.current) {
+            fsTimer.current = setTimeout(() => {
+              if (!getFullscreenElement()) {
+                onViolRef.current('fullscreen', 'Keluar dari mode fullscreen (terdeteksi polling)');
+              }
+              fsTimer.current = null;
+            }, FS_EXIT_GRACE_MS);
+          }
+        }
+        wasInFS.current = inFS;
+      }
+
+      // --- DevTools detection (threshold 160px, sinkron UTBK) ---
       const devW = window.outerWidth - window.innerWidth > 160;
       const devH = !(isIOS || isIPadOS) && (window.outerHeight - window.innerHeight > 160);
-      if (devW || devH) { onViolation('devtools', 'DevTools / Console terbuka'); return; }
+      if (devW || devH) { onViolRef.current('devtools', 'DevTools / Console terbuka'); return; }
 
       const tag    = document.activeElement?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA';
@@ -541,25 +569,25 @@ const SecurityMonitor = ({ active, onViolation }) => {
 
       const availH = window.screen.availHeight || window.screen.height;
 
-      // Split screen vertical (threshold 80%, sinkron UTBK) — skip iOS Safari
+      // Split screen vertical (threshold 80%, sinkron UTBK)
       if (!(isIOS || isIPadOS) && window.innerHeight < availH * 0.80) {
-        onViolation('split_screen', 'Split screen vertikal terdeteksi'); return;
+        onViolRef.current('split_screen', 'Split screen vertikal terdeteksi'); return;
       }
 
-      // Split screen / floating horizontal (threshold 90%, sinkron UTBK)
+      // Split screen / floating horizontal (threshold 90%)
       if (window.innerWidth < window.outerWidth * 0.90) {
-        onViolation('split_screen', isAndroid ? 'Split screen Android terdeteksi' : 'Floating window terdeteksi'); return;
+        onViolRef.current('split_screen', isAndroid ? 'Split screen Android terdeteksi' : 'Floating window terdeteksi'); return;
       }
 
-      // Android tambahan: pop-up window / overlay (innerWidth < 75% screen.width)
+      // Android pop-up / overlay
       if (isAndroid && window.innerWidth < window.screen.width * 0.75) {
-        onViolation('split_screen', 'Pop-up window atau overlay terdeteksi'); return;
+        onViolRef.current('split_screen', 'Pop-up window atau overlay terdeteksi'); return;
       }
 
       lastAct.current = Date.now();
     }, 500);
 
-    // Register all
+    // Register all listeners
     if (supportsVisibility) document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
     document.addEventListener('copy', onCopy);
@@ -567,7 +595,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
     document.addEventListener('contextmenu', onCtx);
     document.addEventListener('keydown', onKey);
     document.addEventListener('fullscreenchange', onFS);
-    document.addEventListener('webkitfullscreenchange', onFS); // Safari desktop
+    document.addEventListener('webkitfullscreenchange', onFS);
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -590,7 +618,9 @@ const SecurityMonitor = ({ active, onViolation }) => {
       window.removeEventListener('popstate', onPopState);
       if (document.head.contains(style)) document.head.removeChild(style);
     };
-  }, [active, onViolation]);
+  // KUNCI FIX #3: HAPUS onViolation dari deps — sudah pakai ref
+  // Sebelumnya [active, onViolation] menyebabkan listener re-attach setiap render
+  }, [active]);
 
   return null;
 };
@@ -673,11 +703,15 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const [pauseTimeLeft,        setPauseTimeLeft]       = useState(PAUSE_DUR);
   const [isMobile,             setIsMobile]            = useState(() => window.innerWidth < 768);
 
-  const handleSubmitRef  = useRef(null);
-  const lastViolTime     = useRef({});
-  const violScoreRef     = useRef(result.violation_score||0);
-  const violCountsRef    = useRef(result.violation_counts||{});
-  const pauseEnd         = useRef(null);
+  const handleSubmitRef    = useRef(null);
+  const lastViolTime       = useRef({});
+  const violScoreRef       = useRef(result.violation_score||0);
+  const violCountsRef      = useRef(result.violation_counts||{});
+  const pauseEnd           = useRef(null);
+  // Ref untuk state kritis — agar handleViolation stabil (tidak perlu recreate)
+  const securityActiveRef  = useRef(true);
+  const isPausedRef        = useRef(false);
+  const forceSubmittedRef  = useRef(false);
 
   const track = useMemo(() => createTracker({
     studentId:      profile?.id,
@@ -703,6 +737,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Sync state → ref saat state berubah (runs synchronously after render)
+  useEffect(() => { securityActiveRef.current = securityActive; });
+  useEffect(() => { isPausedRef.current = isPaused; });
+  useEffect(() => { forceSubmittedRef.current = forceSubmitted; });
 
   useEffect(() => {
     try { const s=localStorage.getItem(EXAM_SAVE_KEY(result.id)); if(s) setAnswers(JSON.parse(s)); } catch {}
@@ -749,6 +788,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       time_left:        timeLeft,
       auto_reason:      auto ? `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}` : null,
     });
+    securityActiveRef.current = false;
     setSecurityActive(false);
     const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
     onSubmit(arr,violationScore,auto);
@@ -760,7 +800,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   // FIX: showViolationWarning DIHAPUS dari guard — pelanggaran tetap tercatat
   // saat modal terbuka (sinkron dengan UTBK, mencegah bypass via exit-fullscreen-saat-modal)
   const handleViolation = useCallback(async (type, detail) => {
-    if (!securityActive || isPaused || forceSubmitted) return;
+    // Gunakan ref — tidak bergantung pada closure state yang bisa stale
+    if (!securityActiveRef.current || isPausedRef.current || forceSubmittedRef.current) return;
 
     const now = Date.now();
     if ((now - (lastViolTime.current[type] || 0)) < VIOLATION_SCORING.debounceMs) return;
@@ -808,6 +849,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     }
 
     if (newScore >= VIOLATION_SCORING.maxTotalScore) {
+      forceSubmittedRef.current = true;
+      securityActiveRef.current = false;
       setForceSubmitted(true);
       setSecurityActive(false);
       setShowViolationWarning(false);
@@ -817,18 +860,21 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
     setLastViolationMsg(detail);
     setShowViolationWarning(true);
-  }, [securityActive, isPaused, forceSubmitted, result.id, track]);
+  // Deps: hanya result.id & track — state pakai ref, tidak perlu di deps
+  }, [result.id, track]);
 
   const handlePause = useCallback(()=>{
     if(pauseCount>=MAX_PAUSE) return;
     track(EXAM_EVENTS.PAUSE_USED, { pause_count_used: pauseCount + 1 });
     setPauseCount(c=>c+1); setPauseTimeLeft(PAUSE_DUR);
     pauseEnd.current=Date.now()+PAUSE_DUR*1000;
+    isPausedRef.current = true; // sync ref immediately
     setIsPaused(true);
     if(supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(()=>{});
   },[pauseCount,track,supportsFullscreen]);
 
   const handleResume = useCallback(()=>{
+    isPausedRef.current = false; // sync ref immediately
     setIsPaused(false);
     if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
   },[supportsFullscreen]);
