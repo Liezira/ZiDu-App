@@ -816,7 +816,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     isPausedRef.current = false;
 
     const currentVScore  = violScoreRef.current;
-    const currentVCounts = violCountsRef.current;
     const currentAnswers = answersRef.current;
     const arr = questionsRef.current.map(q => ({
       question_id: q.id,
@@ -824,8 +823,19 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       type: q.type,
     }));
 
-    // Langsung panggil onSubmit — tidak lewat handleSubmit agar tidak ada ref lag
-    onSubmitRef.current(arr, currentVScore, true);
+    // FIX: Retry 3x jika submit gagal — pastikan force-submit benar-benar berhasil
+    const attemptSubmit = async (attempt = 1) => {
+      try {
+        await onSubmitRef.current(arr, currentVScore, true);
+      } catch {
+        if (attempt < 3) {
+          setTimeout(() => attemptSubmit(attempt + 1), 1500 * attempt);
+        }
+        // Setelah 3x gagal: tetap di screen exam tapi forceSubmitted=true
+        // submitError banner sudah tampil dari handleSubmit parent
+      }
+    };
+    attemptSubmit();
   }, []); // deps kosong — semua pakai ref
 
   const forceSubmitRef = useRef(forceSubmitExam);
@@ -861,10 +871,11 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     if (!securityActiveRef.current || isPausedRef.current || forceSubmittedRef.current) return;
 
     const now = Date.now();
-    if ((now - (lastViolTime.current[type] || 0)) < VIOLATION_SCORING.debounceMs) return;
-    lastViolTime.current[type] = now;
-
+    // FIX: debounce per CATEGORY (bukan type) — cegah visibility+blur double-hit
     const category = VIOLATION_TYPE_MAP[type] ?? type;
+    if (!category) return;
+    if ((now - (lastViolTime.current[category] || 0)) < VIOLATION_SCORING.debounceMs) return;
+    lastViolTime.current[category] = now;
     if (!category) return;
     const cfg = VIOLATION_SCORING.types[category];
     if (!cfg) return;
@@ -1046,8 +1057,17 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       </div>
 
       {submitError && (
-        <div style={{ background:'#FEF2F2', borderBottom:'1px solid #FECACA', padding:'10px 20px', display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#DC2626' }}>
-          <AlertCircle size={14}/> Gagal mengumpulkan: {submitError}. Coba lagi.
+        <div style={{ background:'#FEF2F2', borderBottom:'1px solid #FECACA', padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, fontSize:13, color:'#DC2626' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <AlertCircle size={14}/> Gagal mengumpulkan: {submitError}
+          </div>
+          {/* Tombol retry eksplisit — penting saat auto-submit gagal */}
+          <button
+            onClick={()=>{ if(forceSubmitted) { const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type})); onSubmit(arr,violationScore,true); } else setShowSubmit(true); }}
+            disabled={submitting}
+            style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif" }}>
+            {submitting ? 'Mengumpulkan…' : 'Coba Lagi'}
+          </button>
         </div>
       )}
 
