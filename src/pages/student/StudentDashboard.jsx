@@ -56,6 +56,42 @@ const StudentDashboard = () => {
       const liveSessions      = sessions.filter(s => new Date(s.start_time) <= now && new Date(s.end_time) >= now && !resultSessionIds.has(s.id));
       const upcomingSessions  = sessions.filter(s => new Date(s.start_time) > now).slice(0, 5);
       const availableSessions = [...liveSessions, ...upcomingSessions];
+      // Auto-submit hasil in_progress yang sudah expired (siswa tutup browser / waktu habis)
+      const isResultExpired = (r) => {
+        if (r.status !== 'in_progress') return false;
+        const session = r.exam_sessions;
+        if (!session) return false;
+        if (session.end_time && new Date(session.end_time) <= now) return true;
+        if (!session.end_time && session.duration_minutes && r.started_at) {
+          const examDeadline = new Date(new Date(r.started_at).getTime() + session.duration_minutes * 60 * 1000);
+          if (examDeadline <= now) return true;
+        }
+        return false;
+      };
+      const expiredInProgress = results.filter(r => isResultExpired(r));
+      if (expiredInProgress.length > 0) {
+        // Auto-submit semua result yang expired di background
+        await Promise.allSettled(expiredInProgress.map(r =>
+          supabase.rpc('calculate_and_submit_exam', {
+            p_result_id: r.id,
+            p_answers: Array.isArray(r.answers) ? r.answers : [],
+          }).then(() =>
+            supabase.from('exam_results').update({
+              force_submitted: true,
+              force_submit_reason: 'waktu ujian habis (auto-submit dari dashboard)',
+              updated_at: new Date().toISOString(),
+            }).eq('id', r.id)
+          )
+        ));
+        // Re-fetch setelah auto-submit agar status terupdate
+        const { data: updatedResults } = await supabase
+          .from('exam_results')
+          .select('id, status, score, mc_score, essay_score, passed, submitted_at, started_at, exam_session_id, exam_sessions(title, start_time, end_time, duration_minutes, exam_type, passing_score)')
+          .eq('student_id', profile.id)
+          .order('submitted_at', { ascending: false })
+          .limit(20);
+        if (updatedResults) results.splice(0, results.length, ...updatedResults);
+      }
       const inProgressResult  = results.find(r => {
         if (r.status !== 'in_progress') return false;
         const session = r.exam_sessions;
@@ -164,7 +200,7 @@ const StudentDashboard = () => {
                 left={<ScoreRing score={r.score} passed={r.passed} />}
                 title={r.exam_sessions?.title || 'Ujian'}
                 sub={<span>{fmtDate(r.submitted_at || r.exam_sessions?.start_time)}{r.passed !== null && <> · <span style={{ color: r.passed ? T.green : T.red, fontWeight: '600' }}>{r.passed ? '✓ Lulus' : '✗ Tidak Lulus'}</span></>}</span>}
-                right={<StatusBadge status={r.status} />}
+                right={<StatusBadge status={r.status} examSession={r.exam_sessions} startedAt={r.started_at} />}
               />
             ))}
           </SectionCard>

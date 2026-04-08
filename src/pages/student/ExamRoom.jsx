@@ -780,7 +780,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   useEffect(() => {
     // Hentikan timer jika paused atau sudah force-submitted
     if(isPaused || forceSubmitted) return;
-    if(timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
+    if(timeLeft <= 0) { if(!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis'); return; }
     const iv=setInterval(()=>{
       // Hitung dari endTime absolut — tidak ada drift akibat setInterval skew
       const rem = Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000));
@@ -1321,6 +1321,24 @@ export default function ExamRoom() {
       if(now>end){setTokenError('Ujian sudah berakhir.');return;}
       const {data:existing}=await supabase.from('exam_results').select('*').eq('exam_session_id',sess.id).eq('student_id',profile.id).maybeSingle();
       if(existing?.status==='submitted'||existing?.status==='graded'){setSession(sess);setResult(existing);setScreen('result');return;}
+      // Auto-submit jika in_progress tapi waktu ujian sudah habis
+      if(existing?.status==='in_progress' && now>end){
+        setTokenLoading(true);
+        try {
+          const arr = Array.isArray(existing.answers) ? existing.answers : [];
+          const {data:submitData, error:submitErr} = await supabase.rpc('calculate_and_submit_exam',{p_result_id:existing.id,p_answers:arr});
+          if(!submitErr && submitData){
+            await supabase.from('exam_results').update({ force_submitted:true, force_submit_reason:'waktu ujian habis (auto-submit saat re-open)', updated_at:new Date().toISOString() }).eq('id',existing.id);
+            setSession(sess);setResult({...existing,...submitData,force_submitted:true});setScreen('result');
+          } else {
+            // Submit gagal — tetap tampilkan result screen dengan data lama
+            setSession(sess);setResult({...existing,force_submitted:true});setScreen('result');
+          }
+        } catch {
+          setSession(sess);setResult({...existing,force_submitted:true});setScreen('result');
+        }
+        return;
+      }
       const {data:qs,error:qErr}=await supabase.from('questions').select('id,bank_id,type,question,options,image_url,difficulty,tags,score_weight').eq('bank_id',sess.question_bank_id);
       if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
       let qShow=qs;

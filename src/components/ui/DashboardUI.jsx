@@ -427,12 +427,27 @@ export const ErrorBanner = ({ message }) => (
 );
 
 // ── StatusBadge (exam result) ──────────────────────────────────────
-export const StatusBadge = ({ status }) => {
+// examSession opsional — jika diberikan, cek apakah in_progress sudah expired
+export const StatusBadge = ({ status, examSession, startedAt }) => {
+  // Cek apakah ujian in_progress sudah melewati batas waktu
+  const isExpired = (() => {
+    if (status !== 'in_progress') return false;
+    const now = new Date();
+    if (examSession?.end_time && new Date(examSession.end_time) <= now) return true;
+    if (!examSession?.end_time && examSession?.duration_minutes && startedAt) {
+      const deadline = new Date(new Date(startedAt).getTime() + examSession.duration_minutes * 60 * 1000);
+      if (deadline <= now) return true;
+    }
+    return false;
+  })();
+
   const map = {
-    graded:      { label: 'Dinilai',    color: T.green,  bg: T.greenLight  },
+    graded:      { label: 'Dinilai',    color: T.green,   bg: T.greenLight  },
     submitted:   { label: 'Dikumpul',   color: '#2563EB', bg: '#EFF6FF'    },
-    in_progress: { label: 'Berlangsung',color: T.amber,  bg: T.amberLight  },
-    grading:     { label: 'Menunggu',   color: T.purple, bg: T.purpleLight },
+    in_progress: isExpired
+      ? { label: 'Waktu Habis', color: '#6B7280', bg: '#F3F4F6' }
+      : { label: 'Berlangsung', color: T.amber,   bg: T.amberLight },
+    grading:     { label: 'Menunggu',   color: T.purple,  bg: T.purpleLight },
   };
   const m = map[status] || { label: status, color: T.textMuted, bg: T.surfaceAlt };
   return <Badge label={m.label} color={m.color} bg={m.bg} />;
