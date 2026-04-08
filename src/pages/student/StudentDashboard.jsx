@@ -44,7 +44,7 @@ const StudentDashboard = () => {
           .order('start_time', { ascending: false })
           .limit(30),
         supabase.from('exam_results')
-          .select('id, status, score, mc_score, essay_score, passed, submitted_at, exam_session_id, exam_sessions(title, start_time, exam_type, passing_score)')
+          .select('id, status, score, mc_score, essay_score, passed, submitted_at, started_at, exam_session_id, exam_sessions(title, start_time, end_time, duration_minutes, exam_type, passing_score)')
           .eq('student_id', profile.id)
           .order('submitted_at', { ascending: false })
           .limit(20),
@@ -56,7 +56,17 @@ const StudentDashboard = () => {
       const liveSessions      = sessions.filter(s => new Date(s.start_time) <= now && new Date(s.end_time) >= now && !resultSessionIds.has(s.id));
       const upcomingSessions  = sessions.filter(s => new Date(s.start_time) > now).slice(0, 5);
       const availableSessions = [...liveSessions, ...upcomingSessions];
-      const inProgressResult  = results.find(r => r.status === 'in_progress');
+      const inProgressResult  = results.find(r => {
+        if (r.status !== 'in_progress') return false;
+        const session = r.exam_sessions;
+        if (!session) return false;
+        if (session.end_time && new Date(session.end_time) <= now) return false;
+        if (!session.end_time && session.duration_minutes && r.started_at) {
+          const examDeadline = new Date(new Date(r.started_at).getTime() + session.duration_minutes * 60 * 1000);
+          if (examDeadline <= now) return false;
+        }
+        return true;
+      });
       const gradedResults = results.filter(r => r.status === 'graded' && r.score !== null);
       const avgScore  = gradedResults.length ? Math.round(gradedResults.reduce((s, r) => s + r.score, 0) / gradedResults.length) : null;
       const passCount = gradedResults.filter(r => r.passed).length;
