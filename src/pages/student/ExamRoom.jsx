@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { createTracker, trackExamEvent } from '../../lib/examEvents';
-import { EXAM_EVENTS }   from '../../lib/experimentUtils';
+import { EXAM_EVENTS } from '../../lib/experimentUtils';
 import { useExperiment } from '../../hooks/useExperiment';
 import {
   Key, AlertCircle, Clock, ChevronLeft, ChevronRight,
@@ -11,29 +11,26 @@ import {
   XCircle, Pause, Play, Monitor, Grid, X, Smartphone,
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // CONSTANTS
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const AUTOSAVE_INTERVAL_MS    = 30_000;
 const TIMER_WARNING_THRESHOLD = 300;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
-// ── SISTEM SKORING PELANGGARAN — identik dengan UTBK Admin/Student config ─────
-// Sumber: VIOLATION_SCORING di utbk-simulation-tester-student & admin
+// -- SISTEM SKORING PELANGGARAN (sinkron UTBK Admin/Student config) --
 const VIOLATION_SCORING = {
   types: {
-    // Nilai sinkron 100% dengan UTBK
     tab_switch:   { label: 'Pindah Tab / Window',        deduction: 2,  grace: 1 },
     fullscreen:   { label: 'Keluar Fullscreen',           deduction: 1,  grace: 2 },
     copy_paste:   { label: 'Copy / Paste',                deduction: 3,  grace: 0 },
     devtools:     { label: 'Buka DevTools',               deduction: 5,  grace: 0 },
     split_screen: { label: 'Split Screen / Floating',     deduction: 3,  grace: 0 },
-    // Ekstensi ZiDu (tidak ada di UTBK, tapi tetap dipertahankan)
     orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 1,  grace: 1 },
     screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 2,  grace: 1 },
   },
-  maxTotalScore:   15,   // = UTBK maxTotalDeduction
-  warnThreshold:   8,    // = UTBK warningThreshold
+  maxTotalScore:   15,   // = UTBK maxTotalDeduction — threshold auto-submit
+  warnThreshold:   8,    // = UTBK warningThreshold — peringatan keras
   debounceMs:      1500,
 };
 
@@ -55,24 +52,24 @@ const VIOLATION_TYPE_MAP = {
   rightClick:       null,
 };
 
-const VIOLATION_CFG    = Object.fromEntries(
-  Object.entries(VIOLATION_SCORING.types).map(([k,v]) => [k, { label: v.label }])
+const VIOLATION_CFG = Object.fromEntries(
+  Object.entries(VIOLATION_SCORING.types).map(([k, v]) => [k, { label: v.label }])
 );
 const MAX_VIOLATION_SCORE  = VIOLATION_SCORING.maxTotalScore;
 const WARN_VIOLATION_SCORE = VIOLATION_SCORING.warnThreshold;
 
-// Grace fullscreen: 2000ms — sinkron dengan UTBK SECURITY_CONFIG.FULLSCREEN_EXIT_GRACE_PERIOD
+// Grace fullscreen: 2000ms — sinkron UTBK SECURITY_CONFIG.FULLSCREEN_EXIT_GRACE_PERIOD
 const FS_EXIT_GRACE_MS = 2000;
 const MAX_PAUSE        = 2;
 const PAUSE_DUR        = 300; // 5 menit
 
-// ─────────────────────────────────────────────────────────────────
-// DEVICE DETECTION — deteksi platform secara komprehensif
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
+// DEVICE DETECTION
+// =================================================================
 const detectDevice = () => {
   const ua = navigator.userAgent;
   const isIOS     = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-  // iPadOS 13+ melaporkan diri sebagai macOS — gunakan maxTouchPoints
+  // iPadOS 13+ melaporkan diri sebagai macOS — pakai maxTouchPoints
   const isIPadOS  = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
   const isAndroid = /Android/.test(ua);
   const isMobileBrowser = isIOS || isIPadOS || isAndroid ||
@@ -86,15 +83,15 @@ const detectDevice = () => {
   return { isIOS, isIPadOS, isAndroid, isMobileBrowser, supportsFullscreen, supportsVisibility };
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // HELPERS
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const pad        = (n) => String(n).padStart(2, '0');
 const formatTime = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 
 const calcRemainingTime = (result, session) => {
   if (!result?.started_at) return session.duration_minutes * 60;
-  const endTime   = new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000;
+  const endTime = new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000;
   return Math.max(0, Math.floor((endTime - Date.now()) / 1000));
 };
 
@@ -121,9 +118,9 @@ const getFullscreenElement = () =>
   document.mozFullScreenElement ||
   document.msFullscreenElement;
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // WAKE LOCK — cegah layar mati (iOS: NoSleep video fallback)
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 function useWakeLock(active) {
   const nativeLock = useRef(null);
   const videoEl    = useRef(null);
@@ -140,14 +137,13 @@ function useWakeLock(active) {
     if (!active) { releaseAll(); return; }
 
     if (needsVideoFallback) {
-      // NoSleep trick: 1px muted looping video memaksa layar tetap menyala di Safari iOS
+      // NoSleep trick: 1px muted looping video — memaksa layar tetap menyala di Safari iOS
       if (!videoEl.current) {
         const v = document.createElement('video');
         v.setAttribute('playsinline', '');
         v.setAttribute('muted', '');
         v.setAttribute('loop', '');
         v.style.cssText = 'position:fixed;top:-2px;left:-2px;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
-        // Minimal valid MP4 (1 frame, ~300 bytes base64)
         v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA21tZGF0AAACrAYF//+m3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDEyMiByMjE5MSBhM2Y0NDA3IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNCAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTYgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTI1IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAPZWiIhAAv//p+C7v8tDlHOHVMb4TsHnQlHAMHSgAAAwAAAkMC6DIUAAKZAAAF0AAgTuui0wMEGAAwmrfkR9n0UrUr6AAADAAADAAI';
         document.body.appendChild(v);
         videoEl.current = v;
@@ -171,9 +167,9 @@ function useWakeLock(active) {
   }, [active]);
 }
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // TOKEN ENTRY
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const TokenEntry = ({ onEnter, loading, error }) => {
   const [token, setToken] = useState('');
   const { isIOS, isIPadOS, isAndroid } = detectDevice();
@@ -191,7 +187,6 @@ const TokenEntry = ({ onEnter, loading, error }) => {
           <p style={{ fontSize:14, color:'#64748B', margin:0 }}>Masukkan token ujian dari guru</p>
         </div>
 
-        {/* iOS / Android Notice */}
         {isMobileDevice && (
           <div style={{ background:'rgba(59,130,246,.12)', border:'1px solid rgba(59,130,246,.3)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:12, color:'#93C5FD' }}>
             <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:6, color:'#60A5FA', fontWeight:700, fontSize:13 }}>
@@ -224,14 +219,16 @@ const TokenEntry = ({ onEnter, loading, error }) => {
 
         <div style={{ background:'rgba(255,255,255,.04)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28 }}>
           <label style={{ fontSize:12, fontWeight:700, color:'#94A3B8', display:'block', marginBottom:8, letterSpacing:'.05em' }}>TOKEN UJIAN</label>
-          <input type="text" value={token} onChange={e => setToken(e.target.value.toUpperCase().slice(0,8))}
-            onKeyDown={e => e.key==='Enter' && token.length>=4 && onEnter(token)}
+          <input type="text" value={token} onChange={e => setToken(e.target.value.toUpperCase().slice(0, 8))}
+            onKeyDown={e => e.key === 'Enter' && token.length >= 4 && onEnter(token)}
             placeholder="Contoh: AB12CD" autoFocus autoComplete="off" autoCorrect="off" spellCheck="false"
             style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${error?'#EF4444':'rgba(255,255,255,.12)'}`, background:'rgba(255,255,255,.06)', color:'#F1F5F9', fontSize:20, fontFamily:'Sora,sans-serif', fontWeight:700, letterSpacing:'.2em', outline:'none', textAlign:'center', boxSizing:'border-box' }} />
           {error && <div style={{ marginTop:8, fontSize:13, color:'#EF4444', display:'flex', alignItems:'center', gap:6 }}><AlertCircle size={13}/>{error}</div>}
-          <button onClick={() => onEnter(token)} disabled={token.length<4||loading}
-            style={{ width:'100%', padding:13, marginTop:16, borderRadius:12, border:'none', background:token.length>=4&&!loading?'#0891B2':'rgba(255,255,255,.08)', color:token.length>=4&&!loading?'#fff':'#475569', fontSize:14, fontWeight:700, cursor:token.length>=4&&!loading?'pointer':'not-allowed', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-            {loading?<><div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Memverifikasi…</>:<><Key size={15}/>Masuk Ujian</>}
+          <button onClick={() => onEnter(token)} disabled={token.length < 4 || loading}
+            style={{ width:'100%', padding:13, marginTop:16, borderRadius:12, border:'none', background:token.length >= 4 && !loading ? '#0891B2' : 'rgba(255,255,255,.08)', color:token.length >= 4 && !loading ? '#fff' : '#475569', fontSize:14, fontWeight:700, cursor:token.length >= 4 && !loading ? 'pointer' : 'not-allowed', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            {loading
+              ? <><div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Memverifikasi…</>
+              : <><Key size={15}/>Masuk Ujian</>}
           </button>
         </div>
       </div>
@@ -239,9 +236,9 @@ const TokenEntry = ({ onEnter, loading, error }) => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // EXAM CONFIRM
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const ExamConfirm = ({ session, onStart, onBack }) => (
   <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
     <div style={{ width:'100%', maxWidth:500 }}>
@@ -256,7 +253,12 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
           </div>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:20 }}>
-          {[['Jumlah Soal',`${session.total_questions} soal`],['Durasi',`${session.duration_minutes} menit`],['KKM',session.passing_score],['Auto-Submit',`≥ ${MAX_VIOLATION_SCORE} poin`]].map(([k,v]) => (
+          {[
+            ['Jumlah Soal', `${session.total_questions} soal`],
+            ['Durasi', `${session.duration_minutes} menit`],
+            ['KKM', session.passing_score],
+            ['Auto-Submit', `≥ ${MAX_VIOLATION_SCORE} poin`],
+          ].map(([k, v]) => (
             <div key={k} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:12 }}>
               <div style={{ fontSize:11, color:'#64748B', fontWeight:600, marginBottom:3 }}>{k}</div>
               <div style={{ fontFamily:'Sora,sans-serif', fontSize:15, fontWeight:700, color:'#F1F5F9' }}>{v}</div>
@@ -267,7 +269,7 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
           <strong>⚠️ SISTEM SKORING PELANGGARAN (sinkron UTBK):</strong>
           <div style={{ marginTop:6, fontSize:12, color:'#94A3B8', lineHeight:1.8 }}>
             Pindah tab (+2) · Keluar fullscreen (+1, grace 2×) · Copy/Paste (+3) · Split screen (+3) · DevTools (+5) · Landscape (+1).
-            Ada grace period untuk pelanggaran tidak sengaja. Total ≥ <strong style={{color:'#FCA5A5'}}>{MAX_VIOLATION_SCORE} poin</strong> = ujian otomatis dikumpulkan.
+            Ada grace period untuk pelanggaran tidak sengaja. Total ≥ <strong style={{ color:'#FCA5A5' }}>{MAX_VIOLATION_SCORE} poin</strong> = ujian otomatis dikumpulkan.
           </div>
         </div>
         <div style={{ display:'flex', gap:10 }}>
@@ -281,18 +283,18 @@ const ExamConfirm = ({ session, onStart, onBack }) => (
   </div>
 );
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // VIOLATION MODAL
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
   const remaining = MAX_VIOLATION_SCORE - violationScore;
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
-      <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard?'#DC2626':'#F59E0B'}`, animation:'fadeUp .2s ease' }}>
-        <div style={{ padding:'20px 24px', background:isHard?'#DC2626':'#F59E0B', textAlign:'center' }}>
+      <div style={{ background:'#fff', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', border:`3px solid ${isHard ? '#DC2626' : '#F59E0B'}`, animation:'fadeUp .2s ease' }}>
+        <div style={{ padding:'20px 24px', background:isHard ? '#DC2626' : '#F59E0B', textAlign:'center' }}>
           <AlertTriangle size={40} color="#fff" style={{ margin:'0 auto 8px', display:'block', animation:'pulse 1s infinite' }}/>
           <h2 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:800, color:'#fff', margin:0 }}>
-            {isHard?'⛔ PERINGATAN KERAS!':'⚠️ PELANGGARAN TERDETEKSI'}
+            {isHard ? '⛔ PERINGATAN KERAS!' : '⚠️ PELANGGARAN TERDETEKSI'}
           </h2>
           <p style={{ fontSize:11, color:'rgba(255,255,255,.8)', margin:'4px 0 0' }}>
             {isHard ? 'Poin mendekati batas — hati-hati!' : 'Poin pelanggaran bertambah'}
@@ -301,25 +303,25 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
         <div style={{ padding:'20px 24px' }}>
           <p style={{ fontSize:13, color:'#374151', background:'#F9FAFB', padding:'10px 14px', borderRadius:10, border:'1px solid #E5E7EB', marginBottom:16, fontStyle:'italic' }}>"{message}"</p>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:14 }}>
-            <div style={{ textAlign:'center', padding:'10px 6px', background:isHard?'#FEF2F2':'#FFFBEB', borderRadius:10, border:`1px solid ${isHard?'#FECACA':'#FDE68A'}` }}>
-              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:isHard?'#DC2626':'#D97706' }}>{violationScore}</div>
-              <div style={{ fontSize:10, fontWeight:700, color:isHard?'#DC2626':'#D97706', letterSpacing:'.03em' }}>POIN SEKARANG</div>
+            <div style={{ textAlign:'center', padding:'10px 6px', background:isHard ? '#FEF2F2' : '#FFFBEB', borderRadius:10, border:`1px solid ${isHard ? '#FECACA' : '#FDE68A'}` }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:isHard ? '#DC2626' : '#D97706' }}>{violationScore}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:isHard ? '#DC2626' : '#D97706', letterSpacing:'.03em' }}>POIN SEKARANG</div>
             </div>
             <div style={{ textAlign:'center', padding:'10px 6px', background:'#F8FAFC', borderRadius:10, border:'1px solid #E2E8F0' }}>
               <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'#374151' }}>{MAX_VIOLATION_SCORE}</div>
               <div style={{ fontSize:10, fontWeight:700, color:'#64748B', letterSpacing:'.03em' }}>BATAS AUTO-SUBMIT</div>
             </div>
-            <div style={{ textAlign:'center', padding:'10px 6px', background:remaining<=5?'#FEF2F2':'#F0FDF4', borderRadius:10, border:`1px solid ${remaining<=5?'#FECACA':'#BBF7D0'}` }}>
-              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:remaining<=5?'#DC2626':'#16A34A' }}>{remaining}</div>
-              <div style={{ fontSize:10, fontWeight:700, color:remaining<=5?'#DC2626':'#16A34A', letterSpacing:'.03em' }}>SISA AMAN</div>
+            <div style={{ textAlign:'center', padding:'10px 6px', background:remaining <= 5 ? '#FEF2F2' : '#F0FDF4', borderRadius:10, border:`1px solid ${remaining <= 5 ? '#FECACA' : '#BBF7D0'}` }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:remaining <= 5 ? '#DC2626' : '#16A34A' }}>{remaining}</div>
+              <div style={{ fontSize:10, fontWeight:700, color:remaining <= 5 ? '#DC2626' : '#16A34A', letterSpacing:'.03em' }}>SISA AMAN</div>
             </div>
           </div>
           <div style={{ marginBottom:14 }}>
             <div style={{ height:8, background:'#F1F5F9', borderRadius:99, overflow:'hidden' }}>
-              <div style={{ height:'100%', borderRadius:99, background:isHard?'#DC2626':'#F59E0B', width:`${Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100)}%`, transition:'width .3s' }}/>
+              <div style={{ height:'100%', borderRadius:99, background:isHard ? '#DC2626' : '#F59E0B', width:`${Math.min(100, (violationScore / MAX_VIOLATION_SCORE) * 100)}%`, transition:'width .3s' }}/>
             </div>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#94A3B8', marginTop:3 }}>
-              <span>0</span><span style={{color:'#F59E0B'}}>{WARN_VIOLATION_SCORE} (peringatan)</span><span style={{color:'#DC2626'}}>{MAX_VIOLATION_SCORE}</span>
+              <span>0</span><span style={{ color:'#F59E0B' }}>{WARN_VIOLATION_SCORE} (peringatan)</span><span style={{ color:'#DC2626' }}>{MAX_VIOLATION_SCORE}</span>
             </div>
           </div>
           {isHard
@@ -331,7 +333,7 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
               </div>}
         </div>
         <div style={{ padding:'0 24px 20px' }}>
-          <button onClick={onClose} style={{ width:'100%', padding:11, borderRadius:10, border:'none', background:isHard?'#DC2626':'#F59E0B', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          <button onClick={onClose} style={{ width:'100%', padding:11, borderRadius:10, border:'none', background:isHard ? '#DC2626' : '#F59E0B', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
             Mengerti — Kembali ke Ujian
           </button>
         </div>
@@ -340,16 +342,15 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
-// LANDSCAPE BLOCKER — mobile only, kena poin orientation
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
+// LANDSCAPE BLOCKER — mobile only, +1 poin orientation
+// =================================================================
 const LandscapeBlocker = ({ onViolation }) => {
   const [isLandscape, setIsLandscape] = useState(false);
   const reported = useRef(false);
 
   useEffect(() => {
     const check = () => {
-      // Hanya aktif di perangkat mobile (lebar < 1024)
       const landscape = window.innerWidth > window.innerHeight && window.innerWidth < 1024;
       setIsLandscape(landscape);
       if (landscape && !reported.current) {
@@ -376,15 +377,15 @@ const LandscapeBlocker = ({ onViolation }) => {
       </h2>
       <p style={{ fontSize:14, color:'#94A3B8', textAlign:'center', maxWidth:260, lineHeight:1.6 }}>
         Mode <strong>Landscape</strong> tidak diizinkan selama ujian.<br/>
-        Putar ke <strong style={{color:'#4ADE80'}}>Portrait (vertikal)</strong>.
+        Putar ke <strong style={{ color:'#4ADE80' }}>Portrait (vertikal)</strong>.
       </p>
     </div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // PAUSE MODAL
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const PauseModal = ({ timeLeft, count, onResume }) => (
   <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.98)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
     <div style={{ background:'#fff', borderRadius:24, width:'100%', maxWidth:380, overflow:'hidden', boxShadow:'0 32px 64px rgba(0,0,0,.4)' }}>
@@ -400,7 +401,7 @@ const PauseModal = ({ timeLeft, count, onResume }) => (
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
           <div style={{ background:'#F8FAFC', borderRadius:10, padding:10, textAlign:'center' }}>
-            <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:'#0F172A' }}>5:00</div>
+            <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:'#0F172A' }}>{formatTime(PAUSE_DUR)}</div>
             <div style={{ fontSize:10, color:'#94A3B8', fontWeight:700 }}>MAKS DURASI</div>
           </div>
           <div style={{ background:'#F8FAFC', borderRadius:10, padding:10, textAlign:'center' }}>
@@ -419,17 +420,17 @@ const PauseModal = ({ timeLeft, count, onResume }) => (
   </div>
 );
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // SECURITY MONITOR — Cross-platform: Desktop + iOS + Android
-// ─────────────────────────────────────────────────────────────────
+// Fix asal ZiDu: onViolRef pattern — tidak ada stale closure seperti UTBK
+// =================================================================
 const SecurityMonitor = ({ active, onViolation }) => {
-  const fsTimer     = useRef(null);
-  const checkIv     = useRef(null);
-  const lastAct     = useRef(Date.now());
-  // KUNCI FIX #1: simpan onViolation di ref — listener tidak perlu di-re-attach
-  // setiap kali handleViolation di parent di-recreate akibat state change
-  const onViolRef   = useRef(onViolation);
-  const wasInFS     = useRef(false); // track state fullscreen sebelumnya untuk polling
+  const fsTimer   = useRef(null);
+  const checkIv   = useRef(null);
+  const lastAct   = useRef(Date.now());
+  // FIX UTBK Bug: simpan callback di ref — listener tidak re-attach saat state berubah
+  const onViolRef = useRef(onViolation);
+  const wasInFS   = useRef(false);
 
   // Selalu sync ref tanpa trigger re-register listener
   useEffect(() => { onViolRef.current = onViolation; }, [onViolation]);
@@ -447,10 +448,9 @@ const SecurityMonitor = ({ active, onViolation }) => {
     `;
     document.head.appendChild(style);
 
-    // Init state fullscreen
     wasInFS.current = !!getFullscreenElement();
 
-    // ── 1. VISIBILITY CHANGE — works on ALL platforms including iOS Safari ──
+    // 1. VISIBILITY CHANGE — works on ALL platforms including iOS Safari
     const onVis = () => {
       if (document.hidden) {
         onViolRef.current('tab_switch', 'Pindah tab atau app terdeteksi');
@@ -458,7 +458,6 @@ const SecurityMonitor = ({ active, onViolation }) => {
           onViolRef.current('screenshot', 'Kemungkinan screenshot terdeteksi');
         }
       } else {
-        // Re-enter fullscreen on return (Desktop + Android Chrome)
         if (supportsFullscreen && !getFullscreenElement()) {
           requestFullscreen().catch(() => {});
         }
@@ -466,40 +465,38 @@ const SecurityMonitor = ({ active, onViolation }) => {
       lastAct.current = Date.now();
     };
 
-    // ── 2. WINDOW BLUR ──
+    // 2. WINDOW BLUR
     const onBlur = () => onViolRef.current('tab_switch', 'Fokus window hilang');
 
-    // ── 3. COPY / PASTE ──
+    // 3. COPY / PASTE
     const onCopy  = e => { e.preventDefault(); onViolRef.current('copy_paste', 'Mencoba menyalin teks'); };
     const onPaste = e => { e.preventDefault(); onViolRef.current('copy_paste', 'Mencoba menempelkan teks'); };
 
-    // ── 4. CONTEXT MENU ──
+    // 4. CONTEXT MENU
     const onCtx = e => e.preventDefault();
 
-    // ── 5. KEYBOARD ──
+    // 5. KEYBOARD
     const onKey = e => {
       if (e.key === 'F12') { e.preventDefault(); onViolRef.current('devtools', 'Shortcut DevTools (F12)'); return; }
-      if (e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase())) {
+      if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'K'].includes(e.key.toUpperCase())) {
         e.preventDefault(); onViolRef.current('devtools', `Shortcut DevTools (Ctrl+Shift+${e.key})`); return;
       }
       if (e.ctrlKey && e.key.toUpperCase() === 'U') { e.preventDefault(); return; }
-      // Escape — KRITIS: ini cara paling umum siswa keluar fullscreen
+      // Escape — cara paling umum siswa keluar fullscreen
       if (e.key === 'Escape') { e.preventDefault(); return; }
       if (e.altKey && (e.key === 'Tab' || e.key === 'F4')) {
         e.preventDefault(); onViolRef.current('tab_switch', `Shortcut pindah app (Alt+${e.key})`); return;
       }
       if (e.metaKey && !e.ctrlKey) { e.preventDefault(); onViolRef.current('tab_switch', 'Tombol Windows/Meta ditekan'); return; }
-      if (e.ctrlKey && ['W','T','N'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+      if (e.ctrlKey && ['W', 'T', 'N'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
     };
 
-    // ── 6. FULLSCREEN CHANGE EVENT (Desktop + Android Chrome) ──
-    // Event-based — sebagai listener pertama
+    // 6. FULLSCREEN CHANGE EVENT (Desktop + Android Chrome)
     const onFS = () => {
       if (isIOS || isIPadOS) return;
       const inFS = !!getFullscreenElement();
       wasInFS.current = inFS;
       if (!inFS) {
-        // Langsung re-request fullscreen
         requestFullscreen().catch(() => {});
         if (fsTimer.current) clearTimeout(fsTimer.current);
         fsTimer.current = setTimeout(() => {
@@ -512,7 +509,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
       }
     };
 
-    // ── 7. TOUCH — multi-jari gesture ──
+    // 7. TOUCH — multi-jari gesture
     const onTouchStart = e => {
       lastAct.current = Date.now();
       if (e.touches.length >= 3) {
@@ -520,34 +517,33 @@ const SecurityMonitor = ({ active, onViolation }) => {
       }
     };
 
-    // ── 8. PAGE HIDE — iOS Safari navigation ──
+    // 8. PAGE HIDE — iOS Safari navigation
     const onPageHide = e => {
       if (e.persisted) onViolRef.current('tab_switch', 'Navigasi keluar halaman terdeteksi');
     };
 
-    // ── 9. BEFORE UNLOAD ──
+    // 9. BEFORE UNLOAD
     const onBeforeUnload = e => {
       e.preventDefault();
       e.returnValue = 'Ujian masih berlangsung. Yakin ingin keluar?';
       return e.returnValue;
     };
 
-    // ── 10. POPSTATE — back button trap ──
+    // 10. POPSTATE — back button trap
     window.history.pushState({ examActive: true }, '', window.location.href);
     const onPopState = () => {
       window.history.pushState({ examActive: true }, '', window.location.href);
       onViolRef.current('tab_switch', 'Tombol Back ditekan');
     };
 
-    // ── 11. INTERVAL 500ms — polling utama ──
-    // KUNCI FIX #2: polling fullscreen sebagai fallback karena fullscreenchange
-    // bisa tidak fire (browser intercept Escape sebelum event sampai ke listener)
+    // 11. INTERVAL 500ms — polling fullscreen + devtools + split screen
+    // Polling fullscreen sebagai fallback karena fullscreenchange bisa tidak fire
+    // (browser intercept Escape sebelum event sampai ke listener)
     checkIv.current = setInterval(() => {
-      // --- Fullscreen polling (FALLBACK, skip iOS/iPadOS) ---
+      // Fullscreen polling (FALLBACK, skip iOS/iPadOS)
       if (supportsFullscreen && !(isIOS || isIPadOS)) {
         const inFS = !!getFullscreenElement();
         if (wasInFS.current && !inFS) {
-          // Baru saja keluar fullscreen — langsung paksa masuk lagi
           requestFullscreen().catch(() => {});
           if (!fsTimer.current) {
             fsTimer.current = setTimeout(() => {
@@ -561,7 +557,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
         wasInFS.current = inFS;
       }
 
-      // --- DevTools detection (threshold 160px, sinkron UTBK) ---
+      // DevTools detection (threshold 160px, sinkron UTBK)
       const devW = window.outerWidth - window.innerWidth > 160;
       const devH = !(isIOS || isIPadOS) && (window.outerHeight - window.innerHeight > 160);
       if (devW || devH) { onViolRef.current('devtools', 'DevTools / Console terbuka'); return; }
@@ -590,7 +586,6 @@ const SecurityMonitor = ({ active, onViolation }) => {
       lastAct.current = Date.now();
     }, 500);
 
-    // Register all listeners
     if (supportsVisibility) document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
     document.addEventListener('copy', onCopy);
@@ -621,34 +616,33 @@ const SecurityMonitor = ({ active, onViolation }) => {
       window.removeEventListener('popstate', onPopState);
       if (document.head.contains(style)) document.head.removeChild(style);
     };
-  // KUNCI FIX #3: HAPUS onViolation dari deps — sudah pakai ref
-  // Sebelumnya [active, onViolation] menyebabkan listener re-attach setiap render
+  // KUNCI: HAPUS onViolation dari deps — sudah pakai ref, tidak perlu re-attach
   }, [active]);
 
   return null;
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // QUESTION NAVIGATOR
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const QuestionNav = ({ total, current, answers, questions, onGo }) => (
   <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-    {Array.from({length:total},(_,i) => {
+    {Array.from({ length: total }, (_, i) => {
       const qid      = questions?.[i]?.id;
-      const answered = qid && answers[qid]!==undefined && answers[qid]!==null && answers[qid]!=='';
-      const curr     = i===current;
+      const answered = qid && answers[qid] !== undefined && answers[qid] !== null && answers[qid] !== '';
+      const curr     = i === current;
       return (
-        <button key={i} onClick={()=>onGo(i)} style={{ width:36, height:36, borderRadius:8, border:`1.5px solid ${curr?'#0891B2':answered?'#BAE6FD':'#E2E8F0'}`, background:curr?'#0891B2':answered?'#EFF6FF':'#F8FAFC', color:curr?'#fff':answered?'#0891B2':'#94A3B8', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Sora,sans-serif', touchAction:'manipulation' }}>
-          {i+1}
+        <button key={i} onClick={() => onGo(i)} style={{ width:36, height:36, borderRadius:8, border:`1.5px solid ${curr ? '#0891B2' : answered ? '#BAE6FD' : '#E2E8F0'}`, background:curr ? '#0891B2' : answered ? '#EFF6FF' : '#F8FAFC', color:curr ? '#fff' : answered ? '#0891B2' : '#94A3B8', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Sora,sans-serif', touchAction:'manipulation' }}>
+          {i + 1}
         </button>
       );
     })}
   </div>
 );
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // MOBILE NAV DRAWER
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, answered, submitting, onSubmit }) => {
   if (!open) return null;
   return (
@@ -669,11 +663,11 @@ const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, an
           <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:12, height:12, borderRadius:3, background:'#EFF6FF', border:'1.5px solid #BAE6FD' }}/> Dijawab</div>
           <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:12, height:12, borderRadius:3, background:'#F8FAFC', border:'1.5px solid #E2E8F0' }}/> Belum</div>
         </div>
-        <QuestionNav total={total} current={current} answers={answers} questions={questions} onGo={(i)=>{ onGo(i); onClose(); }}/>
+        <QuestionNav total={total} current={current} answers={answers} questions={questions} onGo={(i) => { onGo(i); onClose(); }}/>
         <div style={{ marginTop:16, height:6, borderRadius:99, background:'#F1F5F9', overflow:'hidden' }}>
-          <div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered/total)*100}%`, transition:'width .3s' }}/>
+          <div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered / total) * 100}%`, transition:'width .3s' }}/>
         </div>
-        <button onClick={()=>{ onClose(); onSubmit(); }} disabled={submitting}
+        <button onClick={() => { onClose(); onSubmit(); }} disabled={submitting}
           style={{ width:'100%', marginTop:16, padding:14, borderRadius:12, border:'none', background:'#16A34A', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           <Send size={15}/> Kumpulkan Jawaban
         </button>
@@ -682,58 +676,56 @@ const NavDrawer = ({ open, onClose, total, current, answers, questions, onGo, an
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
-// EXAM ROOM CONTENT
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
+// EXAM ROOM CONTENT (inner component yang aktif saat ujian)
+// =================================================================
 const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, submitError, variant }) => {
   const { profile } = useAuth();
   const { isIOS, isIPadOS, isAndroid, isMobileBrowser, supportsFullscreen } = detectDevice();
 
   const [current,              setCurrent]             = useState(0);
   const [answers,              setAnswers]             = useState({});
-  // Hitung dari endTime absolut agar akurat walau ada delay mount
+  // Hitung endTime absolut agar akurat walau ada delay mount
   const examEndTime = useRef(result?.started_at
     ? new Date(result.started_at).getTime() + session.duration_minutes * 60 * 1000
     : Date.now() + session.duration_minutes * 60 * 1000
   );
-  const [timeLeft,             setTimeLeft]            = useState(() => {
-    const rem = Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000));
-    return rem;
-  });
+  const [timeLeft,             setTimeLeft]            = useState(() =>
+    Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000))
+  );
   const [showSubmit,           setShowSubmit]          = useState(false);
   const [showNavDrawer,        setShowNavDrawer]       = useState(false);
   const [securityActive,       setSecurityActive]      = useState(true);
-  const [violationScore,       setViolationScore]      = useState(result.violation_score||0);
-  const [violationCounts,      setViolationCounts]     = useState(result.violation_counts||{});
+  const [violationScore,       setViolationScore]      = useState(result.violation_score || 0);
+  const [violationCounts,      setViolationCounts]     = useState(result.violation_counts || {});
   const [forceSubmitted,       setForceSubmitted]      = useState(false);
   const [showViolationWarning, setShowViolationWarning]= useState(false);
   const [lastViolationMsg,     setLastViolationMsg]    = useState('');
-  const [currentViolScore,     setCurrentViolScore]    = useState(result.violation_score||0);
+  const [currentViolScore,     setCurrentViolScore]    = useState(result.violation_score || 0);
   const [isPaused,             setIsPaused]            = useState(false);
   const [pauseCount,           setPauseCount]          = useState(0);
   const [pauseTimeLeft,        setPauseTimeLeft]       = useState(PAUSE_DUR);
   const [isMobile,             setIsMobile]            = useState(() => window.innerWidth < 768);
 
-  const handleSubmitRef    = useRef(null);
-  const lastViolTime       = useRef({});
-  const violScoreRef       = useRef(result.violation_score||0);
-  const violCountsRef      = useRef(result.violation_counts||{});
-  const pauseEnd           = useRef(null);
-  // Ref untuk state kritis — agar handleViolation stabil (tidak perlu recreate)
-  const securityActiveRef  = useRef(true);
-  const isPausedRef        = useRef(false);
-  const forceSubmittedRef  = useRef(false);
-  // Ref untuk data ujian — dipakai forceSubmitExam tanpa closure
-  const answersRef         = useRef({});
-  const questionsRef       = useRef(questions);
-  const onSubmitRef        = useRef(onSubmit);
+  const lastViolTime      = useRef({});
+  const violScoreRef      = useRef(result.violation_score || 0);
+  const violCountsRef     = useRef(result.violation_counts || {});
+  const pauseEnd          = useRef(null);
+  // Refs untuk state kritis — handleViolation stabil, tidak ada stale closure
+  const securityActiveRef = useRef(true);
+  const isPausedRef       = useRef(false);
+  const forceSubmittedRef = useRef(false);
+  // Refs untuk data ujian — dipakai forceSubmitExam tanpa closure
+  const answersRef        = useRef({});
+  const questionsRef      = useRef(questions);
+  const onSubmitRef       = useRef(onSubmit);
 
   const track = useMemo(() => createTracker({
-    studentId:      profile?.id,
-    schoolId:       profile?.school_id,
-    examSessionId:  session.id,
-    examResultId:   result.id,
-    experimentId:   session.experiment_id ?? null,
+    studentId:     profile?.id,
+    schoolId:      profile?.school_id,
+    examSessionId: session.id,
+    examResultId:  result.id,
+    experimentId:  session.experiment_id ?? null,
     variant,
   }), [profile?.id, profile?.school_id, result.id, session.id, session.experiment_id, variant]);
 
@@ -753,58 +745,75 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Sync state → ref saat state berubah
+  // Sync state → ref
   useEffect(() => { securityActiveRef.current = securityActive; });
   useEffect(() => { isPausedRef.current = isPaused; });
   useEffect(() => { forceSubmittedRef.current = forceSubmitted; });
   useEffect(() => { answersRef.current = answers; }, [answers]);
   useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
 
+  // Restore answers dari localStorage (crash recovery)
   useEffect(() => {
-    try { const s=localStorage.getItem(EXAM_SAVE_KEY(result.id)); if(s) setAnswers(JSON.parse(s)); } catch {}
+    try {
+      const s = localStorage.getItem(EXAM_SAVE_KEY(result.id));
+      if (s) setAnswers(JSON.parse(s));
+    } catch {}
   }, [result.id]);
 
+  // Auto-save ke localStorage (immediate — setiap jawaban berubah)
   useEffect(() => {
     try { localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify(answers)); } catch {}
   }, [answers, result.id]);
 
+  // Periodic sync ke Supabase setiap 30 detik (background, tidak blocking)
   useEffect(() => {
-    const iv=setInterval(async()=>{
-      if(!Object.keys(answers).length) return;
-      const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
-      try { await supabase.from('exam_results').update({answers:arr,updated_at:new Date().toISOString()}).eq('id',result.id); } catch {}
+    const iv = setInterval(async () => {
+      if (!Object.keys(answers).length) return;
+      const arr = questions.map(q => ({ question_id: q.id, answer: answers[q.id] ?? null, type: q.type }));
+      try {
+        await supabase.from('exam_results').update({ answers: arr, updated_at: new Date().toISOString() }).eq('id', result.id);
+      } catch {}
     }, AUTOSAVE_INTERVAL_MS);
-    return ()=>clearInterval(iv);
-  }, [answers,questions,result.id]);
+    return () => clearInterval(iv);
+  }, [answers, questions, result.id]);
 
+  // Timer — hitung dari endTime absolut agar tidak drift
   useEffect(() => {
-    // Hentikan timer jika paused atau sudah force-submitted
-    if(isPaused || forceSubmitted) return;
-    if(timeLeft <= 0) { if(!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis'); return; }
-    const iv=setInterval(()=>{
-      // Hitung dari endTime absolut — tidak ada drift akibat setInterval skew
+    if (isPaused || forceSubmitted) return;
+    if (timeLeft <= 0) {
+      if (!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis');
+      return;
+    }
+    const iv = setInterval(() => {
       const rem = Math.max(0, Math.floor((examEndTime.current - Date.now()) / 1000));
       setTimeLeft(rem);
-      if(rem <= 0){
+      if (rem <= 0) {
         clearInterval(iv);
-        if(!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis');
+        if (!forceSubmittedRef.current) forceSubmitRef.current?.('waktu habis');
       }
     }, 1000);
-    return ()=>clearInterval(iv);
+    return () => clearInterval(iv);
   }, [isPaused, forceSubmitted]); // eslint-disable-line
 
+  // Pause timer countdown
   useEffect(() => {
-    if(!isPaused) return;
-    const iv=setInterval(()=>{
-      const rem=Math.max(0,Math.floor((pauseEnd.current-Date.now())/1000));
+    if (!isPaused) return;
+    const iv = setInterval(() => {
+      const rem = Math.max(0, Math.floor((pauseEnd.current - Date.now()) / 1000));
       setPauseTimeLeft(rem);
-      if(rem<=0){clearInterval(iv);handleResume();}
+      if (rem <= 0) { clearInterval(iv); handleResume(); }
     }, 1000);
-    return ()=>clearInterval(iv);
+    return () => clearInterval(iv);
   }, [isPaused]); // eslint-disable-line
 
-  // ── FORCE SUBMIT — dipanggil oleh violation handler & timer, pakai refs semua ──
-  // Tidak ada stale closure: semua data dari ref yang selalu fresh
+  // ================================================================
+  // FIX #1 (Bug Kritis): FORCE SUBMIT EXAM
+  // Perubahan utama vs versi lama:
+  //   - onSubmitRef.current dipanggil tapi TIDAK di-await di sini
+  //   - parent handleSubmit (auto=true) yang akan handle screen transition
+  //     LANGSUNG sebelum menunggu RPC — sehingga siswa tidak "limbo"
+  //   - Retry logic tetap dipertahankan (dari ZiDu, lebih baik dari UTBK)
+  // ================================================================
   const forceSubmitExam = useCallback((reason) => {
     if (forceSubmittedRef.current) return; // guard double-submit
     forceSubmittedRef.current = true;
@@ -819,11 +828,13 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     const currentAnswers = answersRef.current;
     const arr = questionsRef.current.map(q => ({
       question_id: q.id,
-      answer: currentAnswers[q.id] ?? null,
-      type: q.type,
+      answer:      currentAnswers[q.id] ?? null,
+      type:        q.type,
     }));
 
-    // FIX: Retry 3x jika submit gagal — pastikan force-submit benar-benar berhasil
+    // FIX: Retry 3x jika submit gagal — pastikan force-submit benar-benar tersimpan
+    // Parent handleSubmit(auto=true) sudah handle screen transition terlebih dahulu,
+    // jadi retry di sini hanya untuk memastikan data tersimpan ke server
     const attemptSubmit = async (attempt = 1) => {
       try {
         await onSubmitRef.current(arr, currentVScore, true);
@@ -831,8 +842,8 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         if (attempt < 3) {
           setTimeout(() => attemptSubmit(attempt + 1), 1500 * attempt);
         }
-        // Setelah 3x gagal: tetap di screen exam tapi forceSubmitted=true
-        // submitError banner sudah tampil dari handleSubmit parent
+        // Setelah 3x gagal: submitError banner tampil di result screen
+        // User diarahkan untuk hubungi guru/admin
       }
     };
     attemptSubmit();
@@ -841,8 +852,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const forceSubmitRef = useRef(forceSubmitExam);
   useEffect(() => { forceSubmitRef.current = forceSubmitExam; }, [forceSubmitExam]);
 
-  const handleSubmit = useCallback((auto=false)=>{
-    if (forceSubmittedRef.current) return; // guard: sudah di-submit oleh forceSubmitExam
+  // Manual submit (dipanggil dari tombol "Kumpulkan")
+  const handleSubmit = useCallback((auto = false) => {
+    if (forceSubmittedRef.current) return;
     const currentVScore  = violScoreRef.current;
     const currentVCounts = violCountsRef.current;
     track(auto ? EXAM_EVENTS.FORCE_SUBMITTED : EXAM_EVENTS.SUBMIT_INITIATED, {
@@ -857,26 +869,30 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     forceSubmittedRef.current = true;
     setSecurityActive(false);
     setForceSubmitted(true);
-    const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type}));
+    const arr = questions.map(q => ({ question_id: q.id, answer: answers[q.id] ?? null, type: q.type }));
     onSubmit(arr, currentVScore, auto);
-  },[answers,questions,onSubmit,track,timeLeft]);
+  }, [answers, questions, onSubmit, track, timeLeft]);
 
-  useEffect(()=>{handleSubmitRef.current=handleSubmit;},[handleSubmit]);
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
 
-  // ── SCORING VIOLATION HANDLER ─────────────────────────────────
-  // FIX: showViolationWarning DIHAPUS dari guard — pelanggaran tetap tercatat
-  // saat modal terbuka (sinkron dengan UTBK, mencegah bypass via exit-fullscreen-saat-modal)
+  // ================================================================
+  // SCORING VIOLATION HANDLER
+  // Tidak ada stale closure: state kritis semua pakai ref
+  // showViolationWarning SENGAJA tidak di guard — pelanggaran tetap
+  // tercatat saat modal terbuka (sinkron UTBK, cegah bypass via
+  // exit-fullscreen-saat-modal)
+  // ================================================================
   const handleViolation = useCallback(async (type, detail) => {
-    // Gunakan ref — tidak bergantung pada closure state yang bisa stale
     if (!securityActiveRef.current || isPausedRef.current || forceSubmittedRef.current) return;
 
-    const now = Date.now();
-    // FIX: debounce per CATEGORY (bukan type) — cegah visibility+blur double-hit
+    const now      = Date.now();
     const category = VIOLATION_TYPE_MAP[type] ?? type;
     if (!category) return;
+    // Debounce per CATEGORY (bukan type) — cegah visibility+blur double-hit
     if ((now - (lastViolTime.current[category] || 0)) < VIOLATION_SCORING.debounceMs) return;
     lastViolTime.current[category] = now;
-    if (!category) return;
+
     const cfg = VIOLATION_SCORING.types[category];
     if (!cfg) return;
 
@@ -902,6 +918,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       violation_score: newScore,
     });
 
+    // Log ke Supabase (fire-and-forget, tidak blocking)
     supabase.rpc('append_violation', {
       p_result_id:   result.id,
       p_type:        category,
@@ -916,55 +933,55 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       return;
     }
 
+    // FIX #1: Auto-submit via forceSubmitRef — tidak ada stale closure
     if (newScore >= VIOLATION_SCORING.maxTotalScore) {
-      // Panggil forceSubmitRef — tidak pakai handleSubmitRef agar tidak ada stale closure
       forceSubmitRef.current?.(`poin pelanggaran ${newScore} ≥ ${VIOLATION_SCORING.maxTotalScore}`);
       return;
     }
 
     setLastViolationMsg(detail);
     setShowViolationWarning(true);
-  // Deps: hanya result.id & track — state pakai ref, tidak perlu di deps
   }, [result.id, track]);
 
-  const handlePause = useCallback(()=>{
-    if(pauseCount>=MAX_PAUSE) return;
+  const handlePause = useCallback(() => {
+    if (pauseCount >= MAX_PAUSE) return;
     track(EXAM_EVENTS.PAUSE_USED, { pause_count_used: pauseCount + 1 });
-    setPauseCount(c=>c+1); setPauseTimeLeft(PAUSE_DUR);
-    pauseEnd.current=Date.now()+PAUSE_DUR*1000;
-    isPausedRef.current = true; // sync ref immediately
+    setPauseCount(c => c + 1);
+    setPauseTimeLeft(PAUSE_DUR);
+    pauseEnd.current = Date.now() + PAUSE_DUR * 1000;
+    isPausedRef.current = true;
     setIsPaused(true);
-    if(supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(()=>{});
-  },[pauseCount,track,supportsFullscreen]);
+    if (supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(() => {});
+  }, [pauseCount, track, supportsFullscreen]);
 
-  const handleResume = useCallback(()=>{
+  const handleResume = useCallback(() => {
     // Rebuild endTime dari timeLeft sisa saat resume (sinkron UTBK handleResume)
     examEndTime.current = Date.now() + timeLeft * 1000;
     isPausedRef.current = false;
     setIsPaused(false);
-    if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
-  },[supportsFullscreen, timeLeft]);
+    if (supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(() => {});
+  }, [supportsFullscreen, timeLeft]);
 
   // Request fullscreen on mount (Desktop + Android Chrome, skip iOS/iPadOS)
-  useEffect(()=>{
-    if(supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(()=>{});
-    return()=>{
-      if(supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(()=>{});
+  useEffect(() => {
+    if (supportsFullscreen && !getFullscreenElement()) requestFullscreen().catch(() => {});
+    return () => {
+      if (supportsFullscreen && getFullscreenElement()) exitFullscreen().catch(() => {});
     };
-  },[supportsFullscreen]);
+  }, [supportsFullscreen]);
 
   const q        = questions[current];
-  if(!q) return null;
-  const answered = questions.filter(q=>answers[q.id]!==undefined&&answers[q.id]!==null&&answers[q.id]!=='').length;
-  const crit     = timeLeft<TIMER_WARNING_THRESHOLD;
-  const pct      = Math.min(100,(violationScore/MAX_VIOLATION_SCORE)*100);
+  if (!q) return null;
+  const answered = questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== '').length;
+  const crit     = timeLeft < TIMER_WARNING_THRESHOLD;
+  const pct      = Math.min(100, (violationScore / MAX_VIOLATION_SCORE) * 100);
   const sc       = violationScore >= WARN_VIOLATION_SCORE ? '#DC2626'
                  : violationScore > 0                     ? '#F59E0B'
                  :                                          '#16A34A';
-  const opts     = ['A','B','C','D'];
+  const opts     = ['A', 'B', 'C', 'D'];
 
   return (
-    <div style={{ minHeight:'100vh', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }} onContextMenu={e=>e.preventDefault()}>
+    <div style={{ minHeight:'100vh', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }} onContextMenu={e => e.preventDefault()}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -974,7 +991,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         .opt-btn:active{transform:scale(.98);}
       `}</style>
 
-      {/* Security Monitor — cross-platform */}
+      {/* Security Monitor */}
       <SecurityMonitor active={securityActive && !isPaused} onViolation={handleViolation}/>
 
       {/* Landscape Blocker — mobile only */}
@@ -999,7 +1016,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
           isHard={currentViolScore >= WARN_VIOLATION_SCORE}
           onClose={() => {
             setShowViolationWarning(false);
-            // Re-aktifkan fullscreen setelah tutup modal (Desktop + Android)
             if (supportsFullscreen && !getFullscreenElement()) {
               requestFullscreen().catch(() => {});
             }
@@ -1008,13 +1024,13 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       )}
 
       <NavDrawer
-        open={showNavDrawer} onClose={()=>setShowNavDrawer(false)}
+        open={showNavDrawer} onClose={() => setShowNavDrawer(false)}
         total={questions.length} current={current} answers={answers} questions={questions}
         onGo={setCurrent} answered={answered} submitting={submitting}
-        onSubmit={()=>setShowSubmit(true)}
+        onSubmit={() => setShowSubmit(true)}
       />
 
-      {/* ── TOP BAR ── */}
+      {/* TOP BAR */}
       <div style={{ background:'#fff', borderBottom:'1px solid #F1F5F9', position:'sticky', top:0, zIndex:10, boxShadow:'0 1px 8px rgba(0,0,0,.04)' }}>
         <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
@@ -1029,41 +1045,48 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
 
           <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
             {isMobile && (
-              <button onClick={()=>setShowNavDrawer(true)}
+              <button onClick={() => setShowNavDrawer(true)}
                 style={{ display:'flex', alignItems:'center', gap:4, padding:'7px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:12, fontWeight:600, color:'#475569', cursor:'pointer' }}>
-                <Grid size={12}/><span>{current+1}/{questions.length}</span>
+                <Grid size={12}/><span>{current + 1}/{questions.length}</span>
               </button>
             )}
-            <button onClick={handlePause} disabled={pauseCount>=MAX_PAUSE}
-              style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background:pauseCount>=MAX_PAUSE?'#F8FAFC':'#fff', fontSize:12, fontWeight:600, color:pauseCount>=MAX_PAUSE?'#CBD5E1':'#475569', cursor:pauseCount>=MAX_PAUSE?'not-allowed':'pointer' }}>
-              <Pause size={12}/>{!isMobile&&<span>{MAX_PAUSE-pauseCount}</span>}
+            <button onClick={handlePause} disabled={pauseCount >= MAX_PAUSE}
+              style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 10px', borderRadius:8, border:'1.5px solid #E2E8F0', background: pauseCount >= MAX_PAUSE ? '#F8FAFC' : '#fff', fontSize:12, fontWeight:600, color: pauseCount >= MAX_PAUSE ? '#CBD5E1' : '#475569', cursor: pauseCount >= MAX_PAUSE ? 'not-allowed' : 'pointer' }}>
+              <Pause size={12}/>{!isMobile && <span>{MAX_PAUSE - pauseCount}</span>}
             </button>
-            {violationScore>0&&(
+            {violationScore > 0 && (
               <div style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 8px', borderRadius:8,
-                background: violationScore>=WARN_VIOLATION_SCORE ? '#FEF2F2' : '#FFFBEB',
-                border: `1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`,
+                background: violationScore >= WARN_VIOLATION_SCORE ? '#FEF2F2' : '#FFFBEB',
+                border: `1px solid ${violationScore >= WARN_VIOLATION_SCORE ? '#FECACA' : '#FDE68A'}`,
                 fontSize:12, fontWeight:700, color:sc,
-                animation: violationScore>=WARN_VIOLATION_SCORE ? 'pulse 1s infinite' : 'none' }}>
+                animation: violationScore >= WARN_VIOLATION_SCORE ? 'pulse 1s infinite' : 'none' }}>
                 <Shield size={11}/>{violationScore}/{MAX_VIOLATION_SCORE}
               </div>
             )}
-            <div style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', borderRadius:10, background:crit?'#FEF2F2':'#EFF6FF', border:`1px solid ${crit?'#FECACA':'#BAE6FD'}` }}>
-              <Clock size={13} color={crit?'#DC2626':'#0891B2'}/>
-              <span style={{ fontFamily:'Sora,sans-serif', fontSize: isMobile ? 14 : 16, fontWeight:700, color:crit?'#DC2626':'#0891B2', animation:crit?'pulse 1s infinite':'none' }}>{formatTime(timeLeft)}</span>
+            <div style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', borderRadius:10, background: crit ? '#FEF2F2' : '#EFF6FF', border:`1px solid ${crit ? '#FECACA' : '#BAE6FD'}` }}>
+              <Clock size={13} color={crit ? '#DC2626' : '#0891B2'}/>
+              <span style={{ fontFamily:'Sora,sans-serif', fontSize: isMobile ? 14 : 16, fontWeight:700, color: crit ? '#DC2626' : '#0891B2', animation: crit ? 'pulse 1s infinite' : 'none' }}>{formatTime(timeLeft)}</span>
             </div>
           </div>
         </div>
-        {violationScore>0&&<div style={{ height:3, background:'#F1F5F9' }}><div style={{ height:'100%', background:sc, width:`${pct}%`, transition:'width .3s,background .3s' }}/></div>}
+        {violationScore > 0 && (
+          <div style={{ height:3, background:'#F1F5F9' }}>
+            <div style={{ height:'100%', background:sc, width:`${pct}%`, transition:'width .3s,background .3s' }}/>
+          </div>
+        )}
       </div>
 
+      {/* Error banner dengan tombol retry eksplisit */}
       {submitError && (
         <div style={{ background:'#FEF2F2', borderBottom:'1px solid #FECACA', padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, fontSize:13, color:'#DC2626' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <AlertCircle size={14}/> Gagal mengumpulkan: {submitError}
           </div>
-          {/* Tombol retry eksplisit — penting saat auto-submit gagal */}
           <button
-            onClick={()=>{ if(forceSubmitted) { const arr=questions.map(q=>({question_id:q.id,answer:answers[q.id]??null,type:q.type})); onSubmit(arr,violationScore,true); } else setShowSubmit(true); }}
+            onClick={() => {
+              const arr = questions.map(q => ({ question_id: q.id, answer: answers[q.id] ?? null, type: q.type }));
+              onSubmit(arr, violScoreRef.current, forceSubmitted);
+            }}
             disabled={submitting}
             style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif" }}>
             {submitting ? 'Mengumpulkan…' : 'Coba Lagi'}
@@ -1071,84 +1094,94 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         </div>
       )}
 
-      {/* ── MAIN CONTENT ── */}
+      {/* MAIN CONTENT */}
       <div style={{
-        maxWidth: 900, margin: '0 auto',
+        maxWidth:900, margin:'0 auto',
         padding: isMobile ? '16px 14px 100px' : '24px 20px',
-        display: 'grid',
+        display:'grid',
         gridTemplateColumns: isMobile ? '1fr' : '1fr 220px',
-        gap: 20, alignItems: 'start',
+        gap:20, alignItems:'start',
       }}>
+        {/* QUESTION CARD */}
         <div style={{ background:'#fff', borderRadius:16, border:'1px solid #F1F5F9', padding: isMobile ? 18 : 28, boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-            <div style={{ width:34, height:34, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14, color:'#0891B2', flexShrink:0 }}>{current+1}</div>
+            <div style={{ width:34, height:34, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14, color:'#0891B2', flexShrink:0 }}>{current + 1}</div>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
               <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background:'#EFF6FF', color:'#0891B2' }}>
-                {q.type==='multiple_choice'?'Pilihan Ganda':q.type==='essay'?'Essay':'Benar/Salah'}
+                {q.type === 'multiple_choice' ? 'Pilihan Ganda' : q.type === 'essay' ? 'Essay' : 'Benar/Salah'}
               </span>
-              <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background:q.difficulty==='easy'?'#F0FDF4':q.difficulty==='hard'?'#FEF2F2':'#FFFBEB', color:q.difficulty==='easy'?'#16A34A':q.difficulty==='hard'?'#DC2626':'#D97706' }}>
-                {q.difficulty==='easy'?'Mudah':q.difficulty==='hard'?'Sulit':'Sedang'}
+              <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background: q.difficulty === 'easy' ? '#F0FDF4' : q.difficulty === 'hard' ? '#FEF2F2' : '#FFFBEB', color: q.difficulty === 'easy' ? '#16A34A' : q.difficulty === 'hard' ? '#DC2626' : '#D97706' }}>
+                {q.difficulty === 'easy' ? 'Mudah' : q.difficulty === 'hard' ? 'Sulit' : 'Sedang'}
               </span>
             </div>
           </div>
 
           <div style={{ fontSize: isMobile ? 15 : 16, lineHeight:1.8, color:'#0F172A', marginBottom:20 }}>{q.question}</div>
 
-          {q.type==='multiple_choice'&&(
+          {q.image_url && (
+            <div style={{ marginBottom:20 }}>
+              <img src={q.image_url} alt="Gambar soal" style={{ maxWidth:'100%', borderRadius:10, border:'1px solid #E2E8F0' }}
+                onContextMenu={e => e.preventDefault()} draggable="false"/>
+            </div>
+          )}
+
+          {q.type === 'multiple_choice' && (
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {q.options?.map((opt,i)=>{
-                const lbl=opts[i]; const sel=answers[q.id]===lbl;
+              {q.options?.map((opt, i) => {
+                const lbl = opts[i]; const sel = answers[q.id] === lbl;
                 return (
-                  <button key={i} className="opt-btn" onClick={()=>setAnswers(a=>({...a,[q.id]:lbl}))}
-                    style={{ display:'flex', alignItems:'center', gap:12, padding: isMobile ? '14px 14px' : '13px 16px', borderRadius:12, border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#EFF6FF':'#F8FAFC', cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", minHeight:52, touchAction:'manipulation' }}>
-                    <div style={{ width:30, height:30, borderRadius:'50%', border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#0891B2':'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:13, color:sel?'#fff':'#94A3B8', flexShrink:0 }}>{lbl}</div>
-                    <span style={{ fontSize:14, color:sel?'#0C4A6E':'#374151', fontWeight:sel?500:400, lineHeight:1.5 }}>{opt}</span>
+                  <button key={i} className="opt-btn" onClick={() => setAnswers(a => ({ ...a, [q.id]: lbl }))}
+                    style={{ display:'flex', alignItems:'center', gap:12, padding: isMobile ? '14px 14px' : '13px 16px', borderRadius:12, border:`2px solid ${sel ? '#0891B2' : '#E2E8F0'}`, background: sel ? '#EFF6FF' : '#F8FAFC', cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", minHeight:52, touchAction:'manipulation' }}>
+                    <div style={{ width:30, height:30, borderRadius:'50%', border:`2px solid ${sel ? '#0891B2' : '#E2E8F0'}`, background: sel ? '#0891B2' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:13, color: sel ? '#fff' : '#94A3B8', flexShrink:0 }}>{lbl}</div>
+                    <span style={{ fontSize:14, color: sel ? '#0C4A6E' : '#374151', fontWeight: sel ? 500 : 400, lineHeight:1.5 }}>{opt}</span>
                   </button>
                 );
               })}
             </div>
           )}
 
-          {q.type==='true_false'&&(
+          {q.type === 'true_false' && (
             <div style={{ display:'flex', gap:12 }}>
-              {['Benar','Salah'].map(v=>{
-                const sel=answers[q.id]===v;
+              {['Benar', 'Salah'].map(v => {
+                const sel = answers[q.id] === v;
                 return (
-                  <button key={v} onClick={()=>setAnswers(a=>({...a,[q.id]:v}))}
-                    style={{ flex:1, padding: isMobile ? 18 : 16, borderRadius:12, border:`2px solid ${sel?'#0891B2':'#E2E8F0'}`, background:sel?'#EFF6FF':'#F8FAFC', cursor:'pointer', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize: isMobile ? 16 : 15, color:sel?'#0891B2':'#94A3B8', touchAction:'manipulation', minHeight:52 }}>
-                    {v==='Benar'?'✓ Benar':'✗ Salah'}
+                  <button key={v} onClick={() => setAnswers(a => ({ ...a, [q.id]: v }))}
+                    style={{ flex:1, padding: isMobile ? 18 : 16, borderRadius:12, border:`2px solid ${sel ? '#0891B2' : '#E2E8F0'}`, background: sel ? '#EFF6FF' : '#F8FAFC', cursor:'pointer', fontFamily:'Sora,sans-serif', fontWeight:700, fontSize: isMobile ? 16 : 15, color: sel ? '#0891B2' : '#94A3B8', touchAction:'manipulation', minHeight:52 }}>
+                    {v === 'Benar' ? '✓ Benar' : '✗ Salah'}
                   </button>
                 );
               })}
             </div>
           )}
 
-          {q.type==='essay'&&(
-            <textarea value={answers[q.id]||''} onChange={e=>setAnswers(a=>({...a,[q.id]:e.target.value}))}
-              placeholder="Tulis jawaban kamu di sini..." rows={isMobile?5:6}
+          {q.type === 'essay' && (
+            <textarea value={answers[q.id] || ''} onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
+              placeholder="Tulis jawaban kamu di sini..." rows={isMobile ? 5 : 6}
               style={{ width:'100%', padding:'13px 16px', borderRadius:12, border:'1.5px solid #E2E8F0', background:'#F8FAFC', fontSize:14, color:'#0F172A', fontFamily:"'DM Sans',sans-serif", outline:'none', resize:'vertical', boxSizing:'border-box', lineHeight:1.6 }}
-              onFocus={e=>e.target.style.borderColor='#0891B2'} onBlur={e=>e.target.style.borderColor='#E2E8F0'}/>
+              onFocus={e => e.target.style.borderColor = '#0891B2'}
+              onBlur={e => e.target.style.borderColor = '#E2E8F0'}/>
           )}
 
           {!isMobile && (
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:28, paddingTop:20, borderTop:'1px solid #F1F5F9' }}>
-              <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:current===0?'not-allowed':'pointer', opacity:current===0?0.4:1, fontFamily:"'DM Sans',sans-serif" }}>
+              <button onClick={() => setCurrent(c => Math.max(0, c - 1))} disabled={current === 0}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor: current === 0 ? 'not-allowed' : 'pointer', opacity: current === 0 ? 0.4 : 1, fontFamily:"'DM Sans',sans-serif" }}>
                 <ChevronLeft size={14}/> Sebelumnya
               </button>
-              {current<questions.length-1
-                ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))}
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'none', background:'#0891B2', fontSize:13, fontWeight:600, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                  Berikutnya <ChevronRight size={14}/>
-                </button>
-                :<button onClick={()=>setShowSubmit(true)}
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 18px', borderRadius:9, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                  <Send size={14}/> Kumpulkan
-                </button>}
+              {current < questions.length - 1
+                ? <button onClick={() => setCurrent(c => Math.min(questions.length - 1, c + 1))}
+                    style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'none', background:'#0891B2', fontSize:13, fontWeight:600, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    Berikutnya <ChevronRight size={14}/>
+                  </button>
+                : <button onClick={() => setShowSubmit(true)}
+                    style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 18px', borderRadius:9, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    <Send size={14}/> Kumpulkan
+                  </button>}
             </div>
           )}
         </div>
 
+        {/* SIDEBAR — desktop only */}
         {!isMobile && (
           <div style={{ display:'flex', flexDirection:'column', gap:14, position:'sticky', top:72 }}>
             <div style={{ background:'#fff', borderRadius:14, border:'1px solid #F1F5F9', padding:16 }}>
@@ -1159,74 +1192,79 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
               <div style={{ fontSize:11, color:'#94A3B8', marginBottom:4 }}>Progres</div>
               <div style={{ fontSize:13, fontWeight:700, color:'#0F172A', marginBottom:8 }}>{answered}/{questions.length} soal</div>
               <div style={{ height:6, borderRadius:99, background:'#F1F5F9', overflow:'hidden' }}>
-                <div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered/questions.length)*100}%`, transition:'width .3s' }}/>
+                <div style={{ height:'100%', borderRadius:99, background:'#0891B2', width:`${(answered / questions.length) * 100}%`, transition:'width .3s' }}/>
               </div>
             </div>
-            {violationScore>0&&<div style={{ background:violationScore>=WARN_VIOLATION_SCORE?'#FEF2F2':'#FFFBEB', borderRadius:14, border:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, padding:14 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:sc, letterSpacing:'.05em', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}><Shield size={11}/>PELANGGARAN</div>
-              {Object.entries(violationCounts).map(([t,c])=>(
-                <div key={t} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748B', marginBottom:4 }}>
-                  <span>{VIOLATION_CFG[t]?.label||t}</span><span style={{ fontWeight:700 }}>{c}×</span>
+            {violationScore > 0 && (
+              <div style={{ background: violationScore >= WARN_VIOLATION_SCORE ? '#FEF2F2' : '#FFFBEB', borderRadius:14, border:`1px solid ${violationScore >= WARN_VIOLATION_SCORE ? '#FECACA' : '#FDE68A'}`, padding:14 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:sc, letterSpacing:'.05em', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}><Shield size={11}/>PELANGGARAN</div>
+                {Object.entries(violationCounts).map(([t, c]) => (
+                  <div key={t} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748B', marginBottom:4 }}>
+                    <span>{VIOLATION_CFG[t]?.label || t}</span><span style={{ fontWeight:700 }}>{c}×</span>
+                  </div>
+                ))}
+                <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${violationScore >= WARN_VIOLATION_SCORE ? '#FECACA' : '#FDE68A'}`, display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, color:sc }}>
+                  <span>Total Poin</span><span>{violationScore}/{MAX_VIOLATION_SCORE}</span>
                 </div>
-              ))}
-              <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${violationScore>=WARN_VIOLATION_SCORE?'#FECACA':'#FDE68A'}`, display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, color:sc }}>
-                <span>Total Poin</span><span>{violationScore}/{MAX_VIOLATION_SCORE}</span>
               </div>
-            </div>}
-            <button onClick={()=>setShowSubmit(true)} style={{ width:'100%', padding:12, borderRadius:12, border:'none', background:'#16A34A', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            )}
+            <button onClick={() => setShowSubmit(true)}
+              style={{ width:'100%', padding:12, borderRadius:12, border:'none', background:'#16A34A', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
               <Send size={14}/> Kumpulkan Jawaban
             </button>
           </div>
         )}
       </div>
 
+      {/* MOBILE BOTTOM NAV */}
       {isMobile && (
         <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #F1F5F9', padding:'10px 14px 16px', display:'flex', gap:8, alignItems:'center', boxShadow:'0 -4px 16px rgba(0,0,0,.08)', zIndex:20 }}>
-          <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0}
-            style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:current===0?'#CBD5E1':'#374151', cursor:current===0?'not-allowed':'pointer', touchAction:'manipulation', minHeight:48 }}>
+          <button onClick={() => setCurrent(c => Math.max(0, c - 1))} disabled={current === 0}
+            style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color: current === 0 ? '#CBD5E1' : '#374151', cursor: current === 0 ? 'not-allowed' : 'pointer', touchAction:'manipulation', minHeight:48 }}>
             <ChevronLeft size={16}/>
           </button>
-          {current<questions.length-1
-            ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))}
-              style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#0891B2', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
-              Soal Berikutnya <ChevronRight size={15}/>
-            </button>
-            :<button onClick={()=>setShowSubmit(true)}
-              style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
-              <Send size={14}/> Kumpulkan
-            </button>}
-          {current<questions.length-1
-            ?<button onClick={()=>setCurrent(c=>Math.min(questions.length-1,c+1))}
-              style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
-              <ChevronRight size={16}/>
-            </button>
-            :<button onClick={()=>setShowNavDrawer(true)}
-              style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
-              <Grid size={16} color="#64748B"/>
-            </button>}
+          {current < questions.length - 1
+            ? <button onClick={() => setCurrent(c => Math.min(questions.length - 1, c + 1))}
+                style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#0891B2', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
+                Soal Berikutnya <ChevronRight size={15}/>
+              </button>
+            : <button onClick={() => setShowSubmit(true)}
+                style={{ flex:3, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:13, borderRadius:10, border:'none', background:'#16A34A', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
+                <Send size={14}/> Kumpulkan
+              </button>}
+          {current < questions.length - 1
+            ? <button onClick={() => setCurrent(c => Math.min(questions.length - 1, c + 1))}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
+                <ChevronRight size={16}/>
+              </button>
+            : <button onClick={() => setShowNavDrawer(true)}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', cursor:'pointer', touchAction:'manipulation', minHeight:48 }}>
+                <Grid size={16} color="#64748B"/>
+              </button>}
         </div>
       )}
 
-      {showSubmit&&(
+      {/* SUBMIT CONFIRMATION MODAL */}
+      {showSubmit && (
         <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.7)', backdropFilter:'blur(6px)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
           <div style={{ background:'#fff', borderRadius:20, padding:32, width:'100%', maxWidth:400, textAlign:'center', animation:'fadeUp .2s ease', fontFamily:"'DM Sans',sans-serif" }}>
             <div style={{ width:56, height:56, borderRadius:16, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}><Send size={24} color="#16A34A"/></div>
             <h3 style={{ fontFamily:'Sora,sans-serif', fontSize:18, fontWeight:700, color:'#0F172A', marginBottom:8 }}>Kumpulkan Jawaban?</h3>
             <p style={{ fontSize:14, color:'#64748B', lineHeight:1.6, marginBottom:8 }}>Sudah menjawab <strong>{answered}</strong> dari <strong>{questions.length}</strong> soal.</p>
-            {answered<questions.length&&<p style={{ fontSize:13, color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>⚠ {questions.length-answered} soal belum dijawab</p>}
-            {violationScore>0&&<p style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>🛡 {violationScore} poin pelanggaran tercatat</p>}
+            {answered < questions.length && <p style={{ fontSize:13, color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>⚠ {questions.length - answered} soal belum dijawab</p>}
+            {violationScore > 0 && <p style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>🛡 {violationScore} poin pelanggaran tercatat</p>}
             <p style={{ fontSize:12, color:'#94A3B8', marginBottom:24 }}>Setelah dikumpulkan, tidak bisa diubah lagi.</p>
-            {submitError&&<p style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px', marginBottom:16 }}>❌ {submitError}</p>}
+            {submitError && <p style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px', marginBottom:16 }}>❌ {submitError}</p>}
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={()=>setShowSubmit(false)} disabled={submitting}
+              <button onClick={() => setShowSubmit(false)} disabled={submitting}
                 style={{ flex:1, padding:13, borderRadius:10, border:'1.5px solid #E2E8F0', background:'#fff', fontSize:13, fontWeight:600, color:'#374151', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", minHeight:48 }}>
                 Kembali
               </button>
-              <button onClick={()=>{ setShowSubmit(false); handleSubmit(false); }} disabled={submitting}
-                style={{ flex:2, padding:13, borderRadius:10, border:'none', background:submitting?'#E2E8F0':'#16A34A', color:submitting?'#94A3B8':'#fff', fontSize:13, fontWeight:700, cursor:submitting?'not-allowed':'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7, minHeight:48 }}>
+              <button onClick={() => { setShowSubmit(false); handleSubmit(false); }} disabled={submitting}
+                style={{ flex:2, padding:13, borderRadius:10, border:'none', background: submitting ? '#E2E8F0' : '#16A34A', color: submitting ? '#94A3B8' : '#fff', fontSize:13, fontWeight:700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:7, minHeight:48 }}>
                 {submitting
-                  ?<><div style={{ width:14, height:14, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Mengumpulkan…</>
-                  :<><CheckCircle2 size={14}/>Ya, Kumpulkan</>}
+                  ? <><div style={{ width:14, height:14, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>Mengumpulkan…</>
+                  : <><CheckCircle2 size={14}/>Ya, Kumpulkan</>}
               </button>
             </div>
           </div>
@@ -1236,64 +1274,86 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // RESULT SCREEN
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 const ResultScreen = ({ result, session, onBack }) => {
-  const score=result.score!==null?Math.round(result.score):null;
+  const score = result.score !== null ? Math.round(result.score) : null;
   return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
-      <div style={{ width:'100%', maxWidth:460, textAlign:'center' }}>
-        {result.force_submitted&&<div style={{ background:'rgba(220,38,38,.2)', border:'1px solid rgba(220,38,38,.4)', borderRadius:12, padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:10 }}>
-          <XCircle size={20} color="#F87171"/><div style={{ textAlign:'left' }}>
-            <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, color:'#F87171' }}>Submit Otomatis</div>
-            <div style={{ fontSize:12, color:'#94A3B8' }}>{result.force_submit_reason||'Poin pelanggaran melebihi batas'}</div>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}`}</style>
+      <div style={{ width:'100%', maxWidth:460, textAlign:'center', animation:'fadeUp .4s ease' }}>
+        {/* Banner force-submitted — sinkron UTBK violationReason display */}
+        {result.force_submitted && (
+          <div style={{ background:'rgba(220,38,38,.2)', border:'1px solid rgba(220,38,38,.4)', borderRadius:12, padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:10 }}>
+            <XCircle size={20} color="#F87171"/>
+            <div style={{ textAlign:'left' }}>
+              <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, color:'#F87171' }}>Submit Otomatis</div>
+              <div style={{ fontSize:12, color:'#94A3B8' }}>{result.force_submit_reason || 'Poin pelanggaran melebihi batas'}</div>
+            </div>
           </div>
-        </div>}
+        )}
         <div style={{ marginBottom:28 }}>
-          <div style={{ width:80, height:80, borderRadius:24, background:result.passed?'rgba(22,163,74,.2)':'rgba(220,38,38,.1)', border:`2px solid ${result.passed?'rgba(22,163,74,.4)':'rgba(220,38,38,.2)'}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
-            {result.passed?<CheckCircle2 size={40} color="#16A34A"/>:<BookOpen size={40} color="#0891B2"/>}
+          <div style={{ width:80, height:80, borderRadius:24, background: result.passed ? 'rgba(22,163,74,.2)' : 'rgba(220,38,38,.1)', border:`2px solid ${result.passed ? 'rgba(22,163,74,.4)' : 'rgba(220,38,38,.2)'}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+            {result.passed ? <CheckCircle2 size={40} color="#16A34A"/> : <BookOpen size={40} color="#0891B2"/>}
           </div>
-          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:700, color:'#F1F5F9', margin:'0 0 8px' }}>{result.passed===true?'Selamat! Kamu Lulus 🎉':result.passed===false?'Ujian Selesai':'Jawaban Dikumpulkan'}</h1>
+          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:26, fontWeight:700, color:'#F1F5F9', margin:'0 0 8px' }}>
+            {result.passed === true ? 'Selamat! Kamu Lulus 🎉' : result.passed === false ? 'Ujian Selesai' : 'Jawaban Dikumpulkan'}
+          </h1>
           <p style={{ fontSize:14, color:'#64748B', margin:0 }}>{session.title}</p>
         </div>
+
         <div style={{ background:'rgba(255,255,255,.05)', borderRadius:20, border:'1px solid rgba(255,255,255,.08)', padding:28, marginBottom:20 }}>
-          {score!==null
-            ?<><div style={{ fontFamily:'Sora,sans-serif', fontSize:64, fontWeight:700, color:result.passed?'#4ADE80':'#F87171', lineHeight:1, marginBottom:6 }}>{score}</div><div style={{ fontSize:14, color:'#64748B', marginBottom:20 }}>dari 100 · KKM {session.passing_score}</div></>
-            :<div style={{ fontSize:16, color:'#94A3B8', marginBottom:20, padding:'16px 0' }}>Jawaban essay akan dinilai guru</div>}
+          {score !== null
+            ? <>
+                <div style={{ fontFamily:'Sora,sans-serif', fontSize:64, fontWeight:700, color: result.passed ? '#4ADE80' : '#F87171', lineHeight:1, marginBottom:6 }}>{score}</div>
+                <div style={{ fontSize:14, color:'#64748B', marginBottom:20 }}>dari 100 · KKM {session.passing_score}</div>
+              </>
+            : <div style={{ fontSize:16, color:'#94A3B8', marginBottom:20, padding:'16px 0' }}>Jawaban essay akan dinilai guru</div>}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            {[{label:'Benar',value:result.total_correct??'—',color:'#4ADE80'},{label:'Salah',value:result.total_wrong??'—',color:'#F87171'},{label:'Kosong',value:result.total_unanswered??'—',color:'#94A3B8'},{label:'Poin Viol.',value:result.violation_score??0,color:(result.violation_score||0)>0?'#FBBF24':'#94A3B8'}].map(s=>(
+            {[
+              { label:'Benar',    value: result.total_correct ?? '—',   color:'#4ADE80' },
+              { label:'Salah',    value: result.total_wrong ?? '—',     color:'#F87171' },
+              { label:'Kosong',   value: result.total_unanswered ?? '—',color:'#94A3B8' },
+              { label:'Poin Viol.',value: result.violation_score ?? 0,  color:(result.violation_score || 0) > 0 ? '#FBBF24' : '#94A3B8' },
+            ].map(s => (
               <div key={s.label} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:12 }}>
                 <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:700, color:s.color }}>{s.value}</div>
                 <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{s.label}</div>
               </div>
             ))}
           </div>
-          {(result.violation_score||0)>0&&<div style={{ marginTop:16, paddingTop:16, borderTop:'1px solid rgba(255,255,255,.06)', display:'flex', alignItems:'center', gap:8, background:'rgba(251,191,36,.06)', borderRadius:10, padding:'12px 14px' }}>
-            <Monitor size={14} color="#FBBF24"/><span style={{ fontSize:12, color:'#94A3B8' }}>Poin pelanggaran terlihat oleh guru/pengawas.</span>
-          </div>}
+          {/* Catatan keamanan — sinkron UTBK violation summary di result screen */}
+          {(result.violation_score || 0) > 0 && (
+            <div style={{ marginTop:16, paddingTop:16, borderTop:'1px solid rgba(255,255,255,.06)', display:'flex', alignItems:'center', gap:8, background:'rgba(251,191,36,.06)', borderRadius:10, padding:'12px 14px' }}>
+              <Monitor size={14} color="#FBBF24"/>
+              <span style={{ fontSize:12, color:'#94A3B8' }}>Poin pelanggaran terlihat oleh guru/pengawas.</span>
+            </div>
+          )}
         </div>
-        <button onClick={onBack} style={{ width:'100%', padding:14, borderRadius:12, border:'none', background:'#0891B2', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Kembali ke Dashboard</button>
+        <button onClick={onBack} style={{ width:'100%', padding:14, borderRadius:12, border:'none', background:'#0891B2', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          Kembali ke Dashboard
+        </button>
       </div>
     </div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 // MAIN EXAM ROOM
-// ─────────────────────────────────────────────────────────────────
+// =================================================================
 export default function ExamRoom() {
-  const { profile }   = useAuth();
-  const navigate      = useNavigate();
-  const [screen,      setScreen]      = useState('token');
-  const [session,     setSession]     = useState(null);
-  const { variant } = useExperiment(session?.experiment_id ?? null);
-  const [questions,   setQuestions]   = useState([]);
-  const [result,      setResult]      = useState(null);
-  const [tokenError,  setTokenError]  = useState('');
-  const [tokenLoading,setTokenLoading]= useState(false);
-  const [submitting,  setSubmitting]  = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { profile }    = useAuth();
+  const navigate       = useNavigate();
+  const [screen,       setScreen]      = useState('token');
+  const [session,      setSession]     = useState(null);
+  const { variant }    = useExperiment(session?.experiment_id ?? null);
+  const [questions,    setQuestions]   = useState([]);
+  const [result,       setResult]      = useState(null);
+  const [tokenError,   setTokenError]  = useState('');
+  const [tokenLoading, setTokenLoading]= useState(false);
+  const [submitting,   setSubmitting]  = useState(false);
+  const [submitError,  setSubmitError] = useState('');
 
   const resolveVariantForSession = async (sess) => {
     if (!sess.experiment_id || !profile?.class_id) return null;
@@ -1311,73 +1371,164 @@ export default function ExamRoom() {
     } catch { return 'control'; }
   };
 
-  const handleEnterToken=async(input)=>{
-    setTokenLoading(true);setTokenError('');
+  const handleEnterToken = async (input) => {
+    setTokenLoading(true); setTokenError('');
     try {
-      const {data:sess,error}=await supabase.from('exam_sessions').select('*').eq('token',input.trim().toUpperCase()).eq('class_id',profile.class_id).single();
-      if(error||!sess){setTokenError('Token tidak valid atau bukan untuk kelasmu.');return;}
-      const now=new Date(),start=new Date(sess.start_time),end=new Date(sess.end_time);
-      if(now<start){setTokenError(`Ujian belum dimulai. Mulai: ${start.toLocaleString('id-ID')}`);return;}
-      if(now>end){setTokenError('Ujian sudah berakhir.');return;}
-      const {data:existing}=await supabase.from('exam_results').select('*').eq('exam_session_id',sess.id).eq('student_id',profile.id).maybeSingle();
-      if(existing?.status==='submitted'||existing?.status==='graded'){setSession(sess);setResult(existing);setScreen('result');return;}
+      const { data:sess, error } = await supabase.from('exam_sessions')
+        .select('*').eq('token', input.trim().toUpperCase()).eq('class_id', profile.class_id).single();
+      if (error || !sess) { setTokenError('Token tidak valid atau bukan untuk kelasmu.'); return; }
+
+      const now = new Date(), start = new Date(sess.start_time), end = new Date(sess.end_time);
+      if (now < start) { setTokenError(`Ujian belum dimulai. Mulai: ${start.toLocaleString('id-ID')}`); return; }
+      if (now > end)   { setTokenError('Ujian sudah berakhir.'); return; }
+
+      const { data:existing } = await supabase.from('exam_results')
+        .select('*').eq('exam_session_id', sess.id).eq('student_id', profile.id).maybeSingle();
+
+      if (existing?.status === 'submitted' || existing?.status === 'graded') {
+        setSession(sess); setResult(existing); setScreen('result'); return;
+      }
+
       // Auto-submit jika in_progress tapi waktu ujian sudah habis
-      if(existing?.status==='in_progress' && now>end){
-        setTokenLoading(true);
+      if (existing?.status === 'in_progress' && now > end) {
         try {
           const arr = Array.isArray(existing.answers) ? existing.answers : [];
-          const {data:submitData, error:submitErr} = await supabase.rpc('calculate_and_submit_exam',{p_result_id:existing.id,p_answers:arr});
-          if(!submitErr && submitData){
-            await supabase.from('exam_results').update({ force_submitted:true, force_submit_reason:'waktu ujian habis (auto-submit saat re-open)', updated_at:new Date().toISOString() }).eq('id',existing.id);
-            setSession(sess);setResult({...existing,...submitData,force_submitted:true});setScreen('result');
+          const { data:submitData, error:submitErr } = await supabase.rpc('calculate_and_submit_exam', {
+            p_result_id: existing.id, p_answers: arr,
+          });
+          if (!submitErr && submitData) {
+            await supabase.from('exam_results').update({
+              force_submitted: true,
+              force_submit_reason: 'waktu ujian habis (auto-submit saat re-open)',
+              updated_at: new Date().toISOString(),
+            }).eq('id', existing.id);
+            setSession(sess); setResult({ ...existing, ...submitData, force_submitted:true }); setScreen('result');
           } else {
-            // Submit gagal — tetap tampilkan result screen dengan data lama
-            setSession(sess);setResult({...existing,force_submitted:true});setScreen('result');
+            setSession(sess); setResult({ ...existing, force_submitted:true }); setScreen('result');
           }
         } catch {
-          setSession(sess);setResult({...existing,force_submitted:true});setScreen('result');
+          setSession(sess); setResult({ ...existing, force_submitted:true }); setScreen('result');
         }
         return;
       }
-      const {data:qs,error:qErr}=await supabase.from('questions').select('id,bank_id,type,question,options,image_url,difficulty,tags,score_weight').eq('bank_id',sess.question_bank_id);
-      if(qErr||!qs?.length){setTokenError('Bank soal kosong. Hubungi guru.');return;}
-      let qShow=qs;
-      if(sess.shuffle_questions) qShow=[...qs].sort(()=>Math.random()-.5);
-      if(sess.total_questions && sess.total_questions < qShow.length) qShow=qShow.slice(0,sess.total_questions);
-      setSession(sess);setQuestions(qShow);
+
+      const { data:qs, error:qErr } = await supabase.from('questions')
+        .select('id,bank_id,type,question,options,image_url,difficulty,tags,score_weight')
+        .eq('bank_id', sess.question_bank_id);
+      if (qErr || !qs?.length) { setTokenError('Bank soal kosong. Hubungi guru.'); return; }
+
+      let qShow = qs;
+      if (sess.shuffle_questions) qShow = [...qs].sort(() => Math.random() - .5);
+      if (sess.total_questions && sess.total_questions < qShow.length) qShow = qShow.slice(0, sess.total_questions);
+
+      setSession(sess); setQuestions(qShow);
       const resolvedVariant = await resolveVariantForSession(sess);
-      trackExamEvent({ eventType:EXAM_EVENTS.TOKEN_VALID, studentId:profile.id, schoolId:profile.school_id, examSessionId:sess.id, experimentId:sess.experiment_id??null, variant:resolvedVariant, properties:{ exam_type:sess.exam_type, class_id:profile.class_id } });
-      if(!existing){
-        const {data:nr}=await supabase.from('exam_results').insert([{ exam_session_id:sess.id, student_id:profile.id, answers:[], status:'in_progress', violation_count:0, violation_score:0, violation_counts:{}, violations:[], started_at:new Date().toISOString(), created_at:new Date().toISOString(), updated_at:new Date().toISOString(), experiment_id:sess.experiment_id??null, variant_name:resolvedVariant }]).select().single();
+      trackExamEvent({
+        eventType: EXAM_EVENTS.TOKEN_VALID, studentId: profile.id, schoolId: profile.school_id,
+        examSessionId: sess.id, experimentId: sess.experiment_id ?? null, variant: resolvedVariant,
+        properties: { exam_type: sess.exam_type, class_id: profile.class_id },
+      });
+
+      if (!existing) {
+        const { data:nr } = await supabase.from('exam_results').insert([{
+          exam_session_id: sess.id, student_id: profile.id, answers: [], status: 'in_progress',
+          violation_count: 0, violation_score: 0, violation_counts: {}, violations: [],
+          started_at: new Date().toISOString(), created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(), experiment_id: sess.experiment_id ?? null,
+          variant_name: resolvedVariant,
+        }]).select().single();
         setResult(nr);
-      } else {setResult(existing);}
+      } else {
+        setResult(existing);
+      }
       setScreen('confirm');
-    } catch(err){
-      const msg=err.message||'Terjadi kesalahan.';
+    } catch(err) {
+      const msg = err.message || 'Terjadi kesalahan.';
       setTokenError(msg);
-      trackExamEvent({ eventType:EXAM_EVENTS.TOKEN_INVALID, studentId:profile.id, schoolId:profile.school_id, properties:{ reason:msg } });
-    } finally{setTokenLoading(false);}
+      trackExamEvent({ eventType: EXAM_EVENTS.TOKEN_INVALID, studentId: profile.id, schoolId: profile.school_id, properties: { reason: msg } });
+    } finally { setTokenLoading(false); }
   };
 
-  const handleSubmit=async(arr,vScore,auto)=>{
+  // ================================================================
+  // FIX #1 UTAMA: handleSubmit
+  //
+  // Perubahan kritis vs versi lama:
+  //   LAMA: setScreen('result') hanya dipanggil kalau RPC sukses.
+  //         → auto-submit via pelanggaran tidak pernah transisi layar
+  //           kalau RPC gagal (siswa terjebak di "limbo").
+  //
+  //   BARU: Kalau auto=true (force-submit), transisi ke result screen
+  //         LANGSUNG sebelum menunggu RPC — persis seperti UTBK.
+  //         RPC tetap dijalankan di background untuk menyimpan nilai.
+  //         Kalau RPC gagal: banner error muncul di result screen
+  //         + data hasil diambil dari exam_results row yang ada.
+  //
+  //   Kalau auto=false (submit manual): perilaku sama seperti sebelumnya
+  //   (tunggu RPC sukses baru transisi) — UX yang lebih aman untuk
+  //   submit manual karena user bisa lihat error dan retry.
+  // ================================================================
+  const handleSubmit = async (arr, vScore, auto) => {
     setSubmitting(true); setSubmitError('');
+
+    if (auto) {
+      // Tandai result sebagai force_submitted secara optimistic
+      setResult(prev => ({
+        ...prev,
+        force_submitted:      true,
+        force_submit_reason:  prev?.force_submit_reason || `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}`,
+        violation_score:      vScore,
+      }));
+      // Transisi layar LANGSUNG — tidak tunggu RPC
+      setScreen('result');
+    }
+
     try {
-      const {data,error}=await supabase.rpc('calculate_and_submit_exam',{p_result_id:result.id,p_answers:arr});
-      if(error) throw error;
-      try{localStorage.removeItem(EXAM_SAVE_KEY(result.id));}catch{}
-      setResult(p=>({...p,...data})); setScreen('result');
-      trackExamEvent({ eventType:EXAM_EVENTS.EXAM_SUBMITTED, studentId:profile.id, schoolId:profile.school_id, examSessionId:session.id, examResultId:result.id, experimentId:session.experiment_id??null, variant, properties:{ score:data.score, passed:data.passed, violation_score:vScore, auto_submitted:auto } });
-    } catch(err){
-      const msg=err?.message||'Koneksi gagal. Cek internet lalu coba lagi.';
+      const { data, error } = await supabase.rpc('calculate_and_submit_exam', {
+        p_result_id: result.id, p_answers: arr,
+      });
+      if (error) throw error;
+
+      try { localStorage.removeItem(`zidu_exam_answers_${result.id}`); } catch {}
+
+      // Update result dengan data final dari server
+      setResult(prev => ({ ...prev, ...data }));
+
+      // Update force_submitted flag di DB
+      if (auto) {
+        supabase.from('exam_results').update({
+          force_submitted:     true,
+          force_submit_reason: `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}`,
+          updated_at:          new Date().toISOString(),
+        }).eq('id', result.id).catch(() => {});
+      }
+
+      trackExamEvent({
+        eventType: EXAM_EVENTS.EXAM_SUBMITTED, studentId: profile?.id, schoolId: profile?.school_id,
+        examSessionId: session.id, examResultId: result.id, experimentId: session.experiment_id ?? null, variant,
+        properties: { score: data.score, passed: data.passed, violation_score: vScore, auto_submitted: auto },
+      });
+
+      // Manual submit: transisi ke result setelah RPC sukses
+      if (!auto) setScreen('result');
+
+    } catch(err) {
+      const msg = err?.message || 'Koneksi gagal. Cek internet lalu coba lagi.';
       setSubmitError(msg);
       console.error('[ExamRoom submit error]', err);
-    } finally{setSubmitting(false);}
+      // Auto-submit gagal: sudah di result screen, tapi data belum tersimpan.
+      // Tampilkan error + saran hubungi guru (sinkron UTBK alert behavior)
+      if (auto) {
+        console.error('[CRITICAL] Auto-submit RPC failed. Student is on result screen but score not saved.', { resultId: result?.id, vScore });
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if(screen==='token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError}/>;
-  if(screen==='confirm') return <ExamConfirm session={session} onStart={()=>setScreen('exam')} onBack={()=>setScreen('token')}/>;
-  if(screen==='exam'){
-    if(!result?.id||!questions.length) return(
+  if (screen === 'token')   return <TokenEntry onEnter={handleEnterToken} loading={tokenLoading} error={tokenError}/>;
+  if (screen === 'confirm') return <ExamConfirm session={session} onStart={() => setScreen('exam')} onBack={() => setScreen('token')}/>;
+  if (screen === 'exam') {
+    if (!result?.id || !questions.length) return (
       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F8FAFC', fontFamily:"'DM Sans',sans-serif" }}>
         <div style={{ textAlign:'center' }}>
           <div style={{ width:40, height:40, borderRadius:'50%', border:'3px solid #E2E8F0', borderTopColor:'#0891B2', animation:'spin .8s linear infinite', margin:'0 auto 16px' }}/>
@@ -1385,8 +1536,14 @@ export default function ExamRoom() {
         </div>
       </div>
     );
-    return <ExamRoomContent session={session} questions={questions} result={result} onSubmit={handleSubmit} submitting={submitting} submitError={submitError} variant={variant}/>;
+    return (
+      <ExamRoomContent
+        session={session} questions={questions} result={result}
+        onSubmit={handleSubmit} submitting={submitting} submitError={submitError}
+        variant={variant}
+      />
+    );
   }
-  if(screen==='result') return <ResultScreen result={result} session={session} onBack={()=>navigate('/student')}/>;
+  if (screen === 'result') return <ResultScreen result={result} session={session} onBack={() => navigate('/student')}/>;
   return null;
 }
