@@ -61,17 +61,57 @@ const CreateRemedialModal = ({ session, failedStudents, onClose, onCreated }) =>
 
     setSaving(true); setErr('');
     try {
-      const { data, error } = await supabase.rpc('create_remedial_session', {
-        p_parent_session_id: session.id,
-        p_title:             form.title,
-        p_start_time:        new Date(form.start).toISOString(),
-        p_end_time:          new Date(form.end).toISOString(),
-        p_duration_minutes:  parseInt(form.duration),
-        p_student_ids:       selected,
-      });
+      // 1. Ambil data parent session (butuh question_bank_id dll.)
+      const { data: parent, error: parentErr } = await supabase
+        .from('exam_sessions')
+        .select('id, school_id, teacher_id, class_id, question_bank_id, exam_type, passing_score, duration_minutes')
+        .eq('id', session.id)
+        .single();
+      if (parentErr) throw parentErr;
 
-      if (error) throw error;
-      onCreated(data);
+      // 2. Generate token tanpa bergantung gen_random_bytes di DB
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const arr = new Uint8Array(8);
+      crypto.getRandomValues(arr);
+      const token = Array.from(arr, b => chars[b % chars.length]).join('');
+
+      // 3. Buat exam_session remedial
+      const { data: newSession, error: sessErr } = await supabase
+        .from('exam_sessions')
+        .insert({
+          school_id:        parent.school_id,
+          teacher_id:       parent.teacher_id,
+          class_id:         parent.class_id,
+          question_bank_id: parent.question_bank_id,
+          title:            form.title,
+          exam_type:        parent.exam_type,
+          start_time:       new Date(form.start).toISOString(),
+          end_time:         new Date(form.end).toISOString(),
+          duration_minutes: parseInt(form.duration),
+          passing_score:    parent.passing_score,
+          token,
+          token_status:     'active',
+          is_remedial:      true,
+          parent_session_id: session.id,
+          remedial_for_ids: selected,
+        })
+        .select('id, title, token')
+        .single();
+      if (sessErr) throw sessErr;
+
+      // 4. Kirim notifikasi ke siswa yang dipilih
+      const notifInserts = selected.map(studentId => ({
+        user_id: studentId,
+        type:    'remedial_scheduled',
+        title:   'Kamu Wajib Ikut Remedial',
+        body:    `Sesi remedial "${form.title}" telah dijadwalkan. Hubungi guru untuk token ujian.`,
+        link:    '/student/results',
+      }));
+      if (notifInserts.length) {
+        await supabase.from('notifications').insert(notifInserts);
+      }
+
+      onCreated({ token: newSession.token, notified: selected.length });
     } catch (e) {
       setErr(e.message);
     } finally {
