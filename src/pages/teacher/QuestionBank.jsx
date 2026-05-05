@@ -570,7 +570,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
     type: 'multiple_choice', question: '', options: [...OPTS_DEFAULT],
     option_images: ['', '', '', ''],
     use_image_options: false,
-    question_image: '',
+    image_url: '',
     correct_answer: '', difficulty: 'medium', score_weight: 1,
   };
   const [form, setForm] = useState(EMPTY);
@@ -602,7 +602,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
           options: decodedOptions,
           option_images: decodedImages,
           use_image_options: isImageMode,
-          question_image: question.question_image || '',
+          image_url: question.image_url || '',
           correct_answer: question.correct_answer || '',
           difficulty: question.difficulty || 'medium',
           score_weight: question.score_weight || 1,
@@ -665,7 +665,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
       const payload = {
         type: form.type,
         question: form.question.trim(),
-        question_image: form.question_image || null,
+        image_url: form.image_url || null,
         options: optionsValue,
         correct_answer: form.correct_answer,
         difficulty: form.difficulty,
@@ -735,10 +735,10 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
             <label style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px', display: 'block' }}>
               Gambar Soal <span style={{ color: '#94A3B8', fontWeight: '400' }}>(opsional)</span>
             </label>
-            {form.question_image ? (
+            {form.image_url ? (
               <div style={{ position: 'relative', display: 'inline-block' }}>
-                <img src={form.question_image} alt="soal" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #E2E8F0', objectFit: 'contain' }} />
-                <button onClick={() => set('question_image', '')}
+                <img src={form.image_url} alt="soal" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #E2E8F0', objectFit: 'contain' }} />
+                <button onClick={() => set('image_url', '')}
                   style={{ position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px', borderRadius: '50%', background: '#EF4444', border: 'none', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={11} />
                 </button>
@@ -752,7 +752,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
                   : <ImageIcon size={13} />}
                 {uploadingQ ? 'Memproses...' : 'Upload Gambar Soal'}
                 <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingQ}
-                  onChange={e => handleImageFile(e.target.files[0], v => set('question_image', v), setUploadingQ)} />
+                  onChange={e => handleImageFile(e.target.files[0], v => set('image_url', v), setUploadingQ)} />
               </label>
             )}
           </div>

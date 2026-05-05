@@ -363,12 +363,13 @@ const RemedialPage = () => {
       if (sessRes.error) throw sessRes.error;
       setSessions(sessRes.data || []);
 
-      // Enrich remedials with summary data
+      // Enrich remedials with summary data (remedial_summary is an optional view)
       if (remRes.data?.length) {
         const { data: summaries } = await supabase
           .from('remedial_summary')
           .select('*')
-          .in('session_id', remRes.data.map(r => r.id));
+          .in('session_id', remRes.data.map(r => r.id))
+          .throwOnError(false);  // silently skip if view doesn't exist
 
         const summaryMap = {};
         (summaries || []).forEach(s => { summaryMap[s.session_id] = s; });
