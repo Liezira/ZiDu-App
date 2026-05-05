@@ -51,6 +51,21 @@ const BuatSesiModal = ({ teacherClasses, teacherSubjects, profile, onClose, onCr
     setSaving(true); setErr('');
     try {
       // 1. Buat sesi
+      // Generate token absensi 6 karakter
+      const genToken = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const arr = new Uint8Array(6);
+        crypto.getRandomValues(arr);
+        return Array.from(arr, b => chars[b % chars.length]).join('');
+      };
+
+      // Bangun judul dari nama kelas dan jam
+      const kelasName = teacherClasses.find(c => c.id === classId)?.name || 'Kelas';
+      const mapelName = subjectId ? (teacherSubjects.find(s => s.id === subjectId)?.name || '') : '';
+      const builtTitle = mapelName
+        ? `${mapelName} — ${kelasName} Jam ke-${jamKe}`
+        : `Absensi ${kelasName} Jam ke-${jamKe}`;
+
       const { data: sess, error: e1 } = await supabase
         .from('attendance_sessions')
         .insert({
@@ -58,6 +73,8 @@ const BuatSesiModal = ({ teacherClasses, teacherSubjects, profile, onClose, onCr
           teacher_id: profile.id,
           class_id:   classId,
           subject_id: subjectId || null,
+          title:      builtTitle,
+          token:      genToken(),
           date:       tanggal,
           jam_ke:     jamKe,
           start_time: `${tanggal}T${pukul}:00+07:00`,
