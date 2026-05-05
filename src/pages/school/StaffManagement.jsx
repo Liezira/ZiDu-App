@@ -238,25 +238,37 @@ const PersonModal = ({ open, person, tab, classes, subjects, schoolId, onClose, 
 
         if (authError) throw authError;
 
-        // Jika auth user berhasil dibuat, upsert profile dengan ID yang sama
-        if (authData?.user) {
-          const { error: profileError } = await supabase.from('profiles').upsert([{
-            id:         authData.user.id,
-            email,
-            role:       isTeacher ? 'teacher' : 'student',
-            school_id:  schoolId,
-            created_at: new Date().toISOString(),
-            ...profilePayload,
-          }]);
-          if (profileError) throw profileError;
+        // Supabase returns a user with empty `identities` when the email already
+        // exists (security feature). In this case the returned user.id is a fake
+        // UUID that does NOT exist in auth.users, which would cause the FK error.
+        if (!authData?.user) {
+          throw new Error('Gagal membuat akun. Coba lagi beberapa saat.');
         }
+        if ((authData.user.identities ?? []).length === 0) {
+          throw new Error('Email sudah terdaftar. Gunakan email lain atau hubungi admin.');
+        }
+
+        // Jika auth user berhasil dibuat, upsert profile dengan ID yang sama
+        const { error: profileError } = await supabase.from('profiles').upsert([{
+          id:         authData.user.id,
+          email,
+          role:       isTeacher ? 'teacher' : 'student',
+          school_id:  schoolId,
+          created_at: new Date().toISOString(),
+          ...profilePayload,
+        }]);
+        if (profileError) throw profileError;
       }
 
       onSaved(); onClose();
     } catch (err) {
       const msg = err.message || '';
-      if (msg.includes('already registered') || msg.includes('duplicate')) {
+      if (msg.includes('already registered') || msg.includes('duplicate') || msg.includes('sudah terdaftar')) {
         setSaveErr('Email sudah terdaftar. Gunakan email lain.');
+      } else if (msg.includes('email rate limit') || msg.includes('rate limit exceeded') || msg.includes('rate_limit')) {
+        setSaveErr('Batas pengiriman email tercapai. Tunggu beberapa menit lalu coba lagi, atau gunakan fitur Undangan untuk mengundang pengguna.');
+      } else if (msg.includes('foreign key') || msg.includes('profiles_id_fkey')) {
+        setSaveErr('Gagal membuat akun: email mungkin sudah terdaftar di sistem. Gunakan email lain atau coba beberapa saat lagi.');
       } else {
         setSaveErr(msg || 'Terjadi kesalahan, coba lagi.');
       }
@@ -399,9 +411,14 @@ const CsvImportModal = ({ open, classes, schoolId, preselectedClass, onClose, on
 
         if (authError) throw authError;
 
+        // Cek identities — jika kosong, email sudah terdaftar (Supabase security feature)
+        // Jangan upsert profile dengan ID palsu yang tidak ada di auth.users
+        if (!authData?.user || (authData.user.identities ?? []).length === 0) {
+          throw new Error('Email sudah terdaftar');
+        }
+
         // Langkah 2: Upsert profile dengan ID dari auth user
-        if (authData?.user) {
-          const { error: profileError } = await supabase.from('profiles').upsert([{
+        const { error: profileError } = await supabase.from('profiles').upsert([{
             id:         authData.user.id,
             name:       row.name,
             email:      row.email,
@@ -413,7 +430,6 @@ const CsvImportModal = ({ open, classes, schoolId, preselectedClass, onClose, on
             updated_at: new Date().toISOString(),
           }]);
           if (profileError) throw profileError;
-        }
 
         success++;
       } catch {
