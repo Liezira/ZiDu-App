@@ -585,12 +585,23 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
   useEffect(() => {
     if (open) {
       if (question) {
+        // Detect image options encoded as "img:url" prefixes (written this way to avoid
+        // saving to non-existent DB columns option_images / use_image_options)
+        const rawOptions = question.options || [];
+        const isImageMode = rawOptions.length > 0 && rawOptions.every(o => String(o).startsWith('img:'));
+        const decodedImages = isImageMode
+          ? [...rawOptions.map(o => String(o).replace(/^img:/, '')), '', '', ''].slice(0, 4)
+          : ['', '', '', ''];
+        const decodedOptions = isImageMode
+          ? [...OPTS_DEFAULT]
+          : [...rawOptions, ...OPTS_DEFAULT].slice(0, 4);
+
         setForm({
           type: question.type || 'multiple_choice',
           question: question.question || '',
-          options: question.options ? [...question.options, ...OPTS_DEFAULT].slice(0, 4) : [...OPTS_DEFAULT],
-          option_images: question.option_images ? [...question.option_images, '', '', ''].slice(0, 4) : ['', '', '', ''],
-          use_image_options: !!(question.use_image_options),
+          options: decodedOptions,
+          option_images: decodedImages,
+          use_image_options: isImageMode,
           question_image: question.question_image || '',
           correct_answer: question.correct_answer || '',
           difficulty: question.difficulty || 'medium',
@@ -639,17 +650,23 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
     if (!validate()) return;
     setSaving(true); setSaveErr('');
     try {
+      // Encode option images inside `options` jsonb using prefix "img:" so we don't
+      // need the non-existent `option_images` / `use_image_options` DB columns.
+      let optionsValue = null;
+      if (form.type === 'multiple_choice') {
+        if (form.use_image_options) {
+          // Store image URLs prefixed with "img:" so they can be detected on load
+          optionsValue = form.option_images.filter(img => img).map(url => `img:${url}`);
+        } else {
+          optionsValue = form.options.filter(o => o.trim());
+        }
+      }
+
       const payload = {
         type: form.type,
         question: form.question.trim(),
         question_image: form.question_image || null,
-        options: form.type === 'multiple_choice'
-          ? (form.use_image_options
-              ? ['A', 'B', 'C', 'D'].slice(0, form.option_images.filter(i => i).length)
-              : form.options.filter(o => o.trim()))
-          : null,
-        option_images: form.type === 'multiple_choice' && form.use_image_options ? form.option_images : null,
-        use_image_options: form.type === 'multiple_choice' ? form.use_image_options : false,
+        options: optionsValue,
         correct_answer: form.correct_answer,
         difficulty: form.difficulty,
         score_weight: parseFloat(form.score_weight) || 1,
