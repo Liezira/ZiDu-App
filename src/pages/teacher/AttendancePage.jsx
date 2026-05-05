@@ -145,7 +145,7 @@ const BuatSesiModal = ({ teacherClasses, teacherSubjects, profile, onClose, onCr
         <div style={{ flex:1, overflowY:'auto', padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
 
           {/* Kelas + Mapel */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <div className="grid-2col">
             <div>
               <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#475569', marginBottom:5 }}>KELAS *</label>
               <div style={{ position:'relative' }}>
@@ -171,7 +171,7 @@ const BuatSesiModal = ({ teacherClasses, teacherSubjects, profile, onClose, onCr
           </div>
 
           {/* Tanggal + Jam ke + Pukul */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+          <div className="grid-3col">
             <div>
               <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#475569', marginBottom:5 }}>TANGGAL *</label>
               <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} style={inp} />
@@ -336,7 +336,7 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
           </div>
 
           {/* Stat chips */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginBottom:10 }}>
+          <div className="grid-4col" style={{ marginBottom: 10 }}>
             {Object.entries(STATUS).map(([k, v]) => (
               <div key={k} style={{ textAlign:'center', padding:'8px 4px', background:v.bg, borderRadius:8, border:`1px solid ${v.border}` }}>
                 <div style={{ fontFamily:'Sora,sans-serif', fontSize:17, fontWeight:700, color:v.color }}>{counts[k]}</div>

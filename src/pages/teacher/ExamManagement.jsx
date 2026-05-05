@@ -298,25 +298,25 @@ const ExamModal = ({ open, session, banks, classes, schoolId, teacherId, onClose
 
           <Input label="Judul Ujian" required placeholder="Contoh: UH Bab 3 - Persamaan Kuadrat" value={form.title} onChange={e => set('title', e.target.value)} error={errors.title} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <SelectField label="Bank Soal" required placeholder="— Pilih Bank Soal —" value={form.question_bank_id} onChange={e => set('question_bank_id', e.target.value)} error={errors.question_bank_id}
               options={banks.map(b => ({ value: b.id, label: `${b.name} (${b.total_questions} soal)` }))} />
             <SelectField label="Kelas" required placeholder="— Pilih Kelas —" value={form.class_id} onChange={e => set('class_id', e.target.value)} error={errors.class_id}
               options={classes.map(c => ({ value: c.id, label: c.name }))} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <SelectField label="Jenis Ujian" value={form.exam_type} onChange={e => set('exam_type', e.target.value)}
               options={['Ulangan Harian', 'UTS', 'UAS', 'Try Out', 'Kuis'].map(t => ({ value: t, label: t }))} />
             <Input label="Durasi (menit)" required type="number" min="1" max="480" value={form.duration_minutes} onChange={e => set('duration_minutes', e.target.value)} error={errors.duration_minutes} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <Input label="Waktu Mulai" required type="datetime-local" value={form.start_time} onChange={e => set('start_time', e.target.value)} error={errors.start_time} />
             <Input label="Waktu Selesai" required type="datetime-local" value={form.end_time} onChange={e => set('end_time', e.target.value)} error={errors.end_time} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <Input label="KKM / Passing Score" type="number" min="0" max="100" value={form.passing_score} onChange={e => set('passing_score', e.target.value)} hint="Nilai minimum lulus (0-100)" />
             <Input label="Maks. Pelanggaran" type="number" min="1" max="10" value={form.max_violations} onChange={e => set('max_violations', e.target.value)} hint="Sebelum otomatis submit" />
           </div>
@@ -420,7 +420,7 @@ const MonitorDrawer = ({ session, results, onClose, onEdit, onDelete, refreshRes
         <div style={{ overflowY: 'auto', flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Info cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className="grid-2col">
             {[
               { label: 'Waktu Mulai', value: fmtDateTime(session.start_time), icon: Calendar, color: '#0891B2', bg: '#EFF6FF' },
               { label: 'Waktu Selesai', value: fmtDateTime(session.end_time), icon: Square, color: '#DC2626', bg: '#FEF2F2' },
@@ -467,7 +467,7 @@ const MonitorDrawer = ({ session, results, onClose, onEdit, onDelete, refreshRes
             </div>
 
             {/* Stats row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+            <div className="grid-4col" style={{ marginBottom: '12px' }}>
               {[
                 { label: 'Submit', value: submitted, color: '#16A34A', bg: '#F0FDF4' },
                 { label: 'Mengerjakan', value: inProgress, color: '#D97706', bg: '#FFFBEB' },

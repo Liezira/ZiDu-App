@@ -706,7 +706,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
         <div style={{ padding: '18px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Type + Difficulty + Weight */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div className="grid-3col">
             <SelectField label="Tipe Soal" value={form.type} onChange={e => { set('type', e.target.value); set('correct_answer', ''); set('use_image_options', false); }}
               options={Object.entries(TYPE_META).map(([v, m]) => ({ value: v, label: m.label }))} />
             <SelectField label="Tingkat Kesulitan" value={form.difficulty} onChange={e => set('difficulty', e.target.value)}
@@ -809,7 +809,7 @@ const QuestionEditor = ({ open, question, bankId, onClose, onSaved }) => {
 
               {/* MODE GAMBAR — 2x2 grid */}
               {form.use_image_options && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="grid-2col">
                   {optLabels.map((label, i) => {
                     const isCorrect = form.correct_answer === label;
                     const img = form.option_images[i];

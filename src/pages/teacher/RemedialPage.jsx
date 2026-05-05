@@ -151,7 +151,7 @@ const CreateRemedialModal = ({ session, failedStudents, onClose, onCreated }) =>
               onBlur={e => e.target.style.borderColor = '#E2E8F0'} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <div>
               <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>WAKTU MULAI</label>
               <input type="datetime-local" value={form.start} onChange={e => setForm(p => ({ ...p, start: e.target.value }))}
@@ -264,7 +264,7 @@ const RemedialDetail = ({ remedial, onClose }) => {
 
         <div style={{ padding: '20px 24px', flex: 1 }}>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+          <div className="grid-2col" style={{ marginBottom: '20px' }}>
             {[
               { label: 'Wajib Ikut',     value: remedial.wajib_remedial || 0,    color: '#DC2626', bg: '#FEF2F2' },
               { label: 'Sudah Ikut',     value: remedial.sudah_ikut || 0,         color: '#0891B2', bg: '#EFF6FF' },

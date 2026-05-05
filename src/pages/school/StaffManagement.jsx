@@ -296,7 +296,7 @@ const PersonModal = ({ open, person, tab, classes, subjects, schoolId, onClose, 
         </div>
 
         <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid-2col">
             <div style={{ gridColumn: '1/-1' }}>
               <Input label="Nama Lengkap" required placeholder="Masukkan nama lengkap" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
             </div>

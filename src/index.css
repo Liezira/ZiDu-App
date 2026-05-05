@@ -111,3 +111,128 @@
     @apply text-2xl font-semibold leading-snug;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   4. RESPONSIVE UTILITY CLASSES
+   Digunakan di seluruh halaman untuk menggantikan inline grid
+   yang tidak responsif. Mobile-first, breakpoint tunggal 640px.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Modal / form grids: dua kolom → satu kolom di mobile */
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 540px) {
+  .grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tiga kolom → satu kolom di mobile */
+.grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .grid-3col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Empat kolom stats → dua kolom di mobile */
+.grid-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .grid-4col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Filter/toolbar baris: wrap dengan benar di mobile */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar-row > .toolbar-search {
+  flex: 1;
+  min-width: 180px;
+}
+@media (max-width: 540px) {
+  .toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-row > * {
+    width: 100%;
+  }
+}
+
+/* Tabel horizontally scrollable di mobile */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Kartu stat dashboard: min 140px per kartu */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+/* Two-panel layout (sidebar kiri + konten kanan) */
+.two-panel {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+}
+@media (max-width: 768px) {
+  .two-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Padding responsif untuk konten halaman dalam modal */
+.modal-body-scroll {
+  padding: clamp(14px, 3vw, 24px);
+  overflow-y: auto;
+}
+
+/* Tombol aksi di modal/header: wrap gracefully */
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .action-row .action-btn-secondary {
+    display: none; /* sembunyikan tombol sekunder di layar sangat kecil */
+  }
+}
+
+/* Header section: judul + tombol aksi sejajar → stack di mobile */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* Chip/badge list yang bisa wrap */
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
