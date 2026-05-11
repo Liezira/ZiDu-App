@@ -1,44 +1,70 @@
+// src/components/ui/ConfirmDialog.jsx
 import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 
+/**
+ * ConfirmDialog — modal konfirmasi aksi destruktif.
+ *
+ * @param {{ open: boolean, title: string, message: string, onConfirm: () => void, onCancel: () => void, loading?: boolean, confirmLabel?: string, confirmVariant?: 'danger'|'primary' }} props
+ */
 export const ConfirmDialog = ({
-  open, title, message, onConfirm, onCancel,
-  loading=false, confirmLabel='Ya, Hapus', confirmVariant='danger',
+    open,
+    title,
+    message,
+    onConfirm,
+    onCancel,
+    loading = false,
+    confirmLabel = 'Ya, Hapus',
+    confirmVariant = 'danger',
 }) => {
-  if (!open) return null;
-  const dangerStyle = { bg:'#E24B4A', color:'#fff', hov:'#c93b3a' };
-  const primaryStyle = { bg:'#6366f1', color:'#fff', hov:'#4f51c9' };
-  const vs = confirmVariant==='danger' ? dangerStyle : primaryStyle;
-  return (
-    <div style={{ position:'fixed', inset:0, zIndex:200,
-      background:'rgba(15,23,42,.55)', backdropFilter:'blur(4px)',
-      display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-      <div style={{ background:'#ffffff', borderRadius:'8px', padding:'20px 22px',
-        width:'100%', maxWidth:'360px', border:'0.5px solid #ddd9d2',
-        boxShadow:'0 8px 32px rgba(0,0,0,.12)', animation:'zdScaleIn .2s ease' }}>
-        <h3 style={{ fontFamily:'Sora, sans-serif', fontSize:'14px', fontWeight:'600',
-          color:'#1a1c26', marginBottom:'7px' }}>{title}</h3>
-        <p style={{ fontSize:'12px', color:'#4a4c5e', lineHeight:1.6, marginBottom:'16px' }}>{message}</p>
-        <div style={{ display:'flex', gap:'7px', justifyContent:'flex-end' }}>
-          <button onClick={onCancel} disabled={loading} style={{
-            padding:'6px 12px', borderRadius:'5px', border:'0.5px solid #c5c2bc',
-            background:'transparent', fontSize:'12px', color:'#4a4c5e',
-            cursor:'pointer', fontFamily:'DM Sans, sans-serif',
-          }}>Batal</button>
-          <button onClick={onConfirm} disabled={loading} style={{
-            display:'inline-flex', alignItems:'center', gap:'5px',
-            padding:'6px 12px', borderRadius:'5px', border:'none',
-            background:vs.bg, color:vs.color, fontSize:'12px', fontWeight:'500',
-            cursor:loading?'not-allowed':'pointer', opacity:loading?.6:1,
-            fontFamily:'DM Sans, sans-serif',
-          }}>
-            {loading && <div style={{ width:'11px', height:'11px',
-              border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff',
-              borderRadius:'50%', animation:'spin .7s linear infinite' }} />}
-            {confirmLabel}
-          </button>
+    if (!open) return null;
+
+    const confirmStyle = confirmVariant === 'danger'
+        ? 'bg-red-600 hover:bg-red-700 border-red-600'
+        : 'bg-sky-600 hover:bg-sky-700 border-sky-600';
+
+    return (
+        <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-5"
+            style={{ background: 'rgba(15,23,42,.6)', backdropFilter: 'blur(4px)' }}
+        >
+            <div
+                className="bg-white rounded-2xl p-7 w-full max-w-sm"
+                style={{ animation: 'scaleIn .2s ease', boxShadow: '0 25px 60px rgba(0,0,0,.2)' }}
+            >
+                <div className="flex items-start gap-3 mb-4">
+                    <div className="w-9 h-9 flex-shrink-0 rounded-xl bg-red-50 flex items-center justify-center">
+                        <AlertTriangle size={18} className="text-red-500" />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-bold text-slate-900 mb-1" style={{ fontFamily: 'Sora, sans-serif' }}>
+                            {title}
+                        </h3>
+                        <p className="text-sm text-slate-500 leading-relaxed">{message}</p>
+                    </div>
+                </div>
+                <div className="flex gap-3 justify-end">
+                    <button
+                        onClick={onCancel}
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-60"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={loading}
+                        className={`px-4 py-2 text-sm font-semibold text-white border rounded-lg transition-colors cursor-pointer disabled:opacity-60 inline-flex items-center gap-2 ${confirmStyle}`}
+                    >
+                        {loading && (
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        )}
+                        {confirmLabel}
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
+
 export default ConfirmDialog;

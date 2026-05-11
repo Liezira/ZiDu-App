@@ -155,12 +155,7 @@ const ClassPanel = ({ cls, teacherId, schoolId, onClose }) => {
 
       {/* Drawer */}
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '100%', maxWidth: '520px', background: T.surface, boxShadow: '-8px 0 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', animation: 'slideIn .25s ease' }}>
-        <style>{`
-          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
-          @keyframes spin{to{transform:rotate(360deg)}}
-          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
-@keyframes slideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}`}</style>
+        <style>{`@keyframes slideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}`}</style>
 
         {/* Header drawer */}
         <div style={{ padding: '20px 24px 0', borderBottom: `1px solid ${T.borderLight}`, paddingBottom: '16px', flexShrink: 0 }}>

@@ -177,12 +177,7 @@ const TokenEntry = ({ onEnter, loading, error }) => {
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#0F172A,#1E293B)', padding:20, fontFamily:"'DM Sans',sans-serif" }}>
-      <style>{`
-          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
-          @keyframes spin{to{transform:rotate(360deg)}}
-          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
-@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{ width:'100%', maxWidth:400, animation:'fadeUp .4s ease' }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
           <div style={{ width:56, height:56, borderRadius:16, background:'rgba(8,145,178,.2)', border:'1px solid rgba(8,145,178,.3)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>

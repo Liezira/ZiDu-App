@@ -776,11 +776,6 @@ const SchoolManagement = () => {
   return (
     <>
       <style>{`
-          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
-          @keyframes spin{to{transform:rotate(360deg)}}
-          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
-
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes fadeUp       { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
         @keyframes scaleIn      { from{opacity:0;transform:scale(0.95);} to{opacity:1;transform:scale(1);} }

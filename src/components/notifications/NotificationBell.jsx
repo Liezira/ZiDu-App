@@ -17,13 +17,13 @@ const fmtRelative = (d) => {
 };
 
 const TYPE_META = {
-  exam_new:         { icon: FileText,      color: '#6366f1', bg: '#ede9ff', label: 'Ujian Baru'   },
-  exam_graded:      { icon: Award,         color: '#D97706', bg: '#FAEEDA', label: 'Nilai Keluar' },
-  approval_pending: { icon: UserCheck,     color: '#14b8a6', bg: '#E6F1FB', label: 'Pendaftaran'  },
-  approval_result:  { icon: GraduationCap, color: '#1D9E75', bg: '#E1F5EE', label: 'Status Akun'  },
-  exam_reminder:    { icon: Clock,         color: '#E24B4A', bg: '#FCEBEB', label: 'Pengingat'    },
-  announcement:     { icon: Megaphone,     color: '#6366f1', bg: '#E6F1FB', label: 'Pengumuman'   },
-  remedial:         { icon: Clock,         color: '#E24B4A', bg: '#FCEBEB', label: 'Remedial'     },
+  exam_new:         { icon: FileText,      color: '#4F46E5', bg: '#EEF2FF', label: 'Ujian Baru'   },
+  exam_graded:      { icon: Award,         color: '#D97706', bg: '#FFFBEB', label: 'Nilai Keluar' },
+  approval_pending: { icon: UserCheck,     color: '#0891B2', bg: '#EFF6FF', label: 'Pendaftaran'  },
+  approval_result:  { icon: GraduationCap, color: '#16A34A', bg: '#F0FDF4', label: 'Status Akun'  },
+  exam_reminder:    { icon: Clock,         color: '#DC2626', bg: '#FEF2F2', label: 'Pengingat'    },
+  announcement:     { icon: Megaphone,     color: '#4F46E5', bg: '#EFF6FF', label: 'Pengumuman'   },
+  remedial:         { icon: Clock,         color: '#DC2626', bg: '#FEF2F2', label: 'Remedial'     },
 };
 
 // ── Notification Item ─────────────────────────────────────────────
@@ -35,40 +35,40 @@ const NotifItem = ({ notif, onRead, onDelete, onNavigate }) => {
       onClick={() => { onRead(notif.id); onNavigate(notif.link, notif); }}
       style={{
         display: 'flex', gap: '12px', padding: '12px 16px',
-        background: notif.is_read ? '#fff' : '#f4f3ff',
-        borderBottom: '0.5px solid #ddd9d2',
+        background: notif.is_read ? '#fff' : '#F8FBFF',
+        borderBottom: '1px solid #F1F5F9',
         cursor: notif.link ? 'pointer' : 'default',
         transition: 'background .12s',
         position: 'relative',
       }}
-      onMouseEnter={e => e.currentTarget.style.background = '#f9f8f5'}
-      onMouseLeave={e => e.currentTarget.style.background = notif.is_read ? '#fff' : '#f4f3ff'}
+      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+      onMouseLeave={e => e.currentTarget.style.background = notif.is_read ? '#fff' : '#F8FBFF'}
     >
       {!notif.is_read && (
-        <div style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', width: '5px', height: '5px', borderRadius: '50%', background: '#6366f1' }} />
+        <div style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', width: '5px', height: '5px', borderRadius: '50%', background: '#4F46E5' }} />
       )}
-      <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: '4px' }}>
+      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: '4px' }}>
         <Icon size={16} style={{ color: meta.color }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: notif.is_read ? '500' : '700', color: '#1a1c26', marginBottom: '2px', lineHeight: 1.4 }}>
+        <div style={{ fontSize: '13px', fontWeight: notif.is_read ? '500' : '700', color: '#0F172A', marginBottom: '2px', lineHeight: 1.4 }}>
           {notif.title}
         </div>
         {notif.body && (
-          <div style={{ fontSize: '12px', color: '#4a4c5e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {notif.body}
           </div>
         )}
-        <div style={{ fontSize: '11px', color: '#9a9790', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ padding: '1px 6px', borderRadius: '4px', background: meta.bg, color: meta.color, fontWeight: '600', fontSize: '10px' }}>{meta.label}</span>
+        <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ padding: '1px 6px', borderRadius: '999px', background: meta.bg, color: meta.color, fontWeight: '600', fontSize: '10px' }}>{meta.label}</span>
           {fmtRelative(notif.created_at)}
         </div>
       </div>
       <button
         onClick={e => { e.stopPropagation(); onDelete(notif.id); }}
-        style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '7px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#c5c2bc', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .12s', alignSelf: 'flex-start', marginTop: '2px' }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#FCEBEB'; e.currentTarget.style.color = '#EF4444'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#c5c2bc'; }}
+        style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '7px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .12s', alignSelf: 'flex-start', marginTop: '2px' }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#EF4444'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#CBD5E1'; }}
       >
         <Trash2 size={13} />
       </button>
@@ -77,8 +77,8 @@ const NotifItem = ({ notif, onRead, onDelete, onNavigate }) => {
 };
 
 const Shimmer = () => (
-  <div style={{ display: 'flex', gap: '12px', padding: '14px 16px', borderBottom: '0.5px solid #ddd9d2' }}>
-    <div style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite' }} />
+  <div style={{ display: 'flex', gap: '12px', padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+    <div style={{ width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite' }} />
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '7px' }}>
       <div style={{ height: '13px', width: '70%', borderRadius: '4px', background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite' }} />
       <div style={{ height: '11px', width: '90%', borderRadius: '4px', background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.2s infinite' }} />
@@ -161,7 +161,7 @@ const NotificationBell = ({
     ? {
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: '#ffffff',
+        background: '#fff',
         zIndex: 9000,
         display: 'flex', flexDirection: 'column',
         animation: 'slideUp .25s cubic-bezier(.16,1,.3,1)',
@@ -173,8 +173,8 @@ const NotificationBell = ({
         right: '12px',
         width: '360px',
         maxWidth: 'calc(100vw - 24px)',
-        background: '#ffffff', borderRadius: '16px',
-        border: '0.5px solid #ddd9d2',
+        background: '#fff', borderRadius: '16px',
+        border: '1px solid #F1F5F9',
         boxShadow: '0 16px 48px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.04)',
         zIndex: 500, overflow: 'hidden',
         animation: 'panelIn .2s cubic-bezier(.16,1,.3,1)',
@@ -197,7 +197,7 @@ const NotificationBell = ({
         @keyframes slideUp  { from{transform:translateY(100%);}to{transform:translateY(0);} }
         @keyframes badgePop { 0%{transform:scale(0);}70%{transform:scale(1.25);}100%{transform:scale(1);} }
         .notif-bell-btn { transition: background .15s; }
-        .notif-bell-btn:hover { background: ${C.hover || '#ddd9d2'} !important; }
+        .notif-bell-btn:hover { background: ${C.hover || '#F1F5F9'} !important; }
         .notif-list::-webkit-scrollbar { width: 4px; }
         .notif-list::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 4px; }
       `}</style>
@@ -209,24 +209,24 @@ const NotificationBell = ({
           onClick={() => setOpen(o => !o)}
           className="notif-bell-btn"
           style={{
-            width: '36px', height: '36px', borderRadius: '8px',
+            width: '36px', height: '36px', borderRadius: '10px',
             border: `1px solid ${C.border || '#E2E8F0'}`,
-            background: open ? (C.hover || '#ddd9d2') : (C.bg || '#f9f8f5'),
+            background: open ? (C.hover || '#F1F5F9') : (C.bg || '#F8FAFC'),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: open ? '#6366f1' : '#475569', position: 'relative',
+            cursor: 'pointer', color: open ? '#4F46E5' : '#475569', position: 'relative',
           }}
         >
           <Bell size={17} style={{ animation: unreadCount > 0 && !open ? 'bellRing 1.5s ease 1s 1' : 'none' }} />
           {unreadCount > 0 && (
             <span style={{
               position: 'absolute', top: '-4px', right: '-4px',
-              minWidth: '18px', height: '18px', borderRadius: '4px',
+              minWidth: '18px', height: '18px', borderRadius: '999px',
               background: '#EF4444', color: '#fff',
               fontSize: '10px', fontWeight: '700',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: '2px solid #fff', padding: '0 4px',
               animation: 'badgePop .3s cubic-bezier(.34,1.56,.64,1)',
-              fontFamily: 'DM Sans, sans-serif',
+              fontFamily: 'Sora, sans-serif',
             }}>
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
@@ -249,18 +249,18 @@ const NotificationBell = ({
             {/* Header */}
             <div style={{
               padding: isMobile ? '16px 20px' : '14px 16px',
-              borderBottom: '0.5px solid #ddd9d2',
+              borderBottom: '1px solid #F1F5F9',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               flexShrink: 0,
               // iOS safe area
               paddingTop: isMobile ? 'max(16px, env(safe-area-inset-top))' : '14px',
             }}>
               <div>
-                <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontSize: '16px', fontWeight: '700', color: '#1a1c26', margin: 0 }}>
+                <h3 style={{ fontFamily: 'Sora, sans-serif', fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
                   Notifikasi
                 </h3>
                 {unreadCount > 0 && (
-                  <div style={{ fontSize: '12px', color: '#4a4c5e', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
                     {unreadCount} belum dibaca
                   </div>
                 )}
@@ -269,14 +269,14 @@ const NotificationBell = ({
                 {unreadCount > 0 && (
                   <button
                     onClick={onMarkAllRead}
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#f9f8f5', fontSize: '12px', fontWeight: '600', color: '#6366f1', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '12px', fontWeight: '600', color: '#4F46E5', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
                   >
                     <CheckCheck size={12} />Tandai semua
                   </button>
                 )}
                 <button
                   onClick={() => setOpen(false)}
-                  style={{ width: '32px', height: '32px', borderRadius: '9px', border: '0.5px solid #ddd9d2', background: '#f9f8f5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a4c5e' }}
+                  style={{ width: '32px', height: '32px', borderRadius: '9px', border: '1px solid #F1F5F9', background: '#F8FAFC', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B' }}
                 >
                   <X size={15} />
                 </button>
@@ -284,7 +284,7 @@ const NotificationBell = ({
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', padding: '8px 16px 0', gap: '4px', borderBottom: '0.5px solid #ddd9d2', flexShrink: 0 }}>
+            <div style={{ display: 'flex', padding: '8px 16px 0', gap: '4px', borderBottom: '1px solid #F1F5F9', flexShrink: 0 }}>
               {[
                 { v: 'unread', label: 'Belum Dibaca', count: unreadCount },
                 { v: 'all',    label: 'Semua',        count: notifications.length },
@@ -299,14 +299,14 @@ const NotificationBell = ({
                     borderBottom: tab === t.v ? '2px solid #4F46E5' : '2px solid transparent',
                     background: 'transparent',
                     fontSize: '13px', fontWeight: tab === t.v ? '700' : '500',
-                    color: tab === t.v ? '#6366f1' : '#9a9790',
+                    color: tab === t.v ? '#4F46E5' : '#94A3B8',
                     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     transition: 'all .15s',
                   }}
                 >
                   {t.label}
                   {t.count > 0 && (
-                    <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', background: tab === t.v ? '#ede9ff' : '#ddd9d2', color: tab === t.v ? '#6366f1' : '#9a9790' }}>
+                    <span style={{ padding: '1px 6px', borderRadius: '999px', fontSize: '11px', fontWeight: '700', background: tab === t.v ? '#EEF2FF' : '#F1F5F9', color: tab === t.v ? '#4F46E5' : '#94A3B8' }}>
                       {t.count}
                     </span>
                   )}
@@ -329,13 +329,13 @@ const NotificationBell = ({
                 : displayed.length === 0
                 ? (
                   <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#f9f8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                      <Inbox size={24} style={{ color: '#c5c2bc' }} />
+                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                      <Inbox size={24} style={{ color: '#CBD5E1' }} />
                     </div>
-                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: '15px', fontWeight: '700', color: '#1a1c26', marginBottom: '6px' }}>
+                    <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '15px', fontWeight: '700', color: '#0F172A', marginBottom: '6px' }}>
                       {tab === 'unread' ? 'Semua sudah dibaca' : 'Belum ada notifikasi'}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#9a9790' }}>
+                    <div style={{ fontSize: '13px', color: '#94A3B8' }}>
                       {tab === 'unread' ? 'Notifikasi baru akan muncul di sini' : 'Kamu akan dapat notifikasi untuk ujian & nilai'}
                     </div>
                   </div>
@@ -356,11 +356,11 @@ const NotificationBell = ({
             {notifications.length > 0 && (
               <div style={{
                 padding: '12px 16px',
-                borderTop: '0.5px solid #ddd9d2',
+                borderTop: '1px solid #F1F5F9',
                 textAlign: 'center', flexShrink: 0,
                 paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : '12px',
               }}>
-                <span style={{ fontSize: '11px', color: '#9a9790' }}>
+                <span style={{ fontSize: '11px', color: '#94A3B8' }}>
                   {notifications.length} notifikasi tersimpan · Real-time via Supabase
                 </span>
               </div>

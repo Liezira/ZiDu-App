@@ -1,29 +1,26 @@
+// src/components/ui/Badge.jsx
 import React from 'react';
 
 const VARIANTS = {
-  easy:    { bg:'#E1F5EE', color:'#0F6E56', border:'#a7e8d4' },
-  medium:  { bg:'#FAEEDA', color:'#854F0B', border:'#FDE68A' },
-  hard:    { bg:'#FCEBEB', color:'#A32D2D', border:'#F7C1C1' },
-  info:    { bg:'#E6F1FB', color:'#185FA5', border:'#BFDBFE' },
-  success: { bg:'#E1F5EE', color:'#0F6E56', border:'#a7e8d4' },
-  warning: { bg:'#FAEEDA', color:'#854F0B', border:'#FDE68A' },
-  danger:  { bg:'#FCEBEB', color:'#A32D2D', border:'#F7C1C1' },
-  default: { bg:'#F1EFE8', color:'#5F5E5A', border:'#ddd9d2' },
-  purple:  { bg:'#EEEDFE', color:'#534AB7', border:'#c4c0f5' },
-  teal:    { bg:'#E1F5EE', color:'#0F6E56', border:'#a7e8d4' },
+    easy: 'bg-green-50 text-green-700 border border-green-200',
+    medium: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+    hard: 'bg-red-50 text-red-700 border border-red-200',
+    info: 'bg-sky-50 text-sky-700 border border-sky-200',
+    success: 'bg-green-50 text-green-700 border border-green-200',
+    warning: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+    danger: 'bg-red-50 text-red-700 border border-red-200',
+    default: 'bg-slate-50 text-slate-600 border border-slate-200',
 };
 
-export const Badge = ({ variant='info', children, className='' }) => {
-  const v = VARIANTS[variant]||VARIANTS.default;
-  return (
-    <span style={{ display:'inline-flex', alignItems:'center',
-      padding:'2px 7px', borderRadius:'4px',
-      fontSize:'9px', fontWeight:'500', fontFamily:'JetBrains Mono, monospace',
-      letterSpacing:'.02em', color:v.color, background:v.bg,
-      border:`0.5px solid ${v.border}`, whiteSpace:'nowrap' }}
-      className={className}>
-      {children}
+/**
+ * Badge — label kecil dengan warna berdasarkan variant.
+ *
+ * @param {{ variant?: keyof VARIANTS, children: React.ReactNode, className?: string }} props
+ */
+export const Badge = ({ variant = 'info', children, className = '' }) => (
+    <span className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full ${VARIANTS[variant] ?? VARIANTS.default} ${className}`}>
+        {children}
     </span>
-  );
-};
+);
+
 export default Badge;

@@ -212,19 +212,7 @@ const JoinPage = () => {
   });
 
   const CSS = `
-    
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-        :root{
-          --c-bg:#f4f3f0; --c-surface:#ffffff; --c-surface2:#f9f8f5;
-          --c-border:#ddd9d2; --c-border2:#c5c2bc;
-          --c-text1:#1a1c26; --c-text2:#4a4c5e; --c-text3:#9a9790;
-          --c-indigo:#6366f1; --c-indigobg:#ede9ff;
-          --c-red:#E24B4A; --c-green:#1D9E75; --c-amber:#f59e0b;
-        }
-        body,[data-auth]{background:var(--c-bg)!important;font-family:'DM Sans',sans-serif!important}
-        [style*="linear-gradient(135deg,#F8FAFC"]{background:var(--c-bg)!important}
-        [style*="background: 'linear-gradient"]{background:var(--c-bg)!important}
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #070B14; }
     @keyframes fadeUp   { from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);} }

@@ -525,11 +525,6 @@ const SuperAdminDashboard = () => {
     <>
       <DashboardStyles />
       <style>{`
-          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
-          @keyframes spin{to{transform:rotate(360deg)}}
-          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
-
         @keyframes slideLeft { from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:translateX(0);} }
         @keyframes scaleIn  { from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);} }
         @keyframes spin     { to{transform:rotate(360deg);} }

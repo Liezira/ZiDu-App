@@ -59,12 +59,6 @@ const TeacherDashboard = () => {
 
   return (
     <>
-      <style>{`
-          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
-          @keyframes spin{to{transform:rotate(360deg)}}
-          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
-`}</style>
       <DashboardStyles />
       <div style={{ fontFamily: T.fontBody, display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
