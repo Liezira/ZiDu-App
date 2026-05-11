@@ -1,18 +1,8 @@
-// src/components/ui/Card.jsx
 import React from 'react';
-
-/**
- * Card — container dasar dengan background putih, rounded, border, dan shadow.
- *
- * @param {{ children: React.ReactNode, className?: string }} props
- */
-export const Card = ({ children, className = '', ...props }) => (
-    <div
-        className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-6 ${className}`}
-        {...props}
-    >
-        {children}
-    </div>
+export const Card = ({ children, className='', ...props }) => (
+  <div style={{
+    background:'#ffffff', borderRadius:'8px',
+    border:'0.5px solid #ddd9d2', padding:'14px 16px',
+  }} className={className} {...props}>{children}</div>
 );
-
 export default Card;

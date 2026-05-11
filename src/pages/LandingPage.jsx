@@ -200,6 +200,11 @@ const LandingPage = () => {
   return (
     <>
       <style>{`
+          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
+          @keyframes spin{to{transform:rotate(360deg)}}
+          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
+
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }

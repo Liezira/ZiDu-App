@@ -165,7 +165,12 @@ export default function ABTestingDashboard() {
 
   return (
     <div style={{ padding:'24px', fontFamily:"'DM Sans',sans-serif", maxWidth:1100, margin:'0 auto' }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+          @keyframes zdFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+          @keyframes zdSk{0%,100%{opacity:.5}50%{opacity:.85}}
+          @keyframes spin{to{transform:rotate(360deg)}}
+          .zdu-row:hover{background:#f4f3ff!important;cursor:pointer}
+@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>

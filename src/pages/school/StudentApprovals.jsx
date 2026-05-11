@@ -391,7 +391,12 @@ const StudentApprovals = () => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+        
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        .sm-row:hover,.cls-row:hover,.subj-row:hover,.appr-row:hover,.stu-row:hover{background:#f4f3ff!important;cursor:pointer}
+        [style*="borderRadius: '16px'"],[style*="borderRadius: '14px'"],[style*="borderRadius: '20px'"] {border-radius:8px!important}
+        .logout-btn:hover{background:#FCEBEB!important;border-color:#F7C1C1!important}
+
         @keyframes fadeUp    { from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);} }
         @keyframes shimmer   { 0%{background-position:-400px 0;}100%{background-position:400px 0;} }
         @keyframes slideLeft { from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:translateX(0);} }
