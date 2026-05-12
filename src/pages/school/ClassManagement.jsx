@@ -554,6 +554,8 @@ const ClassManagement = () => {
   const [error,     setError]     = useState(null);
 
   const [search,       setSearch]       = useState('');
+  // [FIX] debouncedSearch untuk komponen utama (bukan StudentPicker di atas)
+  const debouncedSearch = useDebounce(search);
   const [filterGrade,  setFilterGrade]  = useState('all');
   const [filterJurusan,setFilterJurusan]= useState('all');
   const [filterYear,   setFilterYear]   = useState('all');
