@@ -1,17 +1,19 @@
-// src/components/shared/ErrorBoundary.jsx
 import React, { Component } from 'react';
 import { logger } from '../../lib/logger';
 
-// [FIX-C3] Sentry integration — pasang VITE_SENTRY_DSN di .env untuk mengaktifkan.
-// Jika DSN tidak ada, error hanya di-log (dev only via logger).
+// [FIX-C3] Sentry optional — hanya load jika VITE_SENTRY_DSN di-set di .env
+// Pakai variable string agar Rollup tidak mencoba resolve package saat build.
+// Kalau @sentry/react belum di-install pun, build tetap sukses.
 let SentryLib = null;
+const SENTRY_PKG = '@sentry/react';
 if (import.meta.env.VITE_SENTRY_DSN) {
-  import('@sentry/react').then(m => { SentryLib = m; }).catch(() => {});
+  import(/* @vite-ignore */ SENTRY_PKG)
+    .then(m => { SentryLib = m; })
+    .catch(() => {
+      logger.warn('[ErrorBoundary] @sentry/react tidak terinstall. Jalankan: npm install @sentry/react');
+    });
 }
 
-/**
- * ErrorBoundary — mencegah crash seluruh aplikasi jika satu halaman throw error.
- */
 export class ErrorBoundary extends Component {
   state = { hasError: false, error: null, eventId: null };
 
@@ -22,7 +24,6 @@ export class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     logger.error('[ErrorBoundary]', error, info);
 
-    // [FIX-C3] Kirim ke Sentry jika DSN tersedia
     if (SentryLib) {
       const eventId = SentryLib.captureException(error, {
         contexts: { react: { componentStack: info.componentStack } },
@@ -30,7 +31,6 @@ export class ErrorBoundary extends Component {
       this.setState({ eventId });
     }
 
-    // Minimal visibility di production bahkan tanpa Sentry
     if (!import.meta.env.DEV) {
       console.error('[ZiDu] Unhandled error:', error?.message);
     }
@@ -51,19 +51,16 @@ export class ErrorBoundary extends Component {
           <p className="text-slate-500 mb-6 max-w-sm text-sm leading-relaxed">
             Halaman ini mengalami error yang tidak terduga. Silakan muat ulang atau kembali ke beranda.
           </p>
-
           {import.meta.env.DEV && this.state.error && (
             <pre className="text-left text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-4 max-w-lg overflow-auto mb-6">
               {this.state.error.toString()}
             </pre>
           )}
-
           {this.state.eventId && (
             <p className="text-xs text-slate-400 mb-4">
               Error ID: <code>{this.state.eventId}</code>
             </p>
           )}
-
           <div className="flex gap-3 flex-wrap justify-center">
             <button
               onClick={this.handleRetry}
