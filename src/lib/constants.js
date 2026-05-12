@@ -22,8 +22,9 @@ export const EXAM_CONFIG = {
 
 // ── Konfigurasi Cache ─────────────────────────────────────────────
 export const CACHE_CONFIG = {
-    /** TTL cache profil user di localStorage — 30 menit */
-    PROFILE_TTL_MS: 30 * 60 * 1000,
+    // [FIX-SEC-01] Diturunkan dari 30 menit ke 5 menit — cache hanya display fields
+    /** TTL cache profil user di localStorage — 5 menit */
+    PROFILE_TTL_MS: 5 * 60 * 1000,
 
     /** Jumlah maksimum notifikasi yang ditampilkan */
     MAX_NOTIFICATIONS: 50,

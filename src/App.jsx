@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from 'react';
+import { NavigationProgress } from './components/shared/NavigationProgress';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Loader2 } from 'lucide-react';

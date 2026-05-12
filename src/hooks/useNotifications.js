@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from './logger';
 import { supabase } from '../lib/supabase';
 
 const MAX_NOTIFS = 50;
@@ -24,7 +25,7 @@ export const useNotifications = (userId, role) => {
       setNotifications(notifs);
       setUnreadCount(notifs.filter(n => !n.is_read).length);
     } catch (err) {
-      console.error('fetchNotifications error:', err.message);
+      logger.error('[useNotifications] fetch error:', err.message);
     } finally {
       setLoading(false);
     }

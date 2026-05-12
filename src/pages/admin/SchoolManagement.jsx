@@ -1,3 +1,4 @@
+import { useDebounce } from '../../hooks/useDebounce';
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -654,6 +655,8 @@ const SchoolManagement = () => {
   const [error, setError] = useState(null);
 
   const [search, setSearch] = useState('');
+  // [FIX-L3] Debounce: hanya filter setelah user berhenti mengetik 350ms
+  const debouncedSearch = useDebounce(search);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterTier, setFilterTier] = useState('all');
 
@@ -759,7 +762,7 @@ const SchoolManagement = () => {
   };
 
   const filtered = schools.filter(s => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     const matchSearch = !q || s.name.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q);
     const matchStatus = filterStatus === 'all' || s.subscription_status === filterStatus;
     const matchTier   = filterTier === 'all' || s.subscription_tier === filterTier;

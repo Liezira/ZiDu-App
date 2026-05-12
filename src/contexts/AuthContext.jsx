@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { logger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
@@ -6,10 +7,17 @@ export const useAuth = () => useContext(AuthContext);
 
 // ── Cache helpers ─────────────────────────────────────────────────
 const CACHE_KEY = 'zidu_profile_cache';
-const CACHE_TTL = 30 * 60 * 1000; // 30 menit
+// [FIX-SEC-01] Kurangi TTL dari 30 menit → 5 menit untuk mempersempit
+// window kerentanan bila user memanipulasi localStorage.
+const CACHE_TTL = 5 * 60 * 1000; // 5 menit
 
-// Field yang aman disimpan di localStorage (tidak terlalu sensitif)
-const SAFE_CACHE_FIELDS = ['id', 'name', 'email', 'role', 'avatar_url', 'school_id', 'class_id', 'nis', 'status', 'schools'];
+// [FIX-SEC-01] Hapus 'role' dan 'schools' dari cache:
+//   - 'role'    : menentukan akses — tidak boleh bisa dimanipulasi
+//   - 'schools' : berisi subscription_status — sensitif secara bisnis
+// Kedua field ini selalu diambil langsung dari server (fetchFromDB).
+// Field yang tersisa hanya untuk display/UI (nama, avatar, NIS) dan
+// tidak dipakai untuk authorization decision apapun.
+const SAFE_CACHE_FIELDS = ['id', 'name', 'email', 'avatar_url', 'class_id', 'nis'];
 
 const getCached = (uid) => {
   try {
@@ -91,7 +99,7 @@ export const AuthProvider = ({ children }) => {
         setProfile(p);
       }
     } catch (err) {
-      console.error('fetchProfile error:', err.message);
+      logger.error('[AuthContext] fetchProfile error:', err.message);
       if (activeRef.current) {
         setUser(authUser);
         setProfile(null);
@@ -103,22 +111,19 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // ── Cache-first fetch ─────────────────────────────────────────
+  // [FIX-SEC-01] Cache hanya berisi display fields (nama, avatar, NIS).
+  // role dan schools tidak dicache — selalu diambil langsung dari DB.
+  // Ini mencegah user memanipulasi role via localStorage DevTools.
   const fetchProfile = useCallback(async (authUser, forceRefresh = false) => {
     if (!forceRefresh) {
       const cached = getCached(authUser.id);
-      if (cached) {
-        if (activeRef.current) {
-          setUser(authUser);
-          setProfile(cached);
-          setLoading(false);
-        }
-        // Refresh di background — tidak block UI, tidak set loading
-        setTimeout(() => {
-          if (activeRef.current) fetchFromDB(authUser).catch(console.error);
-        }, 500);
-        return;
+      if (cached && activeRef.current) {
+        // Tampilkan display fields dulu agar tidak blank saat load
+        setUser(authUser);
+        setProfile(prev => prev ? { ...prev, ...cached } : cached);
       }
     }
+    // Selalu fetch DB — satu-satunya sumber truth untuk role + schools
     await fetchFromDB(authUser);
   }, [fetchFromDB]);
 

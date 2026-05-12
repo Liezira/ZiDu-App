@@ -4,6 +4,7 @@
 // di sessionStorage agar tidak double-call dalam satu sesi ujian.
 
 import { useState, useEffect } from 'react';
+import { logger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -49,7 +50,7 @@ export function useExperiment(experimentId) {
         sessionStorage.setItem(cacheKey, resolved);
         setVariant(resolved);
       } catch (err) {
-        console.warn('[useExperiment] Fallback to control:', err?.message);
+        logger.warn('[useExperiment] Fallback to control:', err?.message);
         setVariant('control'); // Selalu fallback ke control jika error
       } finally {
         setIsLoading(false);

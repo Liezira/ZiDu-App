@@ -298,7 +298,7 @@ const SidebarContent = ({ groups, role, profile, displayName, initials, onClose,
         scrollbarColor: '#E2E8F0 transparent',
       }}>
         {groups.map((group, gi) => (
-          <div key={gi}>
+          <div key={group.title || gi}>
             <div style={{
               fontSize: '10px',
               fontWeight: '700',
@@ -311,9 +311,9 @@ const SidebarContent = ({ groups, role, profile, displayName, initials, onClose,
               {group.group}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {group.items.map((item, ii) => (
+              {group.items.map((item) => (
                 <NavItem
-                  key={ii}
+                  key={item.path || item.label}
                   item={item}
                   active={isActive(item.path)}
                   accent={meta.accent}

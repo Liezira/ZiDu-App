@@ -357,7 +357,7 @@ const LandingPage = () => {
                     </div>
                   ))}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px', marginTop: '14px' }}>
-                    {[{ label: 'Rata-rata', value: '78.4', color: '#4F46E5' }, { label: 'Lulus', value: '83%', color: '#16A34A' }, { label: 'Pelanggaran', value: '2', color: '#DC2626' }].map(s => (
+                    {[{ label: 'Rata-rata', value: '78.4', color: '#4F46E5' }, { label: 'Lulus', value: '83%', color: '#16A34A' }, { label: 'Pelanggaran', value: '2', color: '#DC2626' }].map((s, i) => (
                       <div key={s.label} style={{ background: '#F8FAFC', borderRadius: '9px', padding: 'clamp(8px,2vw,10px)', textAlign: 'center' }}>
                         <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 'clamp(14px,3vw,18px)', fontWeight: '700', color: s.color }}>{s.value}</div>
                         <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '2px' }}>{s.label}</div>

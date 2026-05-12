@@ -1,3 +1,4 @@
+import { useDebounce } from '../../hooks/useDebounce';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useSearchParams, useLocation } from 'react-router-dom';
@@ -629,6 +630,8 @@ const StaffManagement = () => {
   const [error,     setError]     = useState(null);
 
   const [search,     setSearch]     = useState('');
+  // [FIX-L3] Debounce: hanya filter setelah user berhenti mengetik 350ms
+  const debouncedSearch = useDebounce(search);
   const [filterClass,setFilterClass]= useState('');
 
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -687,7 +690,7 @@ const StaffManagement = () => {
 
   const list = tab === 'guru' ? teachers : students;
   const filtered = list.filter(p => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     const matchSearch = !q || p.name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q) || p.nis?.toLowerCase()?.includes(q);
     const matchClass  = !filterClass || p.class_id === filterClass;
     return matchSearch && matchClass;

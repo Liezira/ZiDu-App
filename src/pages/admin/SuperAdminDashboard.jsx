@@ -1,3 +1,4 @@
+import { useDebounce } from '../../hooks/useDebounce';
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -476,6 +477,8 @@ const SuperAdminDashboard = () => {
   const [refreshing,   setRefreshing]   = useState(false);
   const [error,        setError]        = useState(null);
   const [search,       setSearch]       = useState('');
+  // [FIX-L3] Debounce: hanya filter setelah user berhenti mengetik 350ms
+  const debouncedSearch = useDebounce(search);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterTier,   setFilterTier]   = useState('all');
   const [modal,        setModal]        = useState(false);
@@ -513,7 +516,7 @@ const SuperAdminDashboard = () => {
   };
 
   const filtered = schools.filter(s => {
-    const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) || s.email?.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchStatus = filterStatus==='all' || s.subscription_status===filterStatus || (filterStatus==='problem' && ['suspended','expired'].includes(s.subscription_status));
     const matchTier   = filterTier==='all'   || s.subscription_tier===filterTier;
     return matchSearch && matchStatus && matchTier;

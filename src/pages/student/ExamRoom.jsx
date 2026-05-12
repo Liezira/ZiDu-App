@@ -1,3 +1,4 @@
+import { logger } from '../../lib/logger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -14,8 +15,10 @@ import {
 // =================================================================
 // CONSTANTS
 // =================================================================
-const AUTOSAVE_INTERVAL_MS    = 30_000;
-const TIMER_WARNING_THRESHOLD = 300;
+// [FIX-M3] Import dari constants.js — hapus duplikasi lokal
+import { EXAM_CONFIG } from '../../lib/constants';
+const AUTOSAVE_INTERVAL_MS    = EXAM_CONFIG.AUTOSAVE_INTERVAL_MS;
+const TIMER_WARNING_THRESHOLD = EXAM_CONFIG.TIMER_WARNING_THRESHOLD_SECS;
 const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 
 // -- SISTEM SKORING PELANGGARAN (sinkron UTBK Admin/Student config) --
@@ -752,27 +755,44 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   useEffect(() => { answersRef.current = answers; }, [answers]);
   useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
 
-  // Restore answers dari localStorage (crash recovery)
+  // [FIX-R4] Restore answers dari localStorage (crash recovery)
+  // Format baru menyimpan { answers, savedAt, resultId } — backward compatible.
   useEffect(() => {
     try {
-      const s = localStorage.getItem(EXAM_SAVE_KEY(result.id));
-      if (s) setAnswers(JSON.parse(s));
+      const raw = localStorage.getItem(EXAM_SAVE_KEY(result.id));
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      // Support format lama (plain object) dan format baru ({ answers, savedAt })
+      const savedAnswers = parsed?.answers ?? parsed;
+      if (savedAnswers && typeof savedAnswers === 'object') {
+        setAnswers(savedAnswers);
+      }
     } catch {}
   }, [result.id]);
 
-  // Auto-save ke localStorage (immediate — setiap jawaban berubah)
+  // [FIX-R4] Auto-save ke localStorage setiap kali jawaban berubah (immediate)
+  // Ini crash recovery layer pertama — data selamat meski tab ditutup paksa.
   useEffect(() => {
-    try { localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify(answers)); } catch {}
+    try {
+      localStorage.setItem(EXAM_SAVE_KEY(result.id), JSON.stringify({
+        answers,
+        savedAt: Date.now(),
+        resultId: result.id,
+      }));
+    } catch {}
   }, [answers, result.id]);
 
-  // Periodic sync ke Supabase setiap 30 detik (background, tidak blocking)
+  // [FIX-R4] Periodic sync ke Supabase via examService setiap 30 detik
+  // Ini crash recovery layer kedua — data selamat meski localStorage dihapus.
   useEffect(() => {
     const iv = setInterval(async () => {
       if (!Object.keys(answers).length) return;
-      const arr = questions.map(q => ({ question_id: q.id, answer: answers[q.id] ?? null, type: q.type }));
-      try {
-        await supabase.from('exam_results').update({ answers: arr, updated_at: new Date().toISOString() }).eq('id', result.id);
-      } catch {}
+      const arr = questions.map(q => ({
+        question_id: q.id,
+        answer: answers[q.id] ?? null,
+        type: q.type,
+      }));
+      await autoSaveAnswers(result.id, arr);
     }, AUTOSAVE_INTERVAL_MS);
     return () => clearInterval(iv);
   }, [answers, questions, result.id]);
@@ -929,7 +949,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     }).catch(() => {});
 
     if (isGrace) {
-      console.warn(`[GRACE] ${category} #${newCount}/${cfg.grace}: ${detail}`);
+      logger.warn(`[GRACE] ${category} #${newCount}/${cfg.grace}: ${detail}`);
       return;
     }
 
@@ -1514,11 +1534,11 @@ export default function ExamRoom() {
     } catch(err) {
       const msg = err?.message || 'Koneksi gagal. Cek internet lalu coba lagi.';
       setSubmitError(msg);
-      console.error('[ExamRoom submit error]', err);
+      logger.error('[ExamRoom] submit error:', err);
       // Auto-submit gagal: sudah di result screen, tapi data belum tersimpan.
       // Tampilkan error + saran hubungi guru (sinkron UTBK alert behavior)
       if (auto) {
-        console.error('[CRITICAL] Auto-submit RPC failed. Student is on result screen but score not saved.', { resultId: result?.id, vScore });
+        logger.error('[ExamRoom] CRITICAL: Auto-submit RPC failed', { resultId: result?.id, vScore });
       }
     } finally {
       setSubmitting(false);

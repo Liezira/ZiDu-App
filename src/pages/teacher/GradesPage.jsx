@@ -1,3 +1,4 @@
+import { logger } from '../../lib/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -391,7 +392,7 @@ const GradesPage = () => {
         win.document.close();
       }
     } catch (e) {
-      console.error('Export PDF error:', e);
+      logger.error('[GradesPage] Export PDF error:', e);
     } finally {
       setPdfLoading(false);
     }

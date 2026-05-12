@@ -1,3 +1,4 @@
+import { useDebounce } from '../../hooks/useDebounce';
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -331,6 +332,8 @@ const DetailDrawer = ({ cls, students, teachers, allStudents, onClose, onEdit, o
 // ── Bulk Assign Modal ─────────────────────────────────────────────
 const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
   const [search,    setSearch]    = useState('');
+  // [FIX-L3] Debounce: hanya filter setelah user berhenti mengetik 350ms
+  const debouncedSearch = useDebounce(search);
   const [selected,  setSelected]  = useState([]);
   const [saving,    setSaving]    = useState(false);
   const [saveErr,   setSaveErr]   = useState('');
@@ -344,7 +347,7 @@ const BulkAssignModal = ({ open, cls, allStudents, onClose, onSaved }) => {
   }, [open, cls?.id]);
 
   const filtered = unassigned.filter(s => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     return !q || s.name?.toLowerCase().includes(q) || s.nis?.toLowerCase()?.includes(q) || s.email?.toLowerCase().includes(q);
   });
 
@@ -612,7 +615,7 @@ const ClassManagement = () => {
   const yearsInUse    = [...new Set(classes.map(c => c.academic_year).filter(Boolean))];
 
   const filtered = classes.filter(c => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     const matchSearch   = !q || c.name.toLowerCase().includes(q);
     const matchGrade    = filterGrade === 'all' || c.grade_level === parseInt(filterGrade);
     const matchJurusan  = filterJurusan === 'all' || c.jurusan === filterJurusan;
@@ -738,7 +741,7 @@ const ClassManagement = () => {
                   <tr><td colSpan={7} style={{ padding: '48px', textAlign: 'center' }}>
                     <div style={{ fontSize: '28px', marginBottom: '8px' }}>🏫</div>
                     <div style={{ fontSize: '14px', color: '#94A3B8' }}>Tidak ada kelas ditemukan</div>
-                    {!search && <Btn icon={Plus} onClick={() => setModalOpen(true)} style={{ marginTop: '14px' }}>Tambah Kelas Pertama</Btn>}
+                    {!debouncedSearch && <Btn icon={Plus} onClick={() => setModalOpen(true)} style={{ marginTop: '14px' }}>Tambah Kelas Pertama</Btn>}
                   </td></tr>
                 ) : filtered.map(c => {
                   const wali         = teachers.find(t => t.id === c.wali_kelas_id);

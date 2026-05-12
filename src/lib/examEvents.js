@@ -2,6 +2,7 @@
 // Wrapper ringan untuk insert ke tabel exam_events.
 // Desain: fire-and-forget, tidak pernah throw (agar tidak ganggu UX ujian).
 
+import { logger } from './logger';
 import { supabase } from './supabase';
 
 /**
@@ -43,7 +44,7 @@ export async function trackExamEvent({
     });
   } catch (err) {
     // Sengaja silent — jangan sampai tracking error matikan ujian
-    console.warn('[examEvents] Failed to track:', eventType, err?.message);
+    logger.warn('[examEvents] Failed to track:', eventType, err?.message);
   }
 }
 

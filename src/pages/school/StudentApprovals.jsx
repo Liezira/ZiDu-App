@@ -1,3 +1,4 @@
+import { useDebounce } from '../../hooks/useDebounce';
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -257,6 +258,8 @@ const StudentApprovals = () => {
 
   const [filter,     setFilter]     = useState('pending');
   const [search,     setSearch]     = useState('');
+  // [FIX-L3] Debounce: hanya filter setelah user berhenti mengetik 350ms
+  const debouncedSearch = useDebounce(search);
 
   const [detailStudent, setDetailStudent] = useState(null);
   const [approveModal,  setApproveModal]  = useState(null);
@@ -373,7 +376,7 @@ const StudentApprovals = () => {
   // ── Filtered list ──────────────────────────────────────────────
   const displayed = students.filter(s => {
     const matchFilter = filter === 'all' || s.status === filter;
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
     const matchSearch = !search
       || s.name?.toLowerCase().includes(q)
       || s.email?.toLowerCase().includes(q)
