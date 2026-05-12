@@ -1,16 +1,90 @@
-# React + Vite
+# ZiDu — Platform Manajemen Sekolah Digital
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Platform absensi, ujian online, rapor, dan analitik berbasis web untuk SMP/SMA/SMK/MA.
 
-Currently, two official plugins are available:
+## Stack Teknologi
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Layer | Teknologi |
+|---|---|
+| Frontend | React 19, Vite 7, Tailwind CSS v4 |
+| Backend | Supabase (PostgreSQL, Auth, Realtime) |
+| Hosting | Vercel |
+| Error Monitoring | Sentry (opsional) |
+| CI/CD | GitHub Actions |
 
-## React Compiler
+## Prasyarat
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Node.js** >= 20
+- **npm** >= 10
+- Akun [Supabase](https://supabase.com)
 
-## Expanding the ESLint configuration
+## Setup Development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+# 1. Clone & install
+git clone https://github.com/your-org/zidu-app.git
+cd zidu-app
+npm install
+
+# 2. Setup env
+cp .env.example .env
+# Isi .env dengan Supabase URL dan anon key dari dashboard
+
+# 3. Jalankan
+npm run dev
+```
+
+## Scripts
+
+| Command | Fungsi |
+|---|---|
+| `npm run dev` | Dev server dengan HMR |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint check |
+
+## Arsitektur
+
+```
+src/
+├── components/
+│   ├── layout/         # DashboardLayout, Sidebar
+│   ├── shared/         # ErrorBoundary, NavigationProgress, PageLoader
+│   └── ui/             # Design system: Button, Input, Select, Modal
+├── contexts/           # AuthContext — auth state & profile
+├── hooks/              # useDebounce, useExperiment, useNotifications
+├── lib/                # supabase, constants, logger, examEvents
+├── pages/
+│   ├── admin/          # Super admin pages
+│   ├── school/         # School admin pages
+│   ├── teacher/        # Teacher pages
+│   ├── student/        # Student pages (ExamRoom!)
+│   └── shared/         # ProfilePage, PendingApproval
+└── services/           # Service layer — abstraksi Supabase queries
+    ├── examService.js
+    ├── attendanceService.js
+    └── profileService.js
+```
+
+## Role & Akses
+
+| Role | Kemampuan |
+|---|---|
+| `super_admin` | Kelola semua sekolah & subscription |
+| `school_admin` | Kelola guru, siswa, kelas di sekolahnya |
+| `teacher` | Buat absensi, ujian, bank soal, input nilai |
+| `student` | Ikut ujian, lihat nilai & absensi |
+
+## Deployment (Vercel)
+
+Set environment variables di Vercel Dashboard, lalu:
+```bash
+vercel --prod
+```
+
+Atau connect GitHub repo ke Vercel untuk auto-deploy saat push ke `main`.
+
+## Error Monitoring
+
+1. Buat project di [sentry.io](https://sentry.io)
+2. Tambahkan ke `.env`: `VITE_SENTRY_DSN=https://...`
+3. Deploy ulang
