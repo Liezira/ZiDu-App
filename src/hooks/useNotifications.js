@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { logger } from './logger';
+import { logger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
 
 const MAX_NOTIFS = 50;
