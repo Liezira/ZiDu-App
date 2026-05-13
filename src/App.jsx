@@ -40,6 +40,7 @@ const SchoolReportCardPage = lazy(() => import('./pages/school/SchoolReportCardP
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const ABTestingDashboard = lazy(() => import('./pages/teacher/ABTestingDashboard'));
+const TutorialPage = lazy(() => import('./pages/shared/TutorialPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
 const PageLoader = () => (
@@ -170,6 +171,7 @@ const App = () => {
         <Route path="schools" element={<Lazy><SchoolManagement /></Lazy>} />
         <Route path="analytics" element={<Lazy><GlobalAnalytics /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="tutorial" element={<Lazy><TutorialPage /></Lazy>} />
       </Route>
 
       {/* ── SCHOOL ADMIN ── */}
@@ -189,6 +191,7 @@ const App = () => {
         <Route path="announcements" element={<Lazy><SchoolAnnouncements /></Lazy>} />
         <Route path="report-card"   element={<Lazy><SchoolReportCardPage /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="tutorial" element={<Lazy><TutorialPage /></Lazy>} />
       </Route>
 
       {/* ── TEACHER ── */}
@@ -212,6 +215,7 @@ const App = () => {
         <Route path="report-card"   element={<Lazy><ReportCardPage /></Lazy>} />
         <Route path="ab-testing"    element={<Lazy><ABTestingDashboard /></Lazy>} />
         <Route path="profile"   element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="tutorial"  element={<Lazy><TutorialPage /></Lazy>} />
       </Route>
 
 
@@ -230,6 +234,7 @@ const App = () => {
         <Route path="class" element={<Lazy><MyClassPage /></Lazy>} />
         <Route path="announcements" element={<Lazy><StudentAnnouncements /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
+        <Route path="tutorial" element={<Lazy><TutorialPage /></Lazy>} />
       </Route>
 
       {/* ── STUDENT EXAM — standalone tanpa sidebar (anti-cheating) ── */}

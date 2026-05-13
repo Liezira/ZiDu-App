@@ -3,6 +3,7 @@ import { useNotifications } from '../../hooks/useNotifications';
 import NotificationBell from '../notifications/NotificationBell';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTutorial } from '../../hooks/useTutorial';
 import {
   LayoutDashboard,
   BookOpen,
@@ -22,6 +23,7 @@ import {
   ClipboardList,
   NotebookPen,
   Globe,
+  GraduationCap,
 } from 'lucide-react';
 
 // ─── Menu config per role, dengan grouping ────────────────────────────────────
@@ -127,10 +129,10 @@ const MENUS = {
 
 // ─── Role display config ──────────────────────────────────────────────────────
 const ROLE_META = {
-  super_admin:  { label: 'Super Admin',   color: '#7C3AED', bg: '#F5F3FF', accent: '#8B5CF6' },
-  school_admin: { label: 'Admin Sekolah', color: '#0284C7', bg: '#F0F9FF', accent: '#0EA5E9' },
-  teacher:      { label: 'Guru',          color: '#059669', bg: '#ECFDF5', accent: '#10B981' },
-  student:      { label: 'Siswa',         color: '#D97706', bg: '#FFFBEB', accent: '#F59E0B' },
+  super_admin:  { label: 'Super Admin',   color: '#7C3AED', bg: '#F5F3FF', accent: '#8B5CF6', accentBg: '#F5F3FF' },
+  school_admin: { label: 'Admin Sekolah', color: '#0284C7', bg: '#F0F9FF', accent: '#0EA5E9', accentBg: '#F0F9FF' },
+  teacher:      { label: 'Guru',          color: '#059669', bg: '#ECFDF5', accent: '#10B981', accentBg: '#ECFDF5' },
+  student:      { label: 'Siswa',         color: '#D97706', bg: '#FFFBEB', accent: '#F59E0B', accentBg: '#FFFBEB' },
 };
 
 // ─── Breadcrumb map ───────────────────────────────────────────────────────────
@@ -216,7 +218,7 @@ const NavItem = ({ item, active, accent }) => {
 };
 
 // ─── SidebarContent ───────────────────────────────────────────────────────────
-const SidebarContent = ({ groups, role, profile, displayName, initials, onClose, onLogout, isMobile, currentPath }) => {
+const SidebarContent = ({ groups, role, profile, displayName, initials, onClose, onLogout, isMobile, currentPath, tutorialPath, hasSeenTutorial }) => {
   const meta = ROLE_META[role] || ROLE_META.student;
   const navigate = useNavigate();
 
@@ -324,6 +326,45 @@ const SidebarContent = ({ groups, role, profile, displayName, initials, onClose,
         ))}
       </nav>
 
+      {/* ── Tutorial ── */}
+      {tutorialPath && (
+        <div style={{ padding: '0 10px 8px', flexShrink: 0 }}>
+          <NavLink
+            to={tutorialPath}
+            style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: '9px',
+              padding: '8px 10px', borderRadius: '8px',
+              textDecoration: 'none', fontSize: '13px', fontWeight: '500',
+              color: isActive ? meta.accent : '#64748B',
+              background: isActive ? `${meta.accent}18` : 'transparent',
+              border: `1px solid ${!hasSeenTutorial ? meta.accent + '50' : 'transparent'}`,
+              transition: 'all 0.15s',
+              position: 'relative',
+            })}
+            onMouseEnter={e => {
+              if (!e.currentTarget.querySelector('[data-active]')) {
+                e.currentTarget.style.background = '#F8FAFC';
+                e.currentTarget.style.color = '#1E293B';
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '';
+              e.currentTarget.style.color = '';
+            }}
+          >
+            <GraduationCap size={15} style={{ flexShrink: 0, color: meta.accent }} />
+            <span style={{ flex: 1 }}>Panduan Penggunaan</span>
+            {!hasSeenTutorial && (
+              <span style={{
+                fontSize: '9px', fontWeight: '700', padding: '2px 5px',
+                borderRadius: '4px', background: meta.accent,
+                color: '#fff', letterSpacing: '0.03em', flexShrink: 0,
+              }}>BARU</span>
+            )}
+          </NavLink>
+        </div>
+      )}
+
       {/* ── User Card + Logout ── */}
       <div style={{
         padding: '10px',
@@ -427,6 +468,16 @@ const DashboardLayout = () => {
   const schoolName = role === 'super_admin' ? 'ZiDu HQ' : (profile?.schools?.name || 'Ruang Simulasi');
   const currentPageName = PAGE_NAMES[location.pathname] || 'Halaman';
 
+  // Tutorial
+  const TUTORIAL_PATHS = {
+    super_admin: '/admin/tutorial',
+    school_admin: '/school/tutorial',
+    teacher: '/teacher/tutorial',
+    student: '/student/tutorial',
+  };
+  const tutorialPath = TUTORIAL_PATHS[role] || null;
+  const { hasSeenTutorial } = useTutorial(profile?.id);
+
   const C = { border: '#F1F5F9', bg: '#F8FAFC' };
 
   const sidebarProps = {
@@ -435,6 +486,8 @@ const DashboardLayout = () => {
     onLogout: handleLogout,
     isMobile,
     currentPath: location.pathname,
+    tutorialPath,
+    hasSeenTutorial,
   };
 
   return (
@@ -599,6 +652,36 @@ const DashboardLayout = () => {
             }}
           >
             <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
+              {/* ── First-login tutorial banner ── */}
+              {!hasSeenTutorial && tutorialPath && location.pathname !== tutorialPath && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '12px 16px', borderRadius: '12px', marginBottom: '20px',
+                  background: meta.accentBg || '#F0F9FF',
+                  border: `1px solid ${meta.accent}35`,
+                }}>
+                  <GraduationCap size={18} style={{ color: meta.accent, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#0F172A' }}>
+                      Baru pertama kali?{' '}
+                    </span>
+                    <span style={{ fontSize: '13px', color: '#64748B' }}>
+                      Lihat panduan penggunaan untuk memulai dengan cepat.
+                    </span>
+                  </div>
+                  <NavLink
+                    to={tutorialPath}
+                    style={{
+                      padding: '6px 14px', borderRadius: '8px', textDecoration: 'none',
+                      background: meta.accent, color: '#fff',
+                      fontSize: '12px', fontWeight: '600', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                    }}
+                  >
+                    Lihat Panduan
+                  </NavLink>
+                </div>
+              )}
               <Outlet />
             </div>
           </main>
