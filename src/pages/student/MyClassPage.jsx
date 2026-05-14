@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -86,9 +87,7 @@ const MyClassPage = () => {
           .in('status', ['submitted', 'graded']);
         setMyResults(resData || []);
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    } catch (err) { logger.error('[MyClassPage]', err); setError(err.message); } finally {
       setLoading(false);
     }
   }, [profile?.class_id, profile?.id]);

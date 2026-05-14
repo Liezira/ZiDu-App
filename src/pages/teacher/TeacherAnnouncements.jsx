@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
+// [FIX-DRY] Import Shimmer dari shared component, hapus definisi lokal
+// Wrapper compat agar props h/w/r tetap berfungsi
+const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
+  <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
+);
+
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -7,9 +14,7 @@ import {
 } from 'lucide-react';
 import { ANN_TYPES, TARGET_LABELS, fmtAgo, fmtDate } from '../../lib/announcementUtils';
 
-const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
-  <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
-);
+
 
 // ── Create/Edit Modal ─────────────────────────────────────────
 const AnnModal = ({ ann, classes, profile, onClose, onSaved }) => {
@@ -64,7 +69,7 @@ const AnnModal = ({ ann, classes, profile, onClose, onSaved }) => {
         if (error) throw error;
       }
       onSaved();
-    } catch (e) { setErr(e.message); }
+    } catch (e) { logger.error('[TeacherAnnouncements]', e); setErr(e.message); }
     finally { setSaving(false); }
   };
 
@@ -308,7 +313,7 @@ const TeacherAnnouncements = () => {
       if (annRes.error) throw annRes.error;
       setAnns(annRes.data || []);
       setClasses(classRes.data || []);
-    } catch (e) { setError(e.message); }
+    } catch (e) { logger.error('[TeacherAnnouncements]', e); setError(e.message); }
     finally { setLoading(false); setRefreshing(false); }
   }, [profile?.school_id]);
 

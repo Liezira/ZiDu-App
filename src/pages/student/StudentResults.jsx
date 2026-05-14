@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -289,7 +290,7 @@ const StudentResults = () => {
         .order('created_at', { ascending: false });
       if (error) throw error;
       setResults(data || []);
-    } catch (err) { setError(err.message); }
+    } catch (err) { logger.error('[StudentResults]', err); setError(err.message); }
     finally { setLoading(false); setRefreshing(false); }
   }, [profile?.id]);
 

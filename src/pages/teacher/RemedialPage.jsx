@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
+// [FIX-DRY] Import Shimmer dari shared component, hapus definisi lokal
+// Wrapper compat agar props h/w/r tetap berfungsi
+const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
+  <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
+);
+
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -14,9 +21,7 @@ const round    = (n) => (n !== null && n !== undefined) ? Math.round(n) : null;
 const toLocal  = (d) => d ? new Date(new Date(d) - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
 
 // ── Sub-components ────────────────────────────────────────────
-const Shimmer = ({ h = 14, w = '100%', r = 6 }) => (
-  <div style={{ height: h, width: w, borderRadius: r, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '800px 100%', animation: 'shimmer 1.2s infinite' }} />
-);
+
 
 const StatCard = ({ icon: Icon, label, value, sub, color, bg }) => (
   <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #F1F5F9', padding: '18px', display: 'flex', gap: '14px', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,0,0,.03)' }}>
@@ -391,7 +396,7 @@ const RemedialPage = () => {
       } else {
         setRemedials([]);
       }
-    } catch (e) { setError(e.message); }
+    } catch (e) { logger.error('[RemedialPage]', e); setError(e.message); }
     finally { setLoading(false); setRefreshing(false); }
   }, [profile?.id]);
 

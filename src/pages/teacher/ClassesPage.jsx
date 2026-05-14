@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -331,9 +332,7 @@ const ClassesPage = () => {
       }, {});
 
       setClasses((data || []).map(c => ({ ...c, studentCount: countMap[c.id] || 0 })));
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    } catch (err) { logger.error('[ClassesPage]', err); setError(err.message); } finally {
       setLoading(false);
       setRefreshing(false);
     }

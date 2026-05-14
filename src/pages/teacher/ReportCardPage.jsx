@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../../lib/logger';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -21,9 +22,7 @@ const EXAM_TYPE_LABEL = {
   remedial: 'Remedial',
 };
 
-const Shimmer = ({ h = 52 }) => (
-  <div style={{ height: h, borderRadius: 10, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '600px 100%', animation: 'shimmer 1.2s infinite' }} />
-);
+
 
 // ── PDF generator ─────────────────────────────────────────────
 const generatePDF = (data, comment, periode) => {
@@ -209,7 +208,7 @@ const CommentModal = ({ student, periode, existingComment, profile, onClose, onS
         if (error) throw error;
       }
       onSaved(catatan.trim());
-    } catch (e) { setErr(e.message); }
+    } catch (e) { logger.error('[ReportCardPage]', e); setErr(e.message); }
     finally { setSaving(false); }
   };
 
@@ -278,7 +277,7 @@ const ReportDrawer = ({ student, dateFrom, dateTo, periode, profile, teacherId, 
       if (rcRes.error) throw rcRes.error;
       setData(rcRes.data);
       setComment(cmtRes.data);
-    } catch (e) { setErr(e.message); }
+    } catch (e) { logger.error('[ReportCardPage]', e); setErr(e.message); }
     finally { setLoading(false); }
   }, [student.id, dateFrom, dateTo, periode]);
 
@@ -489,7 +488,7 @@ export default function ReportCardPage() {
       setTeacherClasses(data || []);
       // FIX: Gunakan functional updater agar tidak perlu classId di deps array
       setClassId(prev => (prev || (data?.length ? data[0].id : '')));
-    } catch (e) { setError(e.message); }
+    } catch (e) { logger.error('[ReportCardPage]', e); setError(e.message); }
     finally { setLoading(false); setRefreshing(false); }
   }, [profile?.id]);
 
@@ -545,7 +544,7 @@ export default function ReportCardPage() {
         // Small delay between windows
         if (i < filtered.length - 1) await new Promise(r => setTimeout(r, 600));
       }
-    } catch (e) { setError(e.message); }
+    } catch (e) { logger.error('[ReportCardPage]', e); setError(e.message); }
     finally { setBatchLoading(false); }
   };
 
