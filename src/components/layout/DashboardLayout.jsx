@@ -24,6 +24,7 @@ import {
   NotebookPen,
   Globe,
   GraduationCap,
+  QrCode,
 } from 'lucide-react';
 
 // ─── Menu config per role, dengan grouping ────────────────────────────────────
@@ -115,6 +116,7 @@ const MENUS = {
         { label: 'Ujian Saya',    icon: FileText,  path: '/student' },
         { label: 'Riwayat Nilai', icon: Award,     path: '/student/results' },
         { label: 'Kelas Saya',    icon: Layers,    path: '/student/class' },
+        { label: 'Absensi QR',     icon: QrCode,    path: '/student/attendance' },
         { label: 'Pengumuman',    icon: Megaphone, path: '/student/announcements' },
       ],
     },
@@ -165,6 +167,7 @@ const PAGE_NAMES = {
   '/student/results':       'Riwayat Nilai',
   '/student/class':         'Kelas Saya',
   '/student/announcements': 'Pengumuman',
+  '/student/attendance':     'Absensi QR',
   '/student/profile':       'Profil Saya',
 };
 

@@ -40,6 +40,7 @@ const SchoolReportCardPage = lazy(() => import('./pages/school/SchoolReportCardP
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const ABTestingDashboard = lazy(() => import('./pages/teacher/ABTestingDashboard'));
+const StudentAttendancePage = lazy(() => import('./pages/student/StudentAttendancePage'));
 const TutorialPage = lazy(() => import('./pages/shared/TutorialPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
@@ -233,6 +234,7 @@ const App = () => {
         <Route path="results" element={<Lazy><StudentResults /></Lazy>} />
         <Route path="class" element={<Lazy><MyClassPage /></Lazy>} />
         <Route path="announcements" element={<Lazy><StudentAnnouncements /></Lazy>} />
+        <Route path="attendance" element={<Lazy><StudentAttendancePage /></Lazy>} />
         <Route path="profile" element={<Lazy><ProfilePage /></Lazy>} />
         <Route path="tutorial" element={<Lazy><TutorialPage /></Lazy>} />
       </Route>

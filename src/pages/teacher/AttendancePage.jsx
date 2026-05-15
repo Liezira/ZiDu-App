@@ -5,7 +5,94 @@ import {
   ClipboardCheck, Plus, X, ChevronDown,
   Download, TrendingUp, Calendar, Clock,
   RefreshCw, AlertCircle, CheckCircle2,
+  QrCode, List, Maximize2, Copy, Check,
 } from 'lucide-react';
+
+// ─────────────────────────────────────────────
+// Komponen: Panel QR Code (ditampilkan di drawer guru)
+// ─────────────────────────────────────────────
+const QRPanel = ({ token, title }) => {
+  const [fullscreen, setFullscreen] = useState(false);
+  const [copied,     setCopied]     = useState(false);
+
+  // QR code dibuat via qrserver API (tidak perlu npm tambahan)
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=${encodeURIComponent(token)}`;
+  const qrUrlLarge = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&ecc=M&data=${encodeURIComponent(token)}`;
+
+  const copyToken = async () => {
+    try { await navigator.clipboard.writeText(token); } catch (_) { /* fallback ok */ }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <>
+      {/* ── Panel inline ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '18px 0 10px' }}>
+        <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginBottom: 2 }}>
+          Tampilkan QR ini kepada siswa untuk absen otomatis
+        </div>
+
+        {/* QR image */}
+        <div style={{
+          position: 'relative', borderRadius: 14,
+          border: '3px solid #F0FDF4', padding: 8,
+          background: '#fff', boxShadow: '0 4px 20px rgba(22,163,74,.12)',
+          cursor: 'pointer',
+        }} onClick={() => setFullscreen(true)} title="Perbesar">
+          <img
+            src={qrUrl}
+            alt="QR Absensi"
+            style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
+            onError={e => { e.target.style.display = 'none'; }}
+          />
+          <div style={{
+            position: 'absolute', bottom: 10, right: 10,
+            width: 26, height: 26, borderRadius: 7,
+            background: 'rgba(22,163,74,.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Maximize2 size={12} color="#16A34A" />
+          </div>
+        </div>
+
+        {/* Token teks */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: '#F8FAFC', borderRadius: 10, padding: '9px 14px',
+          border: '1.5px dashed #CBD5E1',
+        }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: 5 }}>
+            {token}
+          </span>
+          <button onClick={copyToken}
+            style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #E2E8F0', background: copied ? '#F0FDF4' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: copied ? '#16A34A' : '#64748B', transition: 'all .15s' }}>
+            {copied ? <><Check size={12} />Disalin!</> : <><Copy size={12} />Salin</>}
+          </button>
+        </div>
+
+        <p style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', margin: 0 }}>
+          Klik QR untuk perbesar · Token berlaku selama sesi terbuka
+        </p>
+      </div>
+
+      {/* ── Fullscreen modal ── */}
+      {fullscreen && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 }}
+          onClick={() => setFullscreen(false)}>
+          <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center' }}>{title}</div>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: '0 0 80px rgba(22,163,74,.3)' }}
+            onClick={e => e.stopPropagation()}>
+            <img src={qrUrlLarge} alt="QR Absensi" style={{ width: 300, height: 300, display: 'block', borderRadius: 10 }} />
+          </div>
+          <div style={{ fontFamily: 'monospace', fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: 8 }}>{token}</div>
+          <div style={{ fontSize: 13, color: '#94A3B8' }}>Ketuk di luar untuk tutup</div>
+        </div>
+      )}
+    </>
+  );
+};
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -237,10 +324,14 @@ const BuatSesiModal = ({ teacherClasses, teacherSubjects, profile, onClose, onCr
 // Drawer: Input Absensi Siswa
 // ─────────────────────────────────────────────
 const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState({});   // { [recordId]: bool }
-  const [toast,   setToast]   = useState('');
+  const [records,   setRecords]   = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState({});
+  const [toast,     setToast]     = useState('');
+  const [drawerTab, setDrawerTab] = useState('qr'); // 'qr' | 'list'
+  const sessionTitle = session.subjects?.name
+    ? `${session.subjects.name} — ${session.classes?.name}`
+    : session.classes?.name || 'Absensi';
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1800); };
 
@@ -357,7 +448,67 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
           </div>
         </div>
 
-        {/* ── Toolbar ── */}
+        {/* ── Tab switcher QR / Daftar ── */}
+        <div style={{ padding:'10px 22px', borderBottom:'1px solid #F1F5F9', display:'flex', gap:0 }}>
+          {[
+            { key:'qr',   icon: <QrCode size={13} />, label:'QR Code' },
+            { key:'list', icon: <List   size={13} />, label:'Daftar Siswa' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setDrawerTab(t.key)}
+              style={{
+                flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                padding:'9px 0', border:'none', cursor:'pointer',
+                fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                background: drawerTab === t.key ? '#16A34A' : '#F8FAFC',
+                color: drawerTab === t.key ? '#fff' : '#64748B',
+                borderRadius: t.key === 'qr' ? '8px 0 0 8px' : '0 8px 8px 0',
+                border: `1.5px solid ${drawerTab === t.key ? '#16A34A' : '#E2E8F0'}`,
+                transition:'all .15s',
+              }}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── QR Code Panel ── */}
+        {drawerTab === 'qr' && (
+          <div style={{ flex:1, overflowY:'auto', padding:'0 22px 16px' }}>
+            <QRPanel token={session.token} title={sessionTitle} />
+
+            {/* Info ringkasan kehadiran */}
+            <div style={{ marginTop:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                <span style={{ fontSize:11, color:'#64748B', fontWeight:600 }}>Kehadiran saat ini</span>
+                <span style={{ fontSize:11, fontWeight:700, color: (records.length ? Math.round(records.filter(r=>r.status==='hadir').length/records.length*100) : 0) >= 75 ? '#16A34A' : '#DC2626' }}>
+                  {records.length ? Math.round(records.filter(r=>r.status==='hadir').length/records.length*100) : 0}%
+                </span>
+              </div>
+              <div style={{ height:6, background:'#F1F5F9', borderRadius:3, overflow:'hidden' }}>
+                <div style={{ height:'100%', background:'#16A34A', borderRadius:3, transition:'width .4s ease',
+                  width:`${records.length ? Math.round(records.filter(r=>r.status==='hadir').length/records.length*100) : 0}%` }} />
+              </div>
+              <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
+                {Object.entries(STATUS).map(([k,v]) => (
+                  <div key={k} style={{ textAlign:'center', padding:'7px 4px', background:v.bg, borderRadius:8, border:`1px solid ${v.border}` }}>
+                    <div style={{ fontFamily:'Sora,sans-serif', fontSize:16, fontWeight:700, color:v.color }}>
+                      {records.filter(r=>r.status===k).length}
+                    </div>
+                    <div style={{ fontSize:10, fontWeight:700, color:v.color }}>{v.label.toUpperCase()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tombol switch ke daftar */}
+            <button onClick={() => setDrawerTab('list')}
+              style={{ marginTop:14, width:'100%', padding:'10px', borderRadius:9, border:'1.5px solid #E2E8F0', background:'#F8FAFC', fontSize:13, fontWeight:600, color:'#4F46E5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+              <List size={13} /> Input Manual Kehadiran
+            </button>
+          </div>
+        )}
+
+        {/* ── Toolbar daftar ── */}
+        {drawerTab === 'list' && <>
         <div style={{ padding:'10px 22px', borderBottom:'1px solid #F1F5F9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <span style={{ fontSize:13, color:'#64748B' }}><strong style={{ color:'#0F172A' }}>{records.length}</strong> siswa</span>
           <button onClick={setAllHadir}
@@ -415,6 +566,7 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
             </div>
           )}
         </div>
+        </>}
       </div>
     </div>
   );
