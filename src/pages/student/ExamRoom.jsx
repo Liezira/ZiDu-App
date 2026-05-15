@@ -24,17 +24,18 @@ const EXAM_SAVE_KEY = (id) => `zidu_exam_answers_${id}`;
 // -- SISTEM SKORING PELANGGARAN (sinkron UTBK Admin/Student config) --
 const VIOLATION_SCORING = {
   types: {
-    tab_switch:   { label: 'Pindah Tab / Window',        deduction: 2,  grace: 1 },
-    fullscreen:   { label: 'Keluar Fullscreen',           deduction: 1,  grace: 2 },
-    copy_paste:   { label: 'Copy / Paste',                deduction: 3,  grace: 0 },
-    devtools:     { label: 'Buka DevTools',               deduction: 5,  grace: 0 },
-    split_screen: { label: 'Split Screen / Floating',     deduction: 3,  grace: 0 },
-    orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 1,  grace: 1 },
-    screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 2,  grace: 1 },
+    tab_switch:   { label: 'Pindah Tab / Window',        deduction: 2,  grace: 1, debounceMs: 1500 },
+    fullscreen:   { label: 'Keluar Fullscreen',           deduction: 1,  grace: 2, debounceMs: 2000 },
+    copy_paste:   { label: 'Copy / Paste',                deduction: 3,  grace: 0, debounceMs: 800  },
+    devtools:     { label: 'Buka DevTools',               deduction: 5,  grace: 0, debounceMs: 800  },
+    // [FIX-SPLIT] debounce dikurangi ke 800ms agar Windows Snap tidak bisa lolos
+    split_screen: { label: 'Split Screen / Floating',     deduction: 3,  grace: 0, debounceMs: 800  },
+    orientation:  { label: 'Landscape / Rotasi Layar',   deduction: 1,  grace: 1, debounceMs: 1500 },
+    screenshot:   { label: 'Screenshot / Kedipan Layar', deduction: 2,  grace: 1, debounceMs: 1500 },
   },
-  maxTotalScore:   15,   // = UTBK maxTotalDeduction — threshold auto-submit
-  warnThreshold:   8,    // = UTBK warningThreshold — peringatan keras
-  debounceMs:      1500,
+  maxTotalScore:   15,   // threshold auto-submit
+  warnThreshold:   8,    // peringatan keras
+  debounceMs:      1500, // default global — tiap type punya override di atas
 };
 
 const VIOLATION_TYPE_MAP = {
@@ -208,6 +209,7 @@ const TokenEntry = ({ onEnter, loading, error }) => {
           </div>
           {[
             `✅ Grace period: tab-switch (1×), fullscreen (2×) tidak langsung kena poin`,
+            `🚫 Windows Snap (Win+Arrow), split screen, floating window = +3 poin langsung`,
             `⚠️ Pindah tab/app: +2 poin per kejadian`,
             `⚠️ Keluar fullscreen: +1 poin per kejadian (grace 2×)`,
             `🚫 Copy/Paste: +3 poin — langsung diblok`,
@@ -329,10 +331,14 @@ const ViolationModal = ({ message, violationScore, isHard, onClose }) => {
           </div>
           {isHard
             ? <div style={{ background:'#FEF2F2', borderLeft:'4px solid #DC2626', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#7F1D1D' }}>
-                <strong>⛔ Peringatan Keras:</strong> Satu pelanggaran besar berikutnya → <strong>Submit Otomatis</strong>. Tetap di tab ini.
+                {/* [FIX-UI] Pesan berbeda saat batas sudah tercapai vs mendekati */}
+                {remaining <= 0
+                  ? <span><strong>🚨 Ujian dikumpulkan otomatis!</strong> Jangan tutup halaman ini.</span>
+                  : <span><strong>⛔ Hati-hati!</strong> Sisa {remaining} poin. Pelanggaran berikutnya bisa <strong>mengumpulkan ujian secara otomatis</strong>.</span>
+                }
               </div>
             : <div style={{ background:'#FFFBEB', borderLeft:'4px solid #F59E0B', padding:'10px 12px', borderRadius:'0 8px 8px 0', fontSize:12, color:'#78350F' }}>
-                <strong>⚠ Perhatian:</strong> Setiap pelanggaran mengurangi sisa aman. Kembali ke mode ujian normal.
+                <strong>⚠ Perhatian:</strong> Tetap di halaman ini. Split screen, pindah tab, dan DevTools terdeteksi otomatis.
               </div>}
         </div>
         <div style={{ padding:'0 24px 20px' }}>
@@ -443,13 +449,24 @@ const SecurityMonitor = ({ active, onViolation }) => {
 
     const { isIOS, isIPadOS, isAndroid, supportsFullscreen, supportsVisibility } = detectDevice();
 
-    // Inject CSS: disable text select + print
+    // Inject CSS: disable text select + print + drag + additional security
     const style = document.createElement('style');
     style.textContent = `
-      body { -webkit-user-select:none; -moz-user-select:none; user-select:none; }
-      @media print { html,body { display:none !important; } }
+      body {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+      @media print { html, body { display: none !important; } }
+      img, video { pointer-events: none; -webkit-user-drag: none; }
+      input, textarea { user-select: text; -webkit-user-select: text; }
     `;
     document.head.appendChild(style);
+
+    // [FIX-SEC] Blokir drag-and-drop teks ke luar
+    const onDragStart = e => e.preventDefault();
+    document.addEventListener('dragstart', onDragStart);
 
     wasInFS.current = !!getFullscreenElement();
 
@@ -490,8 +507,28 @@ const SecurityMonitor = ({ active, onViolation }) => {
       if (e.altKey && (e.key === 'Tab' || e.key === 'F4')) {
         e.preventDefault(); onViolRef.current('tab_switch', `Shortcut pindah app (Alt+${e.key})`); return;
       }
-      if (e.metaKey && !e.ctrlKey) { e.preventDefault(); onViolRef.current('tab_switch', 'Tombol Windows/Meta ditekan'); return; }
+      // [FIX-KEY] Windows key / Meta — snap dan task view
+      if (e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const snapKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+        if (snapKeys.includes(e.key)) {
+          onViolRef.current('split_screen', `Windows Snap (Win+${e.key}) terdeteksi`);
+        } else if (e.key === 'Tab' || e.key === 'D') {
+          onViolRef.current('tab_switch', `Windows Task View/Desktop (Win+${e.key}) terdeteksi`);
+        } else {
+          onViolRef.current('tab_switch', 'Tombol Windows/Meta ditekan');
+        }
+        return;
+      }
+      // [FIX-KEY] Ctrl+W/T/N — tutup/buka tab
       if (e.ctrlKey && ['W', 'T', 'N'].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+      // [FIX-KEY] Alt+Space — window menu (Windows)
+      if (e.altKey && e.key === ' ') { e.preventDefault(); return; }
+      // [FIX-KEY] F5/Ctrl+R — prevent reload saat ujian
+      if (e.key === 'F5' || (e.ctrlKey && e.key.toUpperCase() === 'R')) {
+        e.preventDefault();
+        onViolRef.current('tab_switch', 'Mencoba reload halaman ujian'); return;
+      }
     };
 
     // 6. FULLSCREEN CHANGE EVENT (Desktop + Android Chrome)
@@ -565,20 +602,39 @@ const SecurityMonitor = ({ active, onViolation }) => {
       const devH = !(isIOS || isIPadOS) && (window.outerHeight - window.innerHeight > 160);
       if (devW || devH) { onViolRef.current('devtools', 'DevTools / Console terbuka'); return; }
 
+      // [FIX-ZOOM] Browser zoom-out ekstrem: window jauh lebih besar dari viewport
+      // DPR < 0.8 berarti user zoom out > 80% — window tampak kecil di layar
+      // Ini bisa dipakai untuk "shrink" window agar tidak terdeteksi split screen
+      const dpr = window.devicePixelRatio || 1;
+      if (!isAndroid && !(isIOS || isIPadOS) && dpr < 0.8) {
+        onViolRef.current('split_screen', `Browser zoom-out ekstrem terdeteksi (DPR: ${dpr.toFixed(2)})`); return;
+      }
+
       const tag    = document.activeElement?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA';
       if (typing) return;
 
       const availH = window.screen.availHeight || window.screen.height;
 
-      // Split screen vertical (threshold 80%, sinkron UTBK)
+      // [FIX-SPLIT] Split screen vertikal (tinggi < 80% layar fisik)
       if (!(isIOS || isIPadOS) && window.innerHeight < availH * 0.80) {
         onViolRef.current('split_screen', 'Split screen vertikal terdeteksi'); return;
       }
 
-      // Split screen / floating horizontal (threshold 90%)
-      if (window.innerWidth < window.outerWidth * 0.90) {
-        onViolRef.current('split_screen', isAndroid ? 'Split screen Android terdeteksi' : 'Floating window terdeteksi'); return;
+      // [FIX-SPLIT] Windows Snap / Split horizontal — bandingkan ke screen.width (fisik)
+      // Ini menangkap Windows Snap Left/Right yang tidak terdeteksi via outerWidth
+      const physicalW = window.screen.width || window.outerWidth;
+      if (!(isIOS || isIPadOS) && window.innerWidth < physicalW * 0.85) {
+        const label = isAndroid ? 'Split screen Android terdeteksi'
+          : window.innerWidth < physicalW * 0.55 ? 'Windows Snap / Split screen terdeteksi'
+          : 'Floating window atau browser sidebar terdeteksi';
+        onViolRef.current('split_screen', label); return;
+      }
+
+      // [FIX-SPLIT] Floating / Mini window: innerWidth jauh lebih kecil dari outerWidth
+      if (!(isIOS || isIPadOS) && window.outerWidth > 0 &&
+          window.innerWidth < window.outerWidth * 0.88) {
+        onViolRef.current('split_screen', 'Mini window atau floating browser terdeteksi'); return;
       }
 
       // Android pop-up / overlay
@@ -588,6 +644,12 @@ const SecurityMonitor = ({ active, onViolation }) => {
 
       lastAct.current = Date.now();
     }, 500);
+
+    // [FIX-PiP] Picture-in-Picture: jika PiP aktif dari tab ini, stop ujian
+    const onPiPEnter = () => {
+      onViolRef.current('tab_switch', 'Mode Picture-in-Picture aktif');
+    };
+    document.addEventListener('enterpictureinpicture', onPiPEnter);
 
     if (supportsVisibility) document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
@@ -605,6 +667,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
     return () => {
       clearInterval(checkIv.current);
       if (fsTimer.current) clearTimeout(fsTimer.current);
+      document.removeEventListener('enterpictureinpicture', onPiPEnter);
       if (supportsVisibility) document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('copy', onCopy);
@@ -617,6 +680,7 @@ const SecurityMonitor = ({ active, onViolation }) => {
       window.removeEventListener('pagehide', onPageHide);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('popstate', onPopState);
+      document.removeEventListener('dragstart', onDragStart);
       if (document.head.contains(style)) document.head.removeChild(style);
     };
   // KUNCI: HAPUS onViolation dari deps — sudah pakai ref, tidak perlu re-attach
@@ -713,6 +777,7 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   const lastViolTime      = useRef({});
   const violScoreRef      = useRef(result.violation_score || 0);
   const violCountsRef     = useRef(result.violation_counts || {});
+  const forceSubmitReasonRef = useRef(''); // [FIX-AUTO-SUBMIT] simpan alasan force-submit
   const pauseEnd          = useRef(null);
   // Refs untuk state kritis — handleViolation stabil, tidak ada stale closure
   const securityActiveRef = useRef(true);
@@ -743,7 +808,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
   useWakeLock(securityActive && !isPaused);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768);
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -855,6 +922,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     // FIX: Retry 3x jika submit gagal — pastikan force-submit benar-benar tersimpan
     // Parent handleSubmit(auto=true) sudah handle screen transition terlebih dahulu,
     // jadi retry di sini hanya untuk memastikan data tersimpan ke server
+    // [FIX-AUTO-SUBMIT] Teruskan reason ke parent agar bisa disimpan ke DB
+    forceSubmitReasonRef.current = reason || `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}`;
+
     const attemptSubmit = async (attempt = 1) => {
       try {
         await onSubmitRef.current(arr, currentVScore, true);
@@ -862,8 +932,6 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
         if (attempt < 3) {
           setTimeout(() => attemptSubmit(attempt + 1), 1500 * attempt);
         }
-        // Setelah 3x gagal: submitError banner tampil di result screen
-        // User diarahkan untuk hubungi guru/admin
       }
     };
     attemptSubmit();
@@ -909,8 +977,9 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
     const now      = Date.now();
     const category = VIOLATION_TYPE_MAP[type] ?? type;
     if (!category) return;
-    // Debounce per CATEGORY (bukan type) — cegah visibility+blur double-hit
-    if ((now - (lastViolTime.current[category] || 0)) < VIOLATION_SCORING.debounceMs) return;
+    // [FIX] Debounce per CATEGORY — pakai override per-type jika ada
+    const categoryDebounce = VIOLATION_SCORING.types[category]?.debounceMs ?? VIOLATION_SCORING.debounceMs;
+    if ((now - (lastViolTime.current[category] || 0)) < categoryDebounce) return;
     lastViolTime.current[category] = now;
 
     const cfg = VIOLATION_SCORING.types[category];
@@ -953,9 +1022,14 @@ const ExamRoomContent = ({ session, questions, result, onSubmit, submitting, sub
       return;
     }
 
-    // FIX #1: Auto-submit via forceSubmitRef — tidak ada stale closure
+    // [FIX-AUTO-SUBMIT] Auto-submit ketika skor mencapai/melebihi batas
+    // forceSubmittedRef di-cek ulang di sini untuk cegah race condition
+    // di mana dua violation masuk hampir bersamaan
     if (newScore >= VIOLATION_SCORING.maxTotalScore) {
-      forceSubmitRef.current?.(`poin pelanggaran ${newScore} ≥ ${VIOLATION_SCORING.maxTotalScore}`);
+      if (!forceSubmittedRef.current) {
+        const reason = `Auto-submit: ${category} — skor pelanggaran ${newScore}/${VIOLATION_SCORING.maxTotalScore}`;
+        forceSubmitRef.current?.(reason);
+      }
       return;
     }
 
@@ -1469,24 +1543,6 @@ export default function ExamRoom() {
     } finally { setTokenLoading(false); }
   };
 
-  // ================================================================
-  // FIX #1 UTAMA: handleSubmit
-  //
-  // Perubahan kritis vs versi lama:
-  //   LAMA: setScreen('result') hanya dipanggil kalau RPC sukses.
-  //         → auto-submit via pelanggaran tidak pernah transisi layar
-  //           kalau RPC gagal (siswa terjebak di "limbo").
-  //
-  //   BARU: Kalau auto=true (force-submit), transisi ke result screen
-  //         LANGSUNG sebelum menunggu RPC — persis seperti UTBK.
-  //         RPC tetap dijalankan di background untuk menyimpan nilai.
-  //         Kalau RPC gagal: banner error muncul di result screen
-  //         + data hasil diambil dari exam_results row yang ada.
-  //
-  //   Kalau auto=false (submit manual): perilaku sama seperti sebelumnya
-  //   (tunggu RPC sukses baru transisi) — UX yang lebih aman untuk
-  //   submit manual karena user bisa lihat error dan retry.
-  // ================================================================
   const handleSubmit = async (arr, vScore, auto) => {
     setSubmitting(true); setSubmitError('');
 
@@ -1517,7 +1573,7 @@ export default function ExamRoom() {
       if (auto) {
         supabase.from('exam_results').update({
           force_submitted:     true,
-          force_submit_reason: `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}`,
+          force_submit_reason: forceSubmitReasonRef.current || `poin pelanggaran ≥ ${MAX_VIOLATION_SCORE}`,
           updated_at:          new Date().toISOString(),
         }).eq('id', result.id).catch(() => {});
       }
