@@ -40,7 +40,7 @@ const SchoolReportCardPage = lazy(() => import('./pages/school/SchoolReportCardP
 const PendingApproval = lazy(() => import('./pages/shared/PendingApproval'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const ABTestingDashboard = lazy(() => import('./pages/teacher/ABTestingDashboard'));
-const StudentAttendancePage = lazy(() => import('./pages/student/StudentAttendancePage'));
+const StudentAttendancePage = lazy(() => import('./pages/student/attendance/StudentAttendancePage'));
 const TutorialPage = lazy(() => import('./pages/shared/TutorialPage'));
 
 // ── Loading fallback ──────────────────────────────────────────────
