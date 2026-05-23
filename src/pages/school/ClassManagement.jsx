@@ -1,5 +1,5 @@
 import { useDebounce } from '../../hooks/useDebounce';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -485,7 +485,9 @@ const InviteManagerPortal = ({ profile, classId, className, remainingSlots, maxS
 
 const ActionMenu = ({ cls, profile, remainingSlots = 0, onView, onEdit, onAssign, onImport, onDelete }) => {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [showInvite, setShowInvite] = useState(false);
+  const btnRef = useRef(null);
 
   const menuItems = [
     { icon: Eye,    label: 'Detail',       action: () => { onView(cls);   setOpen(false); }, color: '#374151' },
@@ -494,6 +496,23 @@ const ActionMenu = ({ cls, profile, remainingSlots = 0, onView, onEdit, onAssign
     { icon: Upload, label: 'Import CSV',   action: () => { onImport(cls); setOpen(false); }, color: '#7C3AED' },
     { icon: Trash2, label: 'Hapus',        action: () => { onDelete(cls); setOpen(false); }, color: '#DC2626' },
   ];
+
+  const handleOpen = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setOpen(o => !o);
+  };
+
+  // Tutup saat user scroll
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, true);
+    return () => window.removeEventListener('scroll', close, true);
+  }, [open]);
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -507,27 +526,42 @@ const ActionMenu = ({ cls, profile, remainingSlots = 0, onView, onEdit, onAssign
         <Link2 size={11} /> Link Daftar
       </button>
 
-      {/* 3-dot dropdown */}
-      <button onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
-        style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94A3B8' }}
-        onMouseEnter={e => e.currentTarget.style.background = '#EEF2FF'}
-        onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}>
+      {/* 3-dot button */}
+      <button ref={btnRef} onClick={handleOpen}
+        style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #F1F5F9', background: open ? '#EEF2FF' : '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: open ? '#4F46E5' : '#94A3B8' }}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.background = '#EEF2FF'; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.background = '#F8FAFC'; }}>
         <MoreVertical size={13} />
       </button>
 
-      {open && <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
-        <div style={{ position: 'absolute', right: 0, top: '34px', background: '#fff', borderRadius: '12px', border: '1px solid #F1F5F9', boxShadow: '0 8px 30px rgba(0,0,0,.12)', zIndex: 51, minWidth: '160px', padding: '4px' }}>
-          {menuItems.map(item => (
-            <button key={item.label} onClick={item.action}
-              style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: item.color, borderRadius: '8px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              <item.icon size={13} />{item.label}
-            </button>
-          ))}
-        </div>
-      </>}
+      {/* Portal dropdown — di-render ke document.body agar tidak terpotong overflow */}
+      {open && ReactDOM.createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: 'fixed',
+            top: menuPos.top,
+            right: menuPos.right,
+            background: '#fff',
+            borderRadius: '12px',
+            border: '1px solid #F1F5F9',
+            boxShadow: '0 8px 30px rgba(0,0,0,.14)',
+            zIndex: 1000,
+            minWidth: '160px',
+            padding: '4px',
+          }}>
+            {menuItems.map(item => (
+              <button key={item.label} onClick={item.action}
+                style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: item.color, borderRadius: '8px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500', textAlign: 'left' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <item.icon size={13} />{item.label}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
 
       {showInvite && profile && (
         <InviteManagerPortal
