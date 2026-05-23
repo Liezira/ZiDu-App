@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   QrCode, Keyboard, CheckCircle2, AlertCircle,
   Camera, CameraOff, Loader2, Clock, RefreshCw, Barcode,
