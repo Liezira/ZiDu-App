@@ -5,7 +5,7 @@ import {
   ClipboardCheck, Plus, X, ChevronDown,
   Download, TrendingUp, Calendar, Clock,
   RefreshCw, AlertCircle, CheckCircle2,
-  QrCode, List, Maximize2, Copy, Check,
+  QrCode, List, Maximize2, Copy, Check, ScanBarcode,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────
@@ -468,7 +468,7 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
         <div style={{ padding:'10px 22px', borderBottom:'1px solid #F1F5F9', display:'flex', gap:0 }}>
           {[
             { key:'qr',      icon: <QrCode  size={13} />, label:'QR',      color:'#16A34A' },
-            { key:'barcode', icon: <Barcode size={13} />, label:'Barcode', color:'#6366F1' },
+            { key:'barcode', icon: <ScanBarcode size={13} />, label:'Barcode', color:'#6366F1' },
             { key:'list',    icon: <List    size={13} />, label:'Daftar',  color:'#4F46E5' },
           ].map((t, i, arr) => (
             <button key={t.key} onClick={() => setDrawerTab(t.key)}
