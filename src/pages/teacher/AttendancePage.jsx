@@ -11,52 +11,60 @@ import {
 // ─────────────────────────────────────────────
 // Komponen: Panel QR Code (ditampilkan di drawer guru)
 // ─────────────────────────────────────────────
-const QRPanel = ({ token, title }) => {
+// ── QRPanel & BarcodePanel combined ──
+const MediaPanel = ({ token, title, displayMode }) => {
   const [fullscreen, setFullscreen] = useState(false);
   const [copied,     setCopied]     = useState(false);
 
-  // QR code dibuat via qrserver API (tidak perlu npm tambahan)
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=${encodeURIComponent(token)}`;
+  const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=${encodeURIComponent(token)}`;
   const qrUrlLarge = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&ecc=M&data=${encodeURIComponent(token)}`;
+  // Barcode Code-128 via TEC-IT public API
+  const barcodeUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(token)}&code=Code128&unit=Fit&dpi=120&imagetype=png&rotation=0&color=%23000000&bgcolor=%23FFFFFF&qunit=Mm&quiet=0`;
+  const barcodeLarge = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(token)}&code=Code128&unit=Fit&dpi=200&imagetype=png&rotation=0&color=%23000000&bgcolor=%23FFFFFF&qunit=Mm&quiet=0`;
+
+  const isBarcode = displayMode === 'barcode';
+  const accentColor = isBarcode ? '#6366F1' : '#16A34A';
+  const accentBg    = isBarcode ? '#EEF2FF' : '#F0FDF4';
 
   const copyToken = async () => {
-    try { await navigator.clipboard.writeText(token); } catch (_) { /* fallback ok */ }
+    try { await navigator.clipboard.writeText(token); } catch (_) {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <>
-      {/* ── Panel inline ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '18px 0 10px' }}>
-        <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginBottom: 2 }}>
-          Tampilkan QR ini kepada siswa untuk absen otomatis
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '16px 0 10px' }}>
+        <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center' }}>
+          {isBarcode
+            ? 'Tampilkan barcode ini atau cetak untuk absen siswa'
+            : 'Tampilkan QR ini kepada siswa untuk absen otomatis'}
         </div>
 
-        {/* QR image */}
+        {/* Image */}
         <div style={{
-          position: 'relative', borderRadius: 14,
-          border: '3px solid #F0FDF4', padding: 8,
-          background: '#fff', boxShadow: '0 4px 20px rgba(22,163,74,.12)',
-          cursor: 'pointer',
+          position: 'relative', borderRadius: isBarcode ? 10 : 14,
+          border: `3px solid ${accentBg}`, padding: isBarcode ? '12px 20px' : 8,
+          background: '#fff', boxShadow: `0 4px 20px ${accentColor}20`,
+          cursor: 'pointer', width: isBarcode ? '90%' : 'auto',
         }} onClick={() => setFullscreen(true)} title="Perbesar">
           <img
-            src={qrUrl}
-            alt="QR Absensi"
-            style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
+            src={isBarcode ? barcodeUrl : qrUrl}
+            alt={isBarcode ? 'Barcode Absensi' : 'QR Absensi'}
+            style={{ width: isBarcode ? '100%' : 200, height: isBarcode ? 'auto' : 200, display: 'block', borderRadius: 6 }}
             onError={e => { e.target.style.display = 'none'; }}
           />
           <div style={{
-            position: 'absolute', bottom: 10, right: 10,
-            width: 26, height: 26, borderRadius: 7,
-            background: 'rgba(22,163,74,.12)',
+            position: 'absolute', bottom: 8, right: 8,
+            width: 24, height: 24, borderRadius: 7,
+            background: `${accentColor}18`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Maximize2 size={12} color="#16A34A" />
+            <Maximize2 size={11} color={accentColor} />
           </div>
         </div>
 
-        {/* Token teks */}
+        {/* Token */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           background: '#F8FAFC', borderRadius: 10, padding: '9px 14px',
@@ -65,34 +73,42 @@ const QRPanel = ({ token, title }) => {
           <span style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: 5 }}>
             {token}
           </span>
-          <button onClick={copyToken}
-            style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #E2E8F0', background: copied ? '#F0FDF4' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: copied ? '#16A34A' : '#64748B', transition: 'all .15s' }}>
+          <button onClick={copyToken} style={{
+            padding: '5px 8px', borderRadius: 7, border: '1px solid #E2E8F0',
+            background: copied ? accentBg : '#fff', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600,
+            color: copied ? accentColor : '#64748B', transition: 'all .15s',
+          }}>
             {copied ? <><Check size={12} />Disalin!</> : <><Copy size={12} />Salin</>}
           </button>
         </div>
-
         <p style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', margin: 0 }}>
-          Klik QR untuk perbesar · Token berlaku selama sesi terbuka
+          Klik gambar untuk perbesar · Token berlaku selama sesi terbuka
         </p>
       </div>
 
-      {/* ── Fullscreen modal ── */}
+      {/* Fullscreen */}
       {fullscreen && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 }}
           onClick={() => setFullscreen(false)}>
           <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center' }}>{title}</div>
-          <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: '0 0 80px rgba(22,163,74,.3)' }}
-            onClick={e => e.stopPropagation()}>
-            <img src={qrUrlLarge} alt="QR Absensi" style={{ width: 300, height: 300, display: 'block', borderRadius: 10 }} />
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: isBarcode ? '20px 30px' : 16,
+            boxShadow: `0 0 80px ${accentColor}40`, maxWidth: isBarcode ? 480 : 'auto',
+          }} onClick={e => e.stopPropagation()}>
+            <img src={isBarcode ? barcodeLarge : qrUrlLarge} alt="Absensi"
+              style={{ width: isBarcode ? '100%' : 300, height: isBarcode ? 'auto' : 300, display: 'block', borderRadius: 8 }} />
           </div>
-          <div style={{ fontFamily: 'monospace', fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: 8 }}>{token}</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 26, fontWeight: 800, color: '#fff', letterSpacing: 8 }}>{token}</div>
           <div style={{ fontSize: 13, color: '#94A3B8' }}>Ketuk di luar untuk tutup</div>
         </div>
       )}
     </>
   );
 };
+
+// Legacy alias so existing code works
+const QRPanel = ({ token, title }) => <MediaPanel token={token} title={title} displayMode="qr" />;
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -328,7 +344,7 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState({});
   const [toast,     setToast]     = useState('');
-  const [drawerTab, setDrawerTab] = useState('qr'); // 'qr' | 'list'
+  const [drawerTab, setDrawerTab] = useState('qr'); // 'qr' | 'barcode' | 'list'
   const sessionTitle = session.subjects?.name
     ? `${session.subjects.name} — ${session.classes?.name}`
     : session.classes?.name || 'Absensi';
@@ -448,21 +464,25 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
           </div>
         </div>
 
-        {/* ── Tab switcher QR / Daftar ── */}
+        {/* ── Tab switcher QR / Barcode / Daftar ── */}
         <div style={{ padding:'10px 22px', borderBottom:'1px solid #F1F5F9', display:'flex', gap:0 }}>
           {[
-            { key:'qr',   icon: <QrCode size={13} />, label:'QR Code' },
-            { key:'list', icon: <List   size={13} />, label:'Daftar Siswa' },
-          ].map(t => (
+            { key:'qr',      icon: <QrCode  size={13} />, label:'QR',      color:'#16A34A' },
+            { key:'barcode', icon: <Barcode size={13} />, label:'Barcode', color:'#6366F1' },
+            { key:'list',    icon: <List    size={13} />, label:'Daftar',  color:'#4F46E5' },
+          ].map((t, i, arr) => (
             <button key={t.key} onClick={() => setDrawerTab(t.key)}
               style={{
-                flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
                 padding:'9px 0', border:'none', cursor:'pointer',
-                fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
-                background: drawerTab === t.key ? '#16A34A' : '#F8FAFC',
+                fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                background: drawerTab === t.key ? t.color : '#F8FAFC',
                 color: drawerTab === t.key ? '#fff' : '#64748B',
-                borderRadius: t.key === 'qr' ? '8px 0 0 8px' : '0 8px 8px 0',
-                border: `1.5px solid ${drawerTab === t.key ? '#16A34A' : '#E2E8F0'}`,
+                borderRadius: i === 0 ? '8px 0 0 8px' : i === arr.length-1 ? '0 8px 8px 0' : '0',
+                borderTop: `1.5px solid ${drawerTab === t.key ? t.color : '#E2E8F0'}`,
+                borderBottom: `1.5px solid ${drawerTab === t.key ? t.color : '#E2E8F0'}`,
+                borderLeft: `1.5px solid ${drawerTab === t.key ? t.color : '#E2E8F0'}`,
+                borderRight: i === arr.length-1 ? `1.5px solid ${drawerTab === t.key ? t.color : '#E2E8F0'}` : 'none',
                 transition:'all .15s',
               }}>
               {t.icon} {t.label}
@@ -470,10 +490,10 @@ const InputAbsensiDrawer = ({ session, onClose, onUpdated }) => {
           ))}
         </div>
 
-        {/* ── QR Code Panel ── */}
-        {drawerTab === 'qr' && (
+        {/* ── QR / Barcode Panel ── */}
+        {(drawerTab === 'qr' || drawerTab === 'barcode') && (
           <div style={{ flex:1, overflowY:'auto', padding:'0 22px 16px' }}>
-            <QRPanel token={session.token} title={sessionTitle} />
+            <MediaPanel token={session.token} title={sessionTitle} displayMode={drawerTab} />
 
             {/* Info ringkasan kehadiran */}
             <div style={{ marginTop:8 }}>
